@@ -1,14 +1,25 @@
 /tmp
 /out-tsc
 
+# separate nested git repo for PM (Backlog.md), never published with source
+/project/
+
 # vendored third-party reference docs, not project source
 /zotero-plugin-docs
+/zotero-plugin-toolkit-docs
 
 /node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-lock.yaml
 /.pnp
 .pnp.js
 
-.vscode/*
+# zotero-plugin-template / scaffold
+.DS_Store
+.env
+.scaffold
+build
+logs
+tsconfig.tsbuildinfo
