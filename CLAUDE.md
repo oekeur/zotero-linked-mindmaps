@@ -8,7 +8,7 @@ Pre-implementation: the repo is built on [windingwind/zotero-plugin-template](ht
 
 Plugin name: **Zotero Linked Mindmaps** (`config.addonName`/`addonRef` in `package.json`) — chosen to avoid colliding with `samreading/zotero-mindmap`, an existing, different plugin named in `project/PRODUCT.md:23` that this project improves on.
 
-Two placeholders in `package.json` need real values before a release build/publish (the scaffold build itself works fine without them): `config.addonID` (currently `zoterolinkedmindmaps@example.com`) and `repository.url` (currently a guessed `github.com/oscarkeur/zotero-linked-mindmaps` — the repo has no git remote configured yet, confirm the actual owner/repo).
+Two placeholders in `package.json` need real values before a release build/publish (the scaffold build itself works fine without them): `config.addonID` (currently `zoterolinkedmindmaps@example.com`) and `repository.url` (currently a guessed `github.com/oscarkeur/zotero-linked-mindmaps` — wrong owner; the actual git remote is `oekeur/zotero-linked-mindmaps`).
 
 ## Commands
 
