@@ -8,6 +8,9 @@
 /zotero-plugin-docs
 /zotero-plugin-toolkit-docs
 
+# scaffold's template example code, kept as a reference, not project source
+/zotero-plugin-template-examples
+
 /node_modules
 npm-debug.log*
 yarn-debug.log*

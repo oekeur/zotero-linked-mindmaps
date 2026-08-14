@@ -40,6 +40,7 @@ zoteroMindmap is a **Zotero 7 plugin** (item pane panel + main-window tab, per Z
   - Most relevant to this project specifically: `zotero-data-model.md`, `custom-section-item-pane.md`/`itemPaneManager.md` (for the planned Connections item-pane panel), and `zotero-pane.md` (for the mindmap main-window tab).
 
 - `zotero-plugin-toolkit-docs/` — a gitignored, vendored local clone of `windingwind/zotero-plugin-toolkit` (the `docs/` subtree covers the helper library this template's `src/modules/` code is built on — managers for menus, item panes, preference panes, shortcuts, etc.). Read files under it directly instead of fetching GitHub. Refresh with `cd zotero-plugin-toolkit-docs && git pull`.
+- `zotero-plugin-template-examples/` — a gitignored copy of `windingwind/zotero-plugin-template`'s demo code (`src/modules/examples.ts` and its wiring), moved out of `src/` (TASK-4) rather than deleted so the patterns (registering a menu item/shortcut/item-pane section) stay on hand for reference. Not refreshed from upstream; it's a one-time snapshot, not a tracked vendor clone.
 
 ## Engineering standards
 
