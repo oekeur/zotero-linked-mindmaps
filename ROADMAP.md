@@ -31,3 +31,7 @@ Links that reach from one mindmap into a node whose membership lives in another,
 ## Phase 5: Library integration polish
 
 Filter mindmap-storage notes out of the default item tree, behind a settings toggle.
+
+## Phase 6: Node grouping
+
+Select several nodes on a mindmap and visually group them, separate from a typed/named link. Visual treatment not decided yet — see PRODUCT.md and TASK-34.
