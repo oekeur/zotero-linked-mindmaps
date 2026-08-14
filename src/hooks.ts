@@ -8,6 +8,7 @@ import {
 import { getString, initLocale } from "./utils/locale";
 import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
+import { registerSpikeShortcut } from "./spike/cytoscapeSpike";
 
 async function onStartup() {
   await Promise.all([
@@ -23,6 +24,9 @@ async function onStartup() {
   BasicExampleFactory.registerNotifier();
 
   KeyExampleFactory.registerShortcuts();
+
+  // TASK-1 spike (Shift+G opens the Cytoscape spike tab) — remove with src/spike/
+  registerSpikeShortcut();
 
   await UIExampleFactory.registerExtraColumn();
 
