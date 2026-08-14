@@ -5,16 +5,16 @@
   "description": "Zotero 7 plugin for typed, named links between items and notes, organized into multiple named mindmaps.",
   "config": {
     "addonName": "Zotero Linked Mindmaps",
-    "addonID": "zoterolinkedmindmaps@example.com",
+    "addonID": "zoterolinkedmindmaps@oekeur.github.io",
     "addonRef": "zoterolinkedmindmaps",
     "addonInstance": "ZoteroLinkedMindmaps",
     "prefsPrefix": "extensions.zotero.zoterolinkedmindmaps"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oscarkeur/zotero-linked-mindmaps.git"
+    "url": "git+https://github.com/oekeur/zotero-linked-mindmaps.git"
   },
-  "homepage": "https://github.com/oscarkeur/zotero-linked-mindmaps",
+  "homepage": "https://github.com/oekeur/zotero-linked-mindmaps",
   "author": "Oscar Keur",
   "license": "AGPL-3.0-or-later",
   "scripts": {
