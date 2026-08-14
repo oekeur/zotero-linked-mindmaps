@@ -38,4 +38,14 @@ zoteroMindmap is a **Zotero 7 plugin** (item pane panel + main-window tab, per Z
   - `api/` — generated API reference (`itemPaneManager`, `itemTreeManager`, `menuManager`, `preferencePanes`, `reader`)
   - `tools/` — plugin scaffolding/build tooling docs
   - Most relevant to this project specifically: `zotero-data-model.md`, `custom-section-item-pane.md`/`itemPaneManager.md` (for the planned Connections item-pane panel), and `zotero-pane.md` (for the mindmap main-window tab).
+
 - `zotero-plugin-toolkit-docs/` — a gitignored, vendored local clone of `windingwind/zotero-plugin-toolkit` (the `docs/` subtree covers the helper library this template's `src/modules/` code is built on — managers for menus, item panes, preference panes, shortcuts, etc.). Read files under it directly instead of fetching GitHub. Refresh with `cd zotero-plugin-toolkit-docs && git pull`.
+
+## Engineering standards
+
+- **Linting/formatting**: `eslint.config.mjs` (`@zotero-plugin/eslint-config`) + Prettier (config in `package.json`). `@typescript-eslint/no-unused-vars` is currently off repo-wide because of leftover template example code (`src/modules/examples.ts`) — see the `TODO(TASK-3)` comment in `eslint.config.mjs`; re-enable it once that code is replaced. A pre-commit hook (husky + lint-staged) runs Prettier/ESLint on staged files automatically; `npm run lint:check` runs both across the whole repo.
+- **Static analysis**: `tsconfig.json` extends `zotero-types/entries/sandbox`, which sets `"strict": true`. `npm run build` runs `tsc --noEmit` as part of the build — that's the type-check gate, not a separate step.
+- **Testing**: Mocha via `zotero-plugin test`, run against a live Zotero instance (see `npm test` in Commands). Worth covering: data-model transforms and link CRUD/serialization logic in `src/modules/`. Not practical to unit test here: XUL rendering, Cytoscape layout, live Zotero API interop (per the item-tree row-filtering risk already noted in project memory) — verify those manually via `npm start` instead.
+- **Commit convention**: `type(scope)!: description #issue` — `type` required (one of `feat`, `fix`, `improve`, `hotfix`, `chore`, `docs`, `test`), `scope` optional but recommended, `!` marks a breaking change, a trailing `#issue` reference is optional and not hook-enforced. Enforced by a `commit-msg` hook (commitlint, config in `commitlint.config.mjs`).
+- **Editor config**: `.editorconfig` (2-space indent, LF, UTF-8, trim trailing whitespace, final newline) is the only shared editor config — `.idea/` is gitignored as personal workspace state.
+- **CI**: `.github/workflows/ci.yml` runs lint, build, and test jobs on push/PR to `main` (restored from `windingwind/zotero-plugin-template`, which the initial scaffold commit dropped). `release.yml` (tag-triggered, calls `npm run release`) is intentionally not added yet — it needs the `config.addonID`/`repository.url` placeholders fixed first (see Project status above).
