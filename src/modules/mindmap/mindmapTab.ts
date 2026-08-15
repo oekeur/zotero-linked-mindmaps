@@ -1,11 +1,12 @@
 /**
  * Main-window "Mindmap" tab shell. Registers a tab-bar entry and a File-menu
- * item to open it, and loads the v1 mindmap document from storage into it.
- * Graph rendering is a separate task - this only shows a placeholder or an
- * error state depending on the load outcome.
+ * item to open it, loads the v1 mindmap document from storage, and renders
+ * it as a graph that stays in sync with live edits.
  */
 import { getString } from "../../utils/locale";
-import { readMindmapDocument, StorageError } from "./storage";
+import { findMindmapNote, readMindmapDocument, StorageError } from "./storage";
+import { getLinkTypes } from "./linkTypes";
+import { attachLiveRefresh, renderMindmap } from "./graphRenderer";
 import type { MindmapDocument } from "./schema";
 
 const TAB_TYPE = "zoterolinkedmindmaps-mindmap";
@@ -13,15 +14,7 @@ const MENU_ID = "zotero-linked-mindmaps-menuitem-open-mindmap";
 
 let mindmapTabID: string | undefined;
 let currentDocument: MindmapDocument | undefined;
-
-function renderPlaceholder(container: HTMLElement, doc: MindmapDocument) {
-  const el = container.ownerDocument!.createElementNS(
-    "http://www.w3.org/1999/xhtml",
-    "p",
-  ) as unknown as HTMLElement;
-  el.textContent = `${doc.nodes.length} nodes, ${doc.links.length} links loaded — rendering not yet implemented.`;
-  container.appendChild(el as unknown as Node);
-}
+let teardownLiveRefresh: (() => void) | undefined;
 
 function renderError(container: HTMLElement, err: StorageError) {
   const el = container.ownerDocument!.createElementNS(
@@ -35,13 +28,19 @@ function renderError(container: HTMLElement, err: StorageError) {
 async function loadMindmapInto(container: HTMLElement) {
   try {
     currentDocument = await readMindmapDocument();
-    renderPlaceholder(container, currentDocument);
   } catch (err) {
     if (err instanceof StorageError) {
       renderError(container, err);
       return;
     }
     throw err;
+  }
+
+  const linkTypes = getLinkTypes();
+  const cy = await renderMindmap(container, currentDocument, linkTypes);
+  const note = await findMindmapNote();
+  if (note) {
+    teardownLiveRefresh = attachLiveRefresh(cy, container, note.id, linkTypes);
   }
 }
 
@@ -60,6 +59,8 @@ export async function openMindmapTab(): Promise<void> {
     select: true,
     onClose: () => {
       mindmapTabID = undefined;
+      teardownLiveRefresh?.();
+      teardownLiveRefresh = undefined;
     },
   });
   mindmapTabID = id;
