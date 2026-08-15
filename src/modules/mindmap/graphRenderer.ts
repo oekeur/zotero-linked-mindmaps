@@ -32,7 +32,7 @@ export const UNKNOWN_TYPE_LABEL = "(unknown type)";
 // Zotero's main chrome window is a XUL document with no <head> element, but
 // Cytoscape's canvas renderer unconditionally does
 // document.head.insertBefore(...) on init to inject a stylesheet. Shim a
-// <head> in so that doesn't throw (same fix as src/spike/cytoscapeSpike.ts).
+// <head> in so that doesn't throw.
 function ensureDocumentHead(doc: Document) {
   if (doc.head) {
     return;

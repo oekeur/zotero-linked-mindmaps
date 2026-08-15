@@ -123,6 +123,27 @@ export function registerMindmapMenu(): void {
   });
 }
 
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) {
+    return false;
+  }
+  const tag = el.tagName?.toLowerCase();
+  return el.isContentEditable || tag === "input" || tag === "textarea";
+}
+
+export function registerMindmapShortcut(): void {
+  ztoolkit.Keyboard.register((ev, keyOptions) => {
+    if (!keyOptions.keyboard?.equals("shift,g")) {
+      return;
+    }
+    if (isTextEntryTarget(ev.target)) {
+      return;
+    }
+    void openMindmapTab();
+  });
+}
+
 export function closeMindmapTab(): void {
   if (!mindmapTabID) {
     return;

@@ -1,11 +1,11 @@
 import { getString, initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
-import { registerSpikeShortcut } from "./spike/cytoscapeSpike";
 import { ConnectionsPanelFactory } from "./modules/mindmap/connectionsPanel";
 import { LibraryContextMenuFactory } from "./modules/mindmap/libraryContextMenu";
 import {
   closeMindmapTab,
   registerMindmapMenu,
+  registerMindmapShortcut,
 } from "./modules/mindmap/mindmapTab";
 import {
   registerDeletionObserver,
@@ -35,8 +35,7 @@ async function onStartup() {
     image: `${rootURI}content/icons/favicon.png`,
   });
 
-  // TASK-1 spike (Shift+G opens the Cytoscape spike tab) — remove with src/spike/
-  registerSpikeShortcut();
+  registerMindmapShortcut();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
