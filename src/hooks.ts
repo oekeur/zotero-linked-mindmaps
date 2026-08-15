@@ -10,6 +10,7 @@ import {
   registerDeletionObserver,
   unregisterDeletionObserver,
 } from "./modules/mindmap/deletionCleanup";
+import { renderLinkTypesSettings } from "./modules/mindmap/linkTypesSettings";
 
 let deletionObserverID: string | undefined;
 
@@ -24,6 +25,14 @@ async function onStartup() {
 
   ConnectionsPanelFactory.register();
   deletionObserverID = registerDeletionObserver();
+
+  await Zotero.PreferencePanes.register({
+    pluginID: addon.data.config.addonID,
+    id: `${addon.data.config.addonRef}-link-types-pane`,
+    src: rootURI + "content/preferences.xhtml",
+    label: getString("preferences-pane-label"),
+    image: `${rootURI}content/icons/favicon.png`,
+  });
 
   // TASK-1 spike (Shift+G opens the Cytoscape spike tab) — remove with src/spike/
   registerSpikeShortcut();
@@ -98,6 +107,11 @@ async function onNotify(
 
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   switch (type) {
+    case "link-types-pane-load":
+      if (data.container) {
+        renderLinkTypesSettings(data.container as HTMLElement);
+      }
+      break;
     default:
       break;
   }
