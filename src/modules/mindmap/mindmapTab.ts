@@ -26,7 +26,10 @@ function renderError(container: HTMLElement, err: StorageError) {
   container.appendChild(el as unknown as Node);
 }
 
-async function loadMindmapInto(container: HTMLElement) {
+async function loadMindmapInto(
+  container: HTMLElement,
+  dockContainer: HTMLElement,
+) {
   try {
     currentDocument = await readMindmapDocument();
   } catch (err) {
@@ -38,14 +41,25 @@ async function loadMindmapInto(container: HTMLElement) {
   }
 
   const linkTypes = getLinkTypes();
-  const cy = await renderMindmap(container, currentDocument, linkTypes);
+  const cy = await renderMindmap(
+    container,
+    currentDocument,
+    linkTypes,
+    dockContainer,
+  );
   const layoutResult = await layoutUnplacedNodes(cy, currentDocument);
   if (layoutResult) {
     currentDocument = layoutResult;
   }
   const note = await findMindmapNote();
   if (note) {
-    teardownLiveRefresh = attachLiveRefresh(cy, container, note.id, linkTypes);
+    teardownLiveRefresh = attachLiveRefresh(
+      cy,
+      container,
+      note.id,
+      linkTypes,
+      dockContainer,
+    );
   }
 }
 
@@ -71,15 +85,31 @@ export async function openMindmapTab(): Promise<void> {
   mindmapTabID = id;
 
   const doc = container.ownerDocument!;
+  const wrapper = doc.createElementNS(
+    "http://www.w3.org/1999/xhtml",
+    "div",
+  ) as unknown as HTMLElement;
+  wrapper.style.cssText = "display: flex; width: 100%; height: 100%;";
+  container.appendChild(wrapper as unknown as Node);
+
   const div = doc.createElementNS(
     "http://www.w3.org/1999/xhtml",
     "div",
   ) as unknown as HTMLElement;
   div.id = "zoterolinkedmindmaps-mindmap-container";
-  div.style.cssText = "width: 100%; height: 100%; position: relative;";
-  container.appendChild(div as unknown as Node);
+  div.style.cssText = "flex: 1; height: 100%; position: relative;";
+  wrapper.appendChild(div as unknown as Node);
 
-  await loadMindmapInto(div);
+  const dockContainer = doc.createElementNS(
+    "http://www.w3.org/1999/xhtml",
+    "div",
+  ) as unknown as HTMLElement;
+  dockContainer.id = "zoterolinkedmindmaps-mindmap-connections-dock";
+  dockContainer.style.cssText =
+    "display: none; width: 320px; height: 100%; overflow: auto; border-left: 1px solid; padding: 8px;";
+  wrapper.appendChild(dockContainer as unknown as Node);
+
+  await loadMindmapInto(div, dockContainer);
 }
 
 export function registerMindmapMenu(): void {

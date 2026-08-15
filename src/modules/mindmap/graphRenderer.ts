@@ -16,6 +16,7 @@ import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfi
 import { readMindmapDocument } from "./storage";
 import { layoutUnplacedNodes } from "./layout";
 import { isUnplaced } from "./schema";
+import { renderConnectionsContent } from "./connectionsPanel";
 import type { LinkType } from "./linkTypes";
 import type {
   MindmapDocument,
@@ -44,8 +45,12 @@ function ensureDocumentHead(doc: Document) {
   Object.defineProperty(doc, "head", { value: head, configurable: true });
 }
 
+function resolveZoteroItem(ref: ZoteroObjectRef): Zotero.Item | false {
+  return Zotero.Items.getByLibraryAndKey(ref.libraryID, ref.key);
+}
+
 export function resolveNodeLabel(ref: ZoteroObjectRef): string {
-  const target = Zotero.Items.getByLibraryAndKey(ref.libraryID, ref.key);
+  const target = resolveZoteroItem(ref);
   return target ? target.getDisplayTitle() : MISSING_ITEM_LABEL;
 }
 
@@ -227,7 +232,7 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
  * synchronous - awaited here to match the real behavior.
  */
 async function openZoteroRef(ref: ZoteroObjectRef): Promise<void> {
-  const item = Zotero.Items.getByLibraryAndKey(ref.libraryID, ref.key);
+  const item = resolveZoteroItem(ref);
   if (!item) {
     return;
   }
@@ -252,10 +257,59 @@ export function attachNodeClickHandler(
   });
 }
 
+/**
+ * Wires right-click (Cytoscape's "cxttap" event) on a node to dock the same
+ * Connections panel content the item-pane mount renders (renderConnections
+ * Content), scoped to that node's item/note, into `dockContainer` next to
+ * the graph - reusing C1's component rather than a parallel implementation
+ * (AC #2). Also suppresses the native browser/OS context menu over the
+ * graph, since the right-click here has its own meaning.
+ *
+ * Right-clicking the node that's already docked hides the dock again;
+ * right-clicking a different node re-renders in place. This toggle state
+ * is local to the handler and never synced with the item-pane mount's own
+ * open/closed state (AC #3).
+ */
+export function attachNodeContextMenuHandler(
+  cy: cytoscape.Core,
+  nodeRefsById: Map<string, ZoteroObjectRef>,
+  dockContainer: HTMLElement,
+): void {
+  let dockedNodeId: string | undefined;
+
+  cy.container()?.addEventListener("contextmenu", (evt) => {
+    evt.preventDefault();
+  });
+
+  cy.on("cxttap", "node", (evt) => {
+    const nodeId = evt.target.id();
+    if (dockedNodeId === nodeId) {
+      dockContainer.style.display = "none";
+      dockContainer.textContent = "";
+      dockedNodeId = undefined;
+      return;
+    }
+
+    const ref = nodeRefsById.get(nodeId);
+    if (!ref) {
+      return;
+    }
+    const item = resolveZoteroItem(ref);
+    if (!item) {
+      return;
+    }
+
+    dockedNodeId = nodeId;
+    dockContainer.style.display = "";
+    void renderConnectionsContent(dockContainer, item);
+  });
+}
+
 export async function renderMindmap(
   container: HTMLElement,
   doc: MindmapDocument,
   linkTypes: LinkType[],
+  dockContainer?: HTMLElement,
 ): Promise<cytoscape.Core> {
   const win = container.ownerDocument!.defaultView!;
   ensureDocumentHead(container.ownerDocument!);
@@ -277,6 +331,9 @@ export async function renderMindmap(
     layout: { name: "preset" },
   });
   attachNodeClickHandler(cy, nodeRefsById);
+  if (dockContainer) {
+    attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer);
+  }
   return cy;
 }
 
@@ -295,6 +352,7 @@ export function attachLiveRefresh(
   container: HTMLElement,
   storageNoteItemID: number,
   linkTypes: LinkType[],
+  dockContainer?: HTMLElement,
 ): () => void {
   let current = cy;
   let refreshing = false;
@@ -317,7 +375,7 @@ export function attachLiveRefresh(
     try {
       const doc = await readMindmapDocument();
       current.destroy();
-      current = await renderMindmap(container, doc, linkTypes);
+      current = await renderMindmap(container, doc, linkTypes, dockContainer);
       await layoutUnplacedNodes(current, doc);
     } catch (err) {
       Zotero.debug(
