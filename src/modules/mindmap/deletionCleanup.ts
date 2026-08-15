@@ -14,6 +14,7 @@
  * pre-trash snapshot.
  */
 import {
+  findMindmapNote,
   readMindmapDocument,
   writeMindmapDocument,
   StorageError,
@@ -29,6 +30,15 @@ async function pruneLibrary(
   libraryID: number,
   deletedRefs: Set<string>,
 ): Promise<void> {
+  // Read-only existence check first: readMindmapDocument's
+  // findOrCreateMindmapNote would otherwise create a mindmap storage note
+  // as a side effect of this notifier, even when the deleted item has
+  // nothing to do with any mindmap (or *is* the storage note itself being
+  // deleted) and no note exists yet to prune.
+  if (!(await findMindmapNote(libraryID))) {
+    return;
+  }
+
   let doc;
   try {
     doc = await readMindmapDocument(libraryID);
