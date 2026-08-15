@@ -16,10 +16,10 @@ export const STORAGE_TAG = "_zoterolinkedmindmaps-storage-v1";
 
 const DATA_BLOCK_ID = "zoterolinkedmindmaps-data";
 const DATA_BLOCK_OPEN = `<pre id="${DATA_BLOCK_ID}">`;
-// Zotero's note editor re-serializes a note's HTML through its ProseMirror
-// schema the first time the note is opened, and that schema drops attributes
-// it doesn't know - including the id on our <pre>. Match any <pre> so an
-// editor-normalized note still reads back.
+// Zotero re-serializes a note's HTML through its own schema after save,
+// wrapping the body in a data-schema-version div and dropping attributes the
+// schema doesn't know - including the id on our <pre>. That happens without
+// the user ever opening the note, so match any <pre> rather than the id.
 const DATA_BLOCK_PATTERN = /<pre\b[^>]*>([\s\S]*?)<\/pre>/;
 const NOTE_WARNING =
   "<p>This note stores structured data for the Zotero Linked Mindmaps plugin. Editing it manually will corrupt your mindmap.</p>";
