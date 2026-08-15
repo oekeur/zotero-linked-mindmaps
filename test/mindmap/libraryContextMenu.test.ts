@@ -5,7 +5,10 @@ import {
   readMindmapDocument,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
-import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
+import {
+  CURRENT_SCHEMA_VERSION,
+  isUnplaced,
+} from "../../src/modules/mindmap/schema";
 
 async function clearStorageNote() {
   const item = await findMindmapNote();
@@ -47,9 +50,7 @@ describe("mindmap/libraryContextMenu", function () {
       assert.lengthOf(doc.nodes, 2);
       const keys = doc.nodes.map((n) => n.ref.key).sort();
       assert.deepEqual(keys, [article.key, note.key].sort());
-      assert.isTrue(
-        doc.nodes.every((n) => n.position.x === 0 && n.position.y === 0),
-      );
+      assert.isTrue(doc.nodes.every((n) => isUnplaced(n.position)));
     });
 
     it("skips an item that's already a node instead of duplicating it", async function () {

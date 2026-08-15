@@ -7,29 +7,14 @@
 import { getString } from "../../utils/locale";
 import { updateMindmapDocument } from "./storage";
 import { openAddLinkDialog } from "./addLinkForm";
-import type { MindmapNode, ZoteroObjectRef } from "./schema";
+import { canBeMindmapNode, createMemberNode, refFor } from "./mutations";
+import { refsMatch } from "./schema";
 
 const ADD_TO_MINDMAP_MENU_ID = "zotero-linked-mindmaps-itemmenu-add-to-mindmap";
 const ADD_LINK_MENU_ID = "zotero-linked-mindmaps-itemmenu-add-link";
 
-function isEligible(item: Zotero.Item): boolean {
-  return item.isRegularItem() || item.isNote();
-}
-
 function eligibleSelection(win: _ZoteroTypes.MainWindow): Zotero.Item[] {
-  return win.ZoteroPane.getSelectedItems().filter(isEligible);
-}
-
-function refsMatch(a: ZoteroObjectRef, b: ZoteroObjectRef): boolean {
-  return a.kind === b.kind && a.libraryID === b.libraryID && a.key === b.key;
-}
-
-function refFor(item: Zotero.Item): ZoteroObjectRef {
-  return {
-    kind: item.isNote() ? "note" : "item",
-    libraryID: item.libraryID,
-    key: item.key,
-  };
+  return win.ZoteroPane.getSelectedItems().filter(canBeMindmapNode);
 }
 
 /**
@@ -38,7 +23,7 @@ function refFor(item: Zotero.Item): ZoteroObjectRef {
  * nodes actually added (items already present as a node are skipped).
  */
 export async function addToMindmap(items: Zotero.Item[]): Promise<number> {
-  const eligible = items.filter(isEligible);
+  const eligible = items.filter(canBeMindmapNode);
   if (eligible.length === 0) {
     return 0;
   }
@@ -52,21 +37,7 @@ export async function addToMindmap(items: Zotero.Item[]): Promise<number> {
       if (doc.nodes.some((node) => refsMatch(node.ref, ref))) {
         continue;
       }
-      const node: MindmapNode = {
-        membership: "member",
-        id: Zotero.Utilities.generateObjectKey(),
-        // No layout pass has placed this node yet. appendLink() in
-        // addLinkForm.ts uses NaN as its "unplaced" sentinel, but NaN doesn't
-        // survive the JSON round-trip through storage (JSON.stringify turns it
-        // into null, which then fails validate.ts's isPosition check on the
-        // next read, making the whole document unreadable) - graphRenderer.ts
-        // already falls back to {0, 0} for a NaN position at render time, so
-        // writing that value directly here gets the same visual result without
-        // the storage bug.
-        position: { x: 0, y: 0 },
-        ref,
-      };
-      doc.nodes.push(node);
+      doc.nodes.push(createMemberNode(ref));
       addedCount++;
     }
     return addedCount === 0 ? null : doc;
@@ -83,7 +54,7 @@ async function addLinkForSelection(
   win: Window,
   items: Zotero.Item[],
 ): Promise<void> {
-  for (const item of items.filter(isEligible)) {
+  for (const item of items.filter(canBeMindmapNode)) {
     await openAddLinkDialog(win, item);
   }
 }

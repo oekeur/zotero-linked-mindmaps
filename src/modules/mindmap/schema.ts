@@ -9,6 +9,12 @@ export type ZoteroObjectRef =
   | { kind: "item"; libraryID: number; key: string }
   | { kind: "note"; libraryID: number; key: string };
 
+// Two refs identify the same Zotero object only when all three fields agree.
+// Key alone is not enough: keys are unique per library, not globally.
+export function refsMatch(a: ZoteroObjectRef, b: ZoteroObjectRef): boolean {
+  return a.kind === b.kind && a.libraryID === b.libraryID && a.key === b.key;
+}
+
 export interface Position {
   x: number;
   y: number;

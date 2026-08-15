@@ -9,11 +9,13 @@ import { getLocaleID } from "../../utils/locale";
 import { getLinkTypeById, getLinkTypes } from "./linkTypes";
 import { readMindmapDocument, updateMindmapDocument } from "./storage";
 import { openTargetPicker } from "./targetPicker";
-import type { MindmapDocument, MindmapLink, ZoteroObjectRef } from "./schema";
-
-function refsMatch(a: ZoteroObjectRef, b: ZoteroObjectRef): boolean {
-  return a.kind === b.kind && a.libraryID === b.libraryID && a.key === b.key;
-}
+import { createMemberNode, refFor } from "./mutations";
+import {
+  refsMatch,
+  type MindmapDocument,
+  type MindmapLink,
+  type ZoteroObjectRef,
+} from "./schema";
 
 export interface AddLinkParams {
   sourceRef: ZoteroObjectRef;
@@ -36,15 +38,7 @@ export function appendLink(
     refsMatch(node.ref, params.sourceRef),
   );
   if (!sourceNode) {
-    sourceNode = {
-      membership: "member",
-      id: Zotero.Utilities.generateObjectKey(),
-      // No layout pass has placed this node yet. schema.ts's Position
-      // requires numbers, so NaN stands in as an "unplaced" marker until a
-      // real layout assigns coordinates.
-      position: { x: NaN, y: NaN },
-      ref: params.sourceRef,
-    };
+    sourceNode = createMemberNode(params.sourceRef);
     doc.nodes.push(sourceNode);
   }
 
@@ -91,12 +85,7 @@ export function completeLink(
     refsMatch(node.ref, params.targetRef),
   );
   if (!targetNode) {
-    targetNode = {
-      membership: "member",
-      id: Zotero.Utilities.generateObjectKey(),
-      position: { x: NaN, y: NaN },
-      ref: params.targetRef,
-    };
+    targetNode = createMemberNode(params.targetRef);
     doc.nodes.push(targetNode);
   }
 
@@ -121,11 +110,7 @@ export function renderAddLinkForm(
   doc: MindmapDocument,
   onSaved: () => void,
 ): void {
-  const sourceRef: ZoteroObjectRef = {
-    kind: item.isNote() ? "note" : "item",
-    libraryID: item.libraryID,
-    key: item.key,
-  };
+  const sourceRef = refFor(item);
   let selectedTargetRef: ZoteroObjectRef | null = null;
 
   const ownerDoc = container.ownerDocument!;

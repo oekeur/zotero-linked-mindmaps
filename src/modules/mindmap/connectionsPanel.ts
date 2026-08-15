@@ -19,8 +19,8 @@ import {
 } from "./storage";
 import { getLinkTypeById } from "./linkTypes";
 import { renderAddLinkForm } from "./addLinkForm";
-import { removeLink, removeNode } from "./mutations";
-import type { MindmapDocument, MindmapNode, ZoteroObjectRef } from "./schema";
+import { canBeMindmapNode, refFor, removeLink, removeNode } from "./mutations";
+import { refsMatch, type MindmapDocument, type MindmapNode } from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
 
@@ -59,7 +59,7 @@ export class ConnectionsPanelFactory {
         },
       ],
       onItemChange: ({ item, setEnabled }) => {
-        setEnabled(item.isRegularItem() || item.isNote());
+        setEnabled(canBeMindmapNode(item));
         return true;
       },
       onRender: ({ body }) => {
@@ -81,10 +81,6 @@ export class ConnectionsPanelFactory {
     Zotero.ItemPaneManager.unregisterSection(registeredPaneID);
     registeredPaneID = false;
   }
-}
-
-function refsMatch(a: ZoteroObjectRef, b: ZoteroObjectRef): boolean {
-  return a.kind === b.kind && a.libraryID === b.libraryID && a.key === b.key;
 }
 
 const MISSING_ITEM_LABEL = "(missing item)";
@@ -216,7 +212,7 @@ export async function renderConnectionsContent(
   const doc = container.ownerDocument!;
   container.textContent = "";
 
-  if (!item.isRegularItem() && !item.isNote()) {
+  if (!canBeMindmapNode(item)) {
     return;
   }
 
@@ -240,11 +236,7 @@ export async function renderConnectionsContent(
     return;
   }
 
-  const ref: ZoteroObjectRef = {
-    kind: item.isNote() ? "note" : "item",
-    libraryID: item.libraryID,
-    key: item.key,
-  };
+  const ref = refFor(item);
   const node = mindmapDoc.nodes.find((candidate) =>
     refsMatch(candidate.ref, ref),
   );
