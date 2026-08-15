@@ -181,6 +181,16 @@ export async function writeMindmapDocument(
 //
 // Serializing the cycles is what makes them safe, so read-modify-write goes
 // through updateMindmapDocument rather than a bare read/write pair.
+//
+// The queue is not reentrant, and cannot be made so without async context
+// tracking Zotero's sandbox doesn't provide. A queued task ends in saveTx(),
+// and Zotero awaits every notifier observer inside that transaction's commit,
+// so an observer that awaits a queued write parks it behind the task waiting
+// on the observer: neither ever settles, and the queue stays wedged for the
+// rest of the session with every later write hanging silently. A Zotero
+// notifier observer must therefore never await writeMindmapDocument or
+// updateMindmapDocument - start the work and let the notification return
+// (see attachLiveRefresh in graphRenderer.ts).
 let queue: Promise<unknown> = Promise.resolve();
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
