@@ -207,6 +207,41 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
   },
 ];
 
+/**
+ * Opens/selects the Zotero item a clicked node represents. A no-op if the
+ * underlying item was deleted since the node was created (mirrors
+ * resolveNodeLabel's "(missing item)" fallback rather than throwing).
+ *
+ * ZoteroPane.selectItem is async in Zotero's own source (chrome/content/
+ * zotero/zoteroPane.js) despite the vendored zotero-types typing it as
+ * synchronous - awaited here to match the real behavior.
+ */
+async function openZoteroRef(ref: ZoteroObjectRef): Promise<void> {
+  const item = Zotero.Items.getByLibraryAndKey(ref.libraryID, ref.key);
+  if (!item) {
+    return;
+  }
+  await Zotero.getActiveZoteroPane().selectItem(item.id);
+}
+
+/**
+ * Wires node clicks to select the underlying Zotero item. Uses Cytoscape's
+ * "tap" event (fires on pointer-up only when the gesture wasn't a drag) so
+ * click-to-select never fires alongside a node reposition.
+ */
+export function attachNodeClickHandler(
+  cy: cytoscape.Core,
+  nodeRefsById: Map<string, ZoteroObjectRef>,
+): void {
+  cy.on("tap", "node", (evt) => {
+    const ref = nodeRefsById.get(evt.target.id());
+    if (!ref) {
+      return;
+    }
+    return openZoteroRef(ref);
+  });
+}
+
 export async function renderMindmap(
   container: HTMLElement,
   doc: MindmapDocument,
@@ -218,8 +253,9 @@ export async function renderMindmap(
 
   const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
   const parallelOffsets = computeParallelOffsets(doc.links);
+  const nodeRefsById = new Map(doc.nodes.map((node) => [node.id, node.ref]));
 
-  return cytoscape({
+  const cy = cytoscape({
     container,
     elements: {
       nodes: doc.nodes.map(buildNodeElement),
@@ -230,6 +266,8 @@ export async function renderMindmap(
     style: STYLESHEET,
     layout: { name: "preset" },
   });
+  attachNodeClickHandler(cy, nodeRefsById);
+  return cy;
 }
 
 /**

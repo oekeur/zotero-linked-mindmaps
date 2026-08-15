@@ -1,5 +1,7 @@
 import { assert } from "chai";
+import type cytoscape from "cytoscape";
 import {
+  attachNodeClickHandler,
   computeParallelOffsets,
   MISSING_ITEM_LABEL,
   resolveLinkVisual,
@@ -7,7 +9,10 @@ import {
   UNKNOWN_TYPE_LABEL,
 } from "../../src/modules/mindmap/graphRenderer";
 import type { LinkType } from "../../src/modules/mindmap/linkTypes";
-import type { MindmapLink } from "../../src/modules/mindmap/schema";
+import type {
+  MindmapLink,
+  ZoteroObjectRef,
+} from "../../src/modules/mindmap/schema";
 
 describe("mindmap/graphRenderer", function () {
   describe("resolveNodeLabel", function () {
@@ -48,7 +53,11 @@ describe("mindmap/graphRenderer", function () {
       { id: "cites", label: "cites", directional: true },
       { id: "related-to", label: "related to", directional: false },
     ];
-    const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
+    let typeMap: Map<string, LinkType>;
+
+    before(function () {
+      typeMap = new Map(linkTypes.map((type) => [type.id, type]));
+    });
 
     function link(overrides: Partial<MindmapLink>): MindmapLink {
       return {
@@ -168,6 +177,74 @@ describe("mindmap/graphRenderer", function () {
         link({ id: "link-1", sourceNodeId: "a", targetNodeId: "a" }),
       ]);
       assert.equal(offsets.get("link-1"), 0);
+    });
+  });
+
+  describe("attachNodeClickHandler", function () {
+    let article: Zotero.Item;
+    let tapHandler: (evt: { target: { id(): string } }) => void | Promise<void>;
+
+    beforeEach(async function () {
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Node Click Test Article");
+      await article.saveTx();
+    });
+
+    afterEach(async function () {
+      await article.eraseTx();
+    });
+
+    function fakeCy(): cytoscape.Core {
+      return {
+        on(
+          _events: string,
+          _selector: string,
+          handler: (evt: { target: { id(): string } }) => void | Promise<void>,
+        ) {
+          tapHandler = handler;
+        },
+      } as unknown as cytoscape.Core;
+    }
+
+    it("selects the underlying item when its node is tapped", async function () {
+      const nodeRefsById = new Map<string, ZoteroObjectRef>([
+        [
+          "n1",
+          { kind: "item", libraryID: article.libraryID, key: article.key },
+        ],
+      ]);
+      attachNodeClickHandler(fakeCy(), nodeRefsById);
+
+      await tapHandler({ target: { id: () => "n1" } });
+
+      const selected = Zotero.getActiveZoteroPane().getSelectedItems();
+      assert.deepEqual(
+        selected.map((item) => item.id),
+        [article.id],
+      );
+    });
+
+    it("does not throw when the tapped node's ref points at a deleted item", async function () {
+      const nodeRefsById = new Map<string, ZoteroObjectRef>([
+        [
+          "n1",
+          {
+            kind: "item",
+            libraryID: Zotero.Libraries.userLibraryID,
+            key: "NOSUCHKEY",
+          },
+        ],
+      ]);
+      attachNodeClickHandler(fakeCy(), nodeRefsById);
+
+      await tapHandler({ target: { id: () => "n1" } });
+    });
+
+    it("no-ops when the tapped node id has no matching ref", function () {
+      attachNodeClickHandler(fakeCy(), new Map());
+
+      assert.doesNotThrow(() => tapHandler({ target: { id: () => "n1" } }));
     });
   });
 });
