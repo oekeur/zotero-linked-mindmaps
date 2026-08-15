@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  computeParallelOffsets,
   MISSING_ITEM_LABEL,
   resolveLinkVisual,
   resolveNodeLabel,
@@ -94,6 +95,79 @@ describe("mindmap/graphRenderer", function () {
         typeMap,
       );
       assert.equal(visual.label, `${UNKNOWN_TYPE_LABEL}: see p.12`);
+    });
+  });
+
+  describe("computeParallelOffsets", function () {
+    function link(overrides: Partial<MindmapLink>): MindmapLink {
+      return {
+        id: "link-1",
+        typeId: "cites",
+        sourceNodeId: "a",
+        targetNodeId: "b",
+        ...overrides,
+      };
+    }
+
+    it("gives a single link between a pair an offset of 0", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-1", sourceNodeId: "a", targetNodeId: "b" }),
+      ]);
+      assert.equal(offsets.get("link-1"), 0);
+    });
+
+    it("splits two parallel links symmetrically around 0", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-1", sourceNodeId: "a", targetNodeId: "b" }),
+        link({ id: "link-2", sourceNodeId: "a", targetNodeId: "b" }),
+      ]);
+      assert.equal(offsets.get("link-1"), -20);
+      assert.equal(offsets.get("link-2"), 20);
+    });
+
+    it("spreads three parallel links symmetrically around 0", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-1", sourceNodeId: "a", targetNodeId: "b" }),
+        link({ id: "link-2", sourceNodeId: "a", targetNodeId: "b" }),
+        link({ id: "link-3", sourceNodeId: "a", targetNodeId: "b" }),
+      ]);
+      assert.equal(offsets.get("link-1"), -40);
+      assert.equal(offsets.get("link-2"), 0);
+      assert.equal(offsets.get("link-3"), 40);
+    });
+
+    it("groups a reverse-direction link into the same pair", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-1", sourceNodeId: "a", targetNodeId: "b" }),
+        link({ id: "link-2", sourceNodeId: "b", targetNodeId: "a" }),
+      ]);
+      assert.equal(offsets.get("link-1"), -20);
+      assert.equal(offsets.get("link-2"), 20);
+    });
+
+    it("orders offsets by link id, not array order", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-z", sourceNodeId: "a", targetNodeId: "b" }),
+        link({ id: "link-a", sourceNodeId: "a", targetNodeId: "b" }),
+      ]);
+      assert.equal(offsets.get("link-a"), -20);
+      assert.equal(offsets.get("link-z"), 20);
+    });
+
+    it("does not offset links between different node pairs", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-1", sourceNodeId: "a", targetNodeId: "b" }),
+        link({ id: "link-2", sourceNodeId: "c", targetNodeId: "d" }),
+      ]);
+      assert.equal(offsets.get("link-1"), 0);
+      assert.equal(offsets.get("link-2"), 0);
+    });
+
+    it("gives a self-link an offset of 0 without throwing", function () {
+      const offsets = computeParallelOffsets([
+        link({ id: "link-1", sourceNodeId: "a", targetNodeId: "a" }),
+      ]);
+      assert.equal(offsets.get("link-1"), 0);
     });
   });
 });
