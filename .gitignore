@@ -2,7 +2,8 @@
 /out-tsc
 
 # separate nested git repo for PM (Backlog.md), never published with source
-/project/
+# no trailing slash: matches the symlink worktrees use to reach the shared checkout, not just a real dir
+/project
 
 # vendored third-party reference docs, not project source
 /zotero-plugin-docs
