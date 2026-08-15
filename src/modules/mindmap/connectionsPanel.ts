@@ -1,14 +1,21 @@
 /**
  * "Connections" item-pane section: shows which mindmap the current item or
- * note belongs to, lists its existing links, and offers an "Add link" action
- * (see addLinkForm.ts) to create a new one. `renderConnectionsContent` is a
- * plain function (not tied to the ItemPaneManager hook shape) so a future
- * docked side-panel mount can call it directly.
+ * note belongs to, lists its existing links, offers an "Add link" action
+ * (see addLinkForm.ts) to create a new one, and lets the user remove the
+ * node or a single link from the mindmap (without touching the underlying
+ * Zotero item/note). `renderConnectionsContent` is a plain function (not
+ * tied to the ItemPaneManager hook shape) so a future docked side-panel
+ * mount can call it directly.
  */
 import { getLocaleID } from "../../utils/locale";
-import { findMindmapNote, readMindmapDocument } from "./storage";
+import {
+  findMindmapNote,
+  readMindmapDocument,
+  writeMindmapDocument,
+} from "./storage";
 import { getLinkTypeById } from "./linkTypes";
 import { renderAddLinkForm } from "./addLinkForm";
+import { removeLink, removeNode } from "./mutations";
 import type { MindmapDocument, MindmapNode, ZoteroObjectRef } from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
@@ -131,8 +138,8 @@ async function loadAddLinkForm(
 
 /**
  * Renders the Connections panel content for `item` into `container`: the
- * mindmap the item belongs to (if any), its existing links, and an
- * "Add link" action.
+ * mindmap the item belongs to (if any), its existing links (each with a
+ * remove control), a remove-node control, and an "Add link" action.
  */
 export async function renderConnectionsContent(
   container: HTMLElement,
@@ -189,6 +196,16 @@ export async function renderConnectionsContent(
   titleEl.appendChild(doc.createTextNode(` ${mindmapDoc.title}`));
   container.appendChild(titleEl);
 
+  const removeNodeButton = doc.createElement("button");
+  removeNodeButton.setAttribute(
+    "data-l10n-id",
+    getLocaleID("connections-remove-node-button"),
+  );
+  removeNodeButton.addEventListener("click", () => {
+    void handleRemoveNode(container, item, mindmapDoc, node.id);
+  });
+  container.appendChild(removeNodeButton);
+
   const links = mindmapDoc.links.filter(
     (link) => link.sourceNodeId === node.id || link.targetNodeId === node.id,
   );
@@ -219,8 +236,57 @@ export async function renderConnectionsContent(
 
     const li = doc.createElement("li");
     li.textContent = `${parts.join(" ")} → ${otherTitle}`;
+
+    const removeLinkButton = doc.createElement("button");
+    removeLinkButton.setAttribute(
+      "data-l10n-id",
+      getLocaleID("connections-remove-link-button"),
+    );
+    removeLinkButton.addEventListener("click", () => {
+      void handleRemoveLink(container, item, mindmapDoc, link.id);
+    });
+    li.appendChild(removeLinkButton);
+
     list.appendChild(li);
   }
   container.appendChild(list);
   appendAddLinkSection(container, doc, item);
+}
+
+async function handleRemoveNode(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapDoc: MindmapDocument,
+  nodeId: string,
+): Promise<void> {
+  removeNode(mindmapDoc, nodeId);
+  try {
+    await writeMindmapDocument(mindmapDoc, item.libraryID);
+  } catch (err) {
+    Zotero.debug(
+      `[zoteroLinkedMindmaps] Connections panel failed to remove node: ${
+        (err as Error).message
+      }`,
+    );
+  }
+  await renderConnectionsContent(container, item);
+}
+
+async function handleRemoveLink(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapDoc: MindmapDocument,
+  linkId: string,
+): Promise<void> {
+  removeLink(mindmapDoc, linkId);
+  try {
+    await writeMindmapDocument(mindmapDoc, item.libraryID);
+  } catch (err) {
+    Zotero.debug(
+      `[zoteroLinkedMindmaps] Connections panel failed to remove link: ${
+        (err as Error).message
+      }`,
+    );
+  }
+  await renderConnectionsContent(container, item);
 }
