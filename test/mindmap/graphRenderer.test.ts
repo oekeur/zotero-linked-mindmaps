@@ -2,6 +2,7 @@ import { assert } from "chai";
 import type cytoscape from "cytoscape";
 import {
   attachNodeClickHandler,
+  attachNodeContextMenuHandler,
   computeParallelOffsets,
   MISSING_ITEM_LABEL,
   resolveLinkVisual,
@@ -245,6 +246,134 @@ describe("mindmap/graphRenderer", function () {
       attachNodeClickHandler(fakeCy(), new Map());
 
       assert.doesNotThrow(() => tapHandler({ target: { id: () => "n1" } }));
+    });
+  });
+
+  describe("attachNodeContextMenuHandler", function () {
+    let article: Zotero.Item;
+    let otherArticle: Zotero.Item;
+    let dockContainer: HTMLDivElement;
+    let cxttapHandler: (evt: { target: { id(): string } }) => void;
+    let contextmenuListener: (evt: { preventDefault(): void }) => void;
+
+    beforeEach(async function () {
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Context Menu Test Article");
+      await article.saveTx();
+
+      otherArticle = new Zotero.Item("journalArticle");
+      otherArticle.libraryID = Zotero.Libraries.userLibraryID;
+      otherArticle.setField("title", "Context Menu Test Article 2");
+      await otherArticle.saveTx();
+
+      const doc = Zotero.getMainWindow().document;
+      dockContainer = doc.createElement("div");
+      dockContainer.style.display = "none";
+      doc.documentElement.appendChild(dockContainer);
+    });
+
+    afterEach(async function () {
+      dockContainer.remove();
+      await article.eraseTx();
+      await otherArticle.eraseTx();
+    });
+
+    function fakeCy(): cytoscape.Core {
+      return {
+        on(
+          events: string,
+          _selector: string,
+          handler: (evt: { target: { id(): string } }) => void,
+        ) {
+          if (events === "cxttap") {
+            cxttapHandler = handler;
+          }
+        },
+        container() {
+          return {
+            addEventListener(
+              _type: string,
+              listener: (evt: { preventDefault(): void }) => void,
+            ) {
+              contextmenuListener = listener;
+            },
+          } as unknown as HTMLElement;
+        },
+      } as unknown as cytoscape.Core;
+    }
+
+    it("docks and shows the Connections panel for the right-clicked node's item", function () {
+      const nodeRefsById = new Map<string, ZoteroObjectRef>([
+        [
+          "n1",
+          { kind: "item", libraryID: article.libraryID, key: article.key },
+        ],
+      ]);
+      attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
+
+      cxttapHandler({ target: { id: () => "n1" } });
+
+      assert.notEqual(dockContainer.style.display, "none");
+    });
+
+    it("hides the dock when the already-docked node is right-clicked again", function () {
+      const nodeRefsById = new Map<string, ZoteroObjectRef>([
+        [
+          "n1",
+          { kind: "item", libraryID: article.libraryID, key: article.key },
+        ],
+      ]);
+      attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
+
+      cxttapHandler({ target: { id: () => "n1" } });
+      cxttapHandler({ target: { id: () => "n1" } });
+
+      assert.equal(dockContainer.style.display, "none");
+      assert.equal(dockContainer.textContent, "");
+    });
+
+    it("re-renders in place when a different node is right-clicked", function () {
+      const nodeRefsById = new Map<string, ZoteroObjectRef>([
+        [
+          "n1",
+          { kind: "item", libraryID: article.libraryID, key: article.key },
+        ],
+        [
+          "n2",
+          {
+            kind: "item",
+            libraryID: otherArticle.libraryID,
+            key: otherArticle.key,
+          },
+        ],
+      ]);
+      attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
+
+      cxttapHandler({ target: { id: () => "n1" } });
+      cxttapHandler({ target: { id: () => "n2" } });
+
+      assert.notEqual(dockContainer.style.display, "none");
+    });
+
+    it("no-ops when the right-clicked node id has no matching ref", function () {
+      attachNodeContextMenuHandler(fakeCy(), new Map(), dockContainer);
+
+      assert.doesNotThrow(() => cxttapHandler({ target: { id: () => "n1" } }));
+      assert.equal(dockContainer.style.display, "none");
+    });
+
+    it("suppresses the native context menu over the graph", function () {
+      attachNodeContextMenuHandler(fakeCy(), new Map(), dockContainer);
+
+      let prevented = false;
+      contextmenuListener({
+        preventDefault: () => {
+          prevented = true;
+        },
+      });
+
+      assert.isTrue(prevented);
     });
   });
 });
