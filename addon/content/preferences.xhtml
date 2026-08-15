@@ -1,0 +1,11 @@
+<groupbox
+  onload="
+    Zotero.ZoteroLinkedMindmaps.hooks.onPrefsEvent('link-types-pane-load', {
+      container: this.querySelector(
+        '.zoterolinkedmindmaps-link-types-container',
+      ),
+    })
+  "
+>
+  <html:div class="zoterolinkedmindmaps-link-types-container"></html:div>
+</groupbox>
