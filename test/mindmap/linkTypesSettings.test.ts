@@ -3,6 +3,7 @@ import type { MindmapDocument } from "../../src/modules/mindmap/schema";
 import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import {
   findMindmapNote,
+  STORAGE_TAG,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import { countLinksUsingType } from "../../src/modules/mindmap/linkTypesSettings";
@@ -78,10 +79,16 @@ describe("mindmap/linkTypesSettings", function () {
     assert.equal(await countLinksUsingType("contradicts"), 0);
   });
 
+  // Replaces the storage note rather than overwriting the one beforeEach
+  // wrote: Zotero re-serializes note HTML on save asynchronously, and that
+  // late write lands after a same-tick overwrite and restores the old content.
   it("returns null when the mindmap document can't be read", async function () {
-    const note = await findMindmapNote();
-    note!.setNote("<p>no data block here</p>");
-    await note!.saveTx();
+    await clearStorageNote();
+    const note = new Zotero.Item("note");
+    note.libraryID = Zotero.Libraries.userLibraryID;
+    note.setNote("<p>no data block here</p>");
+    note.addTag(STORAGE_TAG);
+    await note.saveTx();
     assert.isNull(await countLinksUsingType("cites"));
   });
 });

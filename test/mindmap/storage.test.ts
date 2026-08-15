@@ -72,13 +72,17 @@ describe("mindmap/storage", function () {
     assert.equal(readBack.title, "Renamed");
   });
 
+  // Builds the note from scratch rather than overwriting one this module
+  // already wrote: Zotero re-serializes note HTML on save asynchronously, and
+  // that late write lands after a same-tick overwrite and restores the old
+  // content.
   it("throws a StorageError when the note's data block is missing", async function () {
-    const item = await findMindmapNote();
-    assert.isNull(item);
-    await writeMindmapDocument(docWithNodesAndLinks());
-    const note = await findMindmapNote();
-    note!.setNote("<p>no data block here</p>");
-    await note!.saveTx();
+    assert.isNull(await findMindmapNote());
+    const note = new Zotero.Item("note");
+    note.libraryID = Zotero.Libraries.userLibraryID;
+    note.setNote("<p>no data block here</p>");
+    note.addTag(STORAGE_TAG);
+    await note.saveTx();
     try {
       await readMindmapDocument();
       assert.fail("expected readMindmapDocument to throw");
