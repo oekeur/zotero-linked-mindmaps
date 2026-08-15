@@ -4,12 +4,13 @@
 // @ts-nocheck
 export type FluentMessageId =
   | 'add-link-button'
+  | 'add-link-choose-target-button'
   | 'add-link-direction-backward'
   | 'add-link-direction-forward'
   | 'add-link-direction-label'
   | 'add-link-name-label'
   | 'add-link-save-button'
-  | 'add-link-target-placeholder'
+  | 'add-link-self-link-error'
   | 'add-link-type-label'
   | 'connections-empty-state'
   | 'connections-error-state'

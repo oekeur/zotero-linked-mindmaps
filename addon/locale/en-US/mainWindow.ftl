@@ -16,5 +16,6 @@ add-link-name-label = Name (optional)
 add-link-direction-label = Direction
 add-link-direction-forward = Forward
 add-link-direction-backward = Backward
-add-link-target-placeholder = Target: choose an item (coming soon)
+add-link-choose-target-button = Choose target
+add-link-self-link-error = An item can't be linked to itself.
 add-link-save-button = Save
