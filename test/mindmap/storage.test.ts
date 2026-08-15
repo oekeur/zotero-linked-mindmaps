@@ -1,6 +1,9 @@
 import { assert } from "chai";
 import type { MindmapDocument } from "../../src/modules/mindmap/schema";
-import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
+import {
+  CURRENT_SCHEMA_VERSION,
+  isUnplaced,
+} from "../../src/modules/mindmap/schema";
 import {
   findMindmapNote,
   readMindmapDocument,
@@ -100,6 +103,34 @@ describe("mindmap/storage", function () {
       assert.instanceOf(err, StorageError);
       assert.equal((err as StorageError).reason, "parse-failed");
     }
+  });
+
+  it("round-trips an unplaced node (NaN position) as still-unplaced after write then read", async function () {
+    const doc: MindmapDocument = {
+      ...docWithNodesAndLinks(),
+      nodes: [
+        ...docWithNodesAndLinks().nodes,
+        {
+          membership: "member",
+          id: "node-unplaced",
+          // NaN, not the null the doc would normally carry once persisted -
+          // this is what appendLink actually produces in memory before a
+          // save. JSON.stringify turns NaN into null, so this exercises the
+          // exact round-trip that used to make writeMindmapDocument's saved
+          // note unreadable ("invalid nodes array").
+          position: { x: NaN, y: NaN },
+          ref: { kind: "item", libraryID: 1, key: "CCCCCCCC" },
+        },
+      ],
+    };
+
+    await writeMindmapDocument(doc);
+    const readBack = await readMindmapDocument();
+
+    const node = readBack.nodes.find((n) => n.id === "node-unplaced");
+    assert.isDefined(node);
+    assert.isNull(node!.position);
+    assert.isTrue(isUnplaced(node!.position));
   });
 
   it("throws a StorageError when writing a document that fails schema validation", async function () {

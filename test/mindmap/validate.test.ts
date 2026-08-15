@@ -58,6 +58,21 @@ describe("mindmap/validate", function () {
     assert.isFalse(result.ok);
   });
 
+  it("accepts a node with a null position (unplaced marker)", function () {
+    const doc = validDoc();
+    doc.nodes[0] = { ...doc.nodes[0], position: null };
+    const result = parseMindmapDocument(doc);
+    assert.isTrue(result.ok);
+  });
+
+  it("rejects a node with a non-null, non-position position value", function () {
+    const doc = validDoc();
+    // @ts-expect-error intentionally malformed for the test
+    doc.nodes[0] = { ...doc.nodes[0], position: "not-a-position" };
+    const result = parseMindmapDocument(doc);
+    assert.isFalse(result.ok);
+  });
+
   it("rejects a node missing its ref", function () {
     const doc = validDoc();
     // @ts-expect-error intentionally malformed for the test

@@ -6,7 +6,9 @@
  */
 import {
   CURRENT_SCHEMA_VERSION,
+  isUnplaced,
   type MindmapDocument,
+  type MindmapNode,
 } from "./schema";
 import { parseMindmapDocument } from "./validate";
 
@@ -41,8 +43,24 @@ function unescapeHtml(value: string): string {
   return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 }
 
+// JSON.stringify turns a NaN *value* into null, but only when NaN sits at
+// the top of the field it's serializing - a NaN nested inside {x, y} stays
+// an object with x/y individually nulled, not a bare null. Normalize the
+// unplaced marker to an actual `null` before serializing so what's on disk
+// always uses the single canonical shape isMindmapNode expects back
+// (position === null), regardless of whether the in-memory node used null
+// or the NaN convenience marker.
+function normalizeForStorage(doc: MindmapDocument): MindmapDocument {
+  return {
+    ...doc,
+    nodes: doc.nodes.map((node): MindmapNode =>
+      isUnplaced(node.position) ? { ...node, position: null } : node,
+    ),
+  };
+}
+
 function buildNoteHtml(doc: MindmapDocument): string {
-  const escaped = escapeHtml(JSON.stringify(doc));
+  const escaped = escapeHtml(JSON.stringify(normalizeForStorage(doc)));
   return `${NOTE_WARNING}${DATA_BLOCK_OPEN}${escaped}${DATA_BLOCK_CLOSE}`;
 }
 
