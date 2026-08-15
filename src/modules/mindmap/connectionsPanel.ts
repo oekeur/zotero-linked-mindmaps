@@ -1,13 +1,14 @@
 /**
  * "Connections" item-pane section: shows which mindmap the current item or
- * note belongs to and lists its existing links. Read-only shell for now -
- * adding/editing links is a separate task. `renderConnectionsContent` is a
+ * note belongs to, lists its existing links, and offers an "Add link" action
+ * (see addLinkForm.ts) to create a new one. `renderConnectionsContent` is a
  * plain function (not tied to the ItemPaneManager hook shape) so a future
  * docked side-panel mount can call it directly.
  */
 import { getLocaleID } from "../../utils/locale";
 import { findMindmapNote, readMindmapDocument } from "./storage";
 import { getLinkTypeById } from "./linkTypes";
+import { renderAddLinkForm } from "./addLinkForm";
 import type { MindmapDocument, MindmapNode, ZoteroObjectRef } from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
@@ -73,8 +74,65 @@ function appendL10nText(container: HTMLElement, doc: Document, id: string) {
 }
 
 /**
- * Renders the Connections panel content for `item` into `container`.
- * Read-only: shows the mindmap the item belongs to (if any) and its links.
+ * Appends the "Add link" toggle button and its (initially hidden, lazily
+ * loaded) form container to `container`. The mindmap document is only read
+ * once the user actually clicks the button, so simply viewing the panel
+ * never creates a mindmap note as a side effect.
+ */
+function appendAddLinkSection(
+  container: HTMLElement,
+  doc: Document,
+  item: Zotero.Item,
+) {
+  const wrapper = doc.createElement("div");
+
+  const toggleButton = doc.createElement("button");
+  toggleButton.setAttribute("data-l10n-id", getLocaleID("add-link-button"));
+
+  const formContainer = doc.createElement("div");
+  formContainer.style.display = "none";
+
+  toggleButton.addEventListener("click", () => {
+    const isHidden = formContainer.style.display === "none";
+    formContainer.style.display = isHidden ? "" : "none";
+    if (isHidden && formContainer.childElementCount === 0) {
+      void loadAddLinkForm(formContainer, item, container);
+    }
+  });
+
+  wrapper.appendChild(toggleButton);
+  wrapper.appendChild(formContainer);
+  container.appendChild(wrapper);
+}
+
+async function loadAddLinkForm(
+  formContainer: HTMLElement,
+  item: Zotero.Item,
+  panelContainer: HTMLElement,
+) {
+  try {
+    const mindmapDoc = await readMindmapDocument(item.libraryID);
+    renderAddLinkForm(formContainer, item, mindmapDoc, () => {
+      void renderConnectionsContent(panelContainer, item);
+    });
+  } catch (err) {
+    Zotero.debug(
+      `[zoteroLinkedMindmaps] Add-link form failed to load mindmap document: ${
+        (err as Error).message
+      }`,
+    );
+    appendL10nText(
+      formContainer,
+      formContainer.ownerDocument!,
+      getLocaleID("connections-error-state"),
+    );
+  }
+}
+
+/**
+ * Renders the Connections panel content for `item` into `container`: the
+ * mindmap the item belongs to (if any), its existing links, and an
+ * "Add link" action.
  */
 export async function renderConnectionsContent(
   container: HTMLElement,
@@ -90,6 +148,7 @@ export async function renderConnectionsContent(
   const note = await findMindmapNote(item.libraryID);
   if (!note) {
     appendL10nText(container, doc, getLocaleID("connections-empty-state"));
+    appendAddLinkSection(container, doc, item);
     return;
   }
 
@@ -116,6 +175,7 @@ export async function renderConnectionsContent(
   );
   if (!node) {
     appendL10nText(container, doc, getLocaleID("connections-empty-state"));
+    appendAddLinkSection(container, doc, item);
     return;
   }
 
@@ -134,6 +194,7 @@ export async function renderConnectionsContent(
   );
   if (links.length === 0) {
     appendL10nText(container, doc, getLocaleID("connections-no-links-state"));
+    appendAddLinkSection(container, doc, item);
     return;
   }
 
@@ -161,4 +222,5 @@ export async function renderConnectionsContent(
     list.appendChild(li);
   }
   container.appendChild(list);
+  appendAddLinkSection(container, doc, item);
 }
