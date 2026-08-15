@@ -6,6 +6,10 @@
  * Zotero item/note). `renderConnectionsContent` is a plain function (not
  * tied to the ItemPaneManager hook shape) so a future docked side-panel
  * mount can call it directly.
+ *
+ * The add-link action reaches the same form from two entry points: the "+"
+ * in the section header (the item-pane mount, matching Tags/Related) and an
+ * in-body button (the docked mount, which has no header of its own).
  */
 import { getLocaleID } from "../../utils/locale";
 import {
@@ -19,6 +23,12 @@ import { removeLink, removeNode } from "./mutations";
 import type { MindmapDocument, MindmapNode, ZoteroObjectRef } from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
+
+/**
+ * Matches the button type Zotero's own Tags/Related sections use, so the
+ * header "+" lands in the same slot and inherits the same styling.
+ */
+const ADD_BUTTON_TYPE = "add";
 
 let registeredPaneID: string | false = false;
 
@@ -35,6 +45,19 @@ export class ConnectionsPanelFactory {
         l10nID: getLocaleID("connections-section-sidenav-tooltip"),
         icon: "chrome://zotero/skin/20/universal/save.svg",
       },
+      sectionButtons: [
+        {
+          type: ADD_BUTTON_TYPE,
+          // Rendered via -moz-context-properties/fill: currentColor, so this
+          // one icon tracks both light and dark themes.
+          icon: "chrome://zotero/skin/16/universal/plus.svg",
+          l10nID: getLocaleID("connections-add-link-header-button"),
+          onClick: ({ body, item }) => {
+            expandSection(body);
+            openAddLinkForm(body, item);
+          },
+        },
+      ],
       onItemChange: ({ item, setEnabled }) => {
         setEnabled(item.isRegularItem() || item.isNote());
         return true;
@@ -80,11 +103,24 @@ function appendL10nText(container: HTMLElement, doc: Document, id: string) {
   container.appendChild(el);
 }
 
+const ADD_LINK_FORM_CLASS = "mindmap-add-link-form";
+
 /**
- * Appends the "Add link" toggle button and its (initially hidden, lazily
- * loaded) form container to `container`. The mindmap document is only read
- * once the user actually clicks the button, so simply viewing the panel
- * never creates a mindmap note as a side effect.
+ * True where the panel has no section header to hang a "+" on. The item-pane
+ * mount sits inside a `collapsible-section` and opens the form from its header
+ * button; the docked mount in the mindmap tab is a bare container, so it needs
+ * an in-body button of its own.
+ */
+function needsInBodyAddButton(container: HTMLElement): boolean {
+  return !container.closest("collapsible-section");
+}
+
+/**
+ * Appends the (initially hidden, lazily loaded) add-link form container to
+ * `container`, preceded by an "Add link" toggle button on mounts that have no
+ * header button. The mindmap document is only read once the user actually
+ * opens the form, so simply viewing the panel never creates a mindmap note as
+ * a side effect.
  */
 function appendAddLinkSection(
   container: HTMLElement,
@@ -93,23 +129,55 @@ function appendAddLinkSection(
 ) {
   const wrapper = doc.createElement("div");
 
-  const toggleButton = doc.createElement("button");
-  toggleButton.setAttribute("data-l10n-id", getLocaleID("add-link-button"));
-
   const formContainer = doc.createElement("div");
+  formContainer.classList.add(ADD_LINK_FORM_CLASS);
   formContainer.style.display = "none";
 
-  toggleButton.addEventListener("click", () => {
-    const isHidden = formContainer.style.display === "none";
-    formContainer.style.display = isHidden ? "" : "none";
-    if (isHidden && formContainer.childElementCount === 0) {
-      void loadAddLinkForm(formContainer, item, container);
-    }
-  });
+  if (needsInBodyAddButton(container)) {
+    const toggleButton = doc.createElement("button");
+    toggleButton.setAttribute("data-l10n-id", getLocaleID("add-link-button"));
+    toggleButton.addEventListener("click", () => {
+      if (formContainer.style.display === "none") {
+        openAddLinkForm(container, item);
+      } else {
+        formContainer.style.display = "none";
+      }
+    });
+    wrapper.appendChild(toggleButton);
+  }
 
-  wrapper.appendChild(toggleButton);
   wrapper.appendChild(formContainer);
   container.appendChild(wrapper);
+}
+
+/**
+ * Reveals the add-link form inside an already-rendered panel, loading it on
+ * first use. No-op while the panel is still rendering or when it is showing an
+ * error state, since neither has a form container yet.
+ */
+function openAddLinkForm(container: HTMLElement, item: Zotero.Item) {
+  const formContainer = container.querySelector<HTMLElement>(
+    `.${ADD_LINK_FORM_CLASS}`,
+  );
+  if (!formContainer) {
+    return;
+  }
+  formContainer.style.display = "";
+  if (formContainer.childElementCount === 0) {
+    void loadAddLinkForm(formContainer, item, container);
+  }
+}
+
+/**
+ * Opens the collapsible section the panel body sits in, so a header-button
+ * click on a collapsed section reveals the form it just opened.
+ */
+function expandSection(body: HTMLElement) {
+  const section = body.closest("collapsible-section") as
+    (Element & { open: boolean }) | null;
+  if (section) {
+    section.open = true;
+  }
 }
 
 async function loadAddLinkForm(
