@@ -285,40 +285,47 @@ export function renderAddLinkForm(
 
 /**
  * Standalone entry point for opening the "Add link" form outside the item
- * pane (e.g. from a library right-click menu), reserved for a future
- * caller - not exercised by the Connections panel itself.
+ * pane (e.g. from a library right-click menu). Resolves once the dialog
+ * window closes, so a caller opening one per item in a selection can wait
+ * for each to finish before opening the next, rather than racing writes.
  */
-export function openAddLinkDialog(win: Window, item: Zotero.Item): void {
-  const dialog = new ztoolkit.Dialog(1, 1)
-    .addCell(0, 0, {
-      tag: "div",
-      namespace: "html",
-      id: "zoterolinkedmindmaps-add-link-dialog-content",
-      styles: { width: "100%" },
-    })
-    .setDialogData({
-      loadCallback: () => {
-        void (async () => {
-          const contentEl = dialog.window.document.getElementById(
-            "zoterolinkedmindmaps-add-link-dialog-content",
-          ) as HTMLElement;
-          try {
-            const mindmapDoc = await readMindmapDocument(item.libraryID);
-            renderAddLinkForm(contentEl, item, mindmapDoc, () => {
-              dialog.window.close();
-            });
-          } catch (err) {
-            contentEl.textContent = `Failed to load mindmap: ${
-              (err as Error).message
-            }`;
-          }
-        })();
-      },
-    })
-    .open("Add link", {
-      centerscreen: true,
-      resizable: true,
-      fitContent: true,
-    });
+export function openAddLinkDialog(
+  win: Window,
+  item: Zotero.Item,
+): Promise<void> {
   void win;
+  return new Promise((resolve) => {
+    const dialog = new ztoolkit.Dialog(1, 1)
+      .addCell(0, 0, {
+        tag: "div",
+        namespace: "html",
+        id: "zoterolinkedmindmaps-add-link-dialog-content",
+        styles: { width: "100%" },
+      })
+      .setDialogData({
+        loadCallback: () => {
+          void (async () => {
+            const contentEl = dialog.window.document.getElementById(
+              "zoterolinkedmindmaps-add-link-dialog-content",
+            ) as HTMLElement;
+            try {
+              const mindmapDoc = await readMindmapDocument(item.libraryID);
+              renderAddLinkForm(contentEl, item, mindmapDoc, () => {
+                dialog.window.close();
+              });
+            } catch (err) {
+              contentEl.textContent = `Failed to load mindmap: ${
+                (err as Error).message
+              }`;
+            }
+          })();
+        },
+        unloadCallback: () => resolve(),
+      })
+      .open("Add link", {
+        centerscreen: true,
+        resizable: true,
+        fitContent: true,
+      });
+  });
 }

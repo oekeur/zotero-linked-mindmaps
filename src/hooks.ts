@@ -2,6 +2,7 @@ import { getString, initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
 import { registerSpikeShortcut } from "./spike/cytoscapeSpike";
 import { ConnectionsPanelFactory } from "./modules/mindmap/connectionsPanel";
+import { LibraryContextMenuFactory } from "./modules/mindmap/libraryContextMenu";
 import {
   closeMindmapTab,
   registerMindmapMenu,
@@ -55,6 +56,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   );
 
   registerMindmapMenu();
+  LibraryContextMenuFactory.register(win);
 
   const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
     closeOnClick: true,
