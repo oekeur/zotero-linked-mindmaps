@@ -40,7 +40,7 @@ export function isMindmapNode(value: unknown): value is MindmapNode {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
-    !isPosition(value.position) ||
+    (value.position !== null && !isPosition(value.position)) ||
     !isZoteroObjectRef(value.ref)
   ) {
     return false;
@@ -111,7 +111,14 @@ export function parseMindmapDocument(data: unknown): ParseResult {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       id: data.id,
       title: data.title,
-      description: data.description,
+      // Only set the key when a description is actually present - `title`
+      // etc. above always exist, but `description` is optional, and adding
+      // it as an explicit `undefined` property makes this object diverge
+      // (by key membership, not by value) from a doc literal that never
+      // mentions description at all - e.g. deepEqual round-trip checks.
+      ...(data.description !== undefined
+        ? { description: data.description as string }
+        : {}),
       nodes: data.nodes,
       links: data.links,
     },

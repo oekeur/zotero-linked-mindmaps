@@ -14,6 +14,8 @@
 import cytoscape from "cytoscape";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
 import { readMindmapDocument } from "./storage";
+import { layoutUnplacedNodes } from "./layout";
+import { isUnplaced } from "./schema";
 import type { LinkType } from "./linkTypes";
 import type {
   MindmapDocument,
@@ -47,8 +49,12 @@ export function resolveNodeLabel(ref: ZoteroObjectRef): string {
   return target ? target.getDisplayTitle() : MISSING_ITEM_LABEL;
 }
 
-function toElementPosition(position: Position): Position {
-  if (Number.isNaN(position.x) || Number.isNaN(position.y)) {
+function toElementPosition(position: Position | null): Position {
+  if (
+    position === null ||
+    Number.isNaN(position.x) ||
+    Number.isNaN(position.y)
+  ) {
     return { x: 0, y: 0 };
   }
   return position;
@@ -56,7 +62,11 @@ function toElementPosition(position: Position): Position {
 
 function buildNodeElement(node: MindmapNode): cytoscape.NodeDefinition {
   return {
-    data: { id: node.id, label: resolveNodeLabel(node.ref) },
+    data: {
+      id: node.id,
+      label: resolveNodeLabel(node.ref),
+      unplaced: isUnplaced(node.position),
+    },
     position: toElementPosition(node.position),
   };
 }
@@ -308,6 +318,7 @@ export function attachLiveRefresh(
       const doc = await readMindmapDocument();
       current.destroy();
       current = await renderMindmap(container, doc, linkTypes);
+      await layoutUnplacedNodes(current, doc);
     } catch (err) {
       Zotero.debug(
         `[zoteroLinkedMindmaps] mindmap live refresh failed: ${(err as Error).message}`,

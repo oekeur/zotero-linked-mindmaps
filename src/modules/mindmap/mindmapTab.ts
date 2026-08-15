@@ -7,6 +7,7 @@ import { getString } from "../../utils/locale";
 import { findMindmapNote, readMindmapDocument, StorageError } from "./storage";
 import { getLinkTypes } from "./linkTypes";
 import { attachLiveRefresh, renderMindmap } from "./graphRenderer";
+import { layoutUnplacedNodes } from "./layout";
 import type { MindmapDocument } from "./schema";
 
 const TAB_TYPE = "zoterolinkedmindmaps-mindmap";
@@ -38,6 +39,10 @@ async function loadMindmapInto(container: HTMLElement) {
 
   const linkTypes = getLinkTypes();
   const cy = await renderMindmap(container, currentDocument, linkTypes);
+  const layoutResult = await layoutUnplacedNodes(cy, currentDocument);
+  if (layoutResult) {
+    currentDocument = layoutResult;
+  }
   const note = await findMindmapNote();
   if (note) {
     teardownLiveRefresh = attachLiveRefresh(cy, container, note.id, linkTypes);

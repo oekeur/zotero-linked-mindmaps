@@ -14,17 +14,31 @@ export interface Position {
   y: number;
 }
 
+// A node without a stored position yet is "unplaced". `null` is the
+// canonical unplaced marker because it survives a JSON round-trip
+// unchanged (unlike NaN, which JSON.stringify silently turns into `null`
+// anyway - see below). Code that creates an unplaced node in memory before
+// it's ever been through writeMindmapDocument may still use NaN as a
+// convenience marker; isUnplaced recognizes both.
+export const UNPLACED_POSITION: Position | null = null;
+
+export function isUnplaced(position: Position | null): boolean {
+  return (
+    position === null || Number.isNaN(position.x) || Number.isNaN(position.y)
+  );
+}
+
 export type MindmapNode =
   | {
       membership: "member";
       id: string;
-      position: Position;
+      position: Position | null;
       ref: ZoteroObjectRef;
     }
   | {
       membership: "external";
       id: string;
-      position: Position;
+      position: Position | null;
       ref: ZoteroObjectRef;
       homeMindmapId: string;
       homeNodeId: string;
