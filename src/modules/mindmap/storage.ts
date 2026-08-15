@@ -165,7 +165,65 @@ export async function writeMindmapDocument(
   if (!result.ok) {
     throw new StorageError("invalid-schema", result.error);
   }
-  const item = await findOrCreateMindmapNote(libraryID);
-  item.setNote(buildNoteHtml(result.doc));
-  await item.saveTx();
+  await enqueue(async () => {
+    const item = await findOrCreateMindmapNote(libraryID);
+    item.setNote(buildNoteHtml(result.doc));
+    await item.saveTx();
+  });
+}
+
+// The whole document lives in one note, so every caller that changes part of
+// it reads the document, edits it, and writes all of it back. Two of those
+// cycles overlapping means the later write is built on a document read before
+// the earlier write landed, and the earlier change is gone. That is reachable
+// without any user race: deletionCleanup runs from a Zotero notifier, so a
+// delete arriving while the mindmap tab persists layout positions is enough.
+//
+// Serializing the cycles is what makes them safe, so read-modify-write goes
+// through updateMindmapDocument rather than a bare read/write pair.
+let queue: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  // Each task chains off the previous one's settlement, not its value, so one
+  // failing task doesn't wedge the queue for everything behind it.
+  const result = queue.then(task, task);
+  queue = result.catch(() => undefined);
+  return result;
+}
+
+/**
+ * Reads the document, applies `mutate`, and writes the result back with no
+ * other storage operation interleaving. Return null from `mutate` to leave the
+ * document untouched (no write happens); otherwise the returned document is
+ * what gets written.
+ */
+export async function updateMindmapDocument(
+  mutate: (doc: MindmapDocument) => MindmapDocument | null,
+  libraryID = defaultLibraryID(),
+): Promise<MindmapDocument | null> {
+  return enqueue(async () => {
+    const doc = await readMindmapDocument(libraryID);
+    const next = mutate(doc);
+    if (next === null) {
+      return null;
+    }
+    const result = parseMindmapDocument(next);
+    if (!result.ok) {
+      throw new StorageError("invalid-schema", result.error);
+    }
+    const item = await findOrCreateMindmapNote(libraryID);
+    item.setNote(buildNoteHtml(result.doc));
+    await item.saveTx();
+    return result.doc;
+  });
+}
+
+/**
+ * Resolves once every queued storage operation has settled. Tests need this:
+ * a write triggered by a Zotero notifier (deletionCleanup) is not awaited by
+ * whatever caused the delete, so without it that write lands in the middle of
+ * a later test.
+ */
+export async function whenStorageIdle(): Promise<void> {
+  await queue;
 }

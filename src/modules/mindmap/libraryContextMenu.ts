@@ -5,7 +5,7 @@
  * Both work directly on the library item list, without the item pane open.
  */
 import { getString } from "../../utils/locale";
-import { readMindmapDocument, writeMindmapDocument } from "./storage";
+import { updateMindmapDocument } from "./storage";
 import { openAddLinkDialog } from "./addLinkForm";
 import type { MindmapNode, ZoteroObjectRef } from "./schema";
 
@@ -44,31 +44,33 @@ export async function addToMindmap(items: Zotero.Item[]): Promise<number> {
   }
 
   const libraryID = eligible[0].libraryID;
-  const doc = await readMindmapDocument(libraryID);
   let addedCount = 0;
-  for (const item of eligible) {
-    const ref = refFor(item);
-    if (doc.nodes.some((node) => refsMatch(node.ref, ref))) {
-      continue;
+  await updateMindmapDocument((doc) => {
+    addedCount = 0;
+    for (const item of eligible) {
+      const ref = refFor(item);
+      if (doc.nodes.some((node) => refsMatch(node.ref, ref))) {
+        continue;
+      }
+      const node: MindmapNode = {
+        membership: "member",
+        id: Zotero.Utilities.generateObjectKey(),
+        // No layout pass has placed this node yet. appendLink() in
+        // addLinkForm.ts uses NaN as its "unplaced" sentinel, but NaN doesn't
+        // survive the JSON round-trip through storage (JSON.stringify turns it
+        // into null, which then fails validate.ts's isPosition check on the
+        // next read, making the whole document unreadable) - graphRenderer.ts
+        // already falls back to {0, 0} for a NaN position at render time, so
+        // writing that value directly here gets the same visual result without
+        // the storage bug.
+        position: { x: 0, y: 0 },
+        ref,
+      };
+      doc.nodes.push(node);
+      addedCount++;
     }
-    const node: MindmapNode = {
-      membership: "member",
-      id: Zotero.Utilities.generateObjectKey(),
-      // No layout pass has placed this node yet. appendLink() in
-      // addLinkForm.ts uses NaN as its "unplaced" sentinel, but NaN doesn't
-      // survive the JSON round-trip through storage (JSON.stringify turns it
-      // into null, which then fails validate.ts's isPosition check on the
-      // next read, making the whole document unreadable) - graphRenderer.ts
-      // already falls back to {0, 0} for a NaN position at render time, so
-      // writing that value directly here gets the same visual result without
-      // the storage bug.
-      position: { x: 0, y: 0 },
-      ref,
-    };
-    doc.nodes.push(node);
-    addedCount++;
-  }
-  await writeMindmapDocument(doc, libraryID);
+    return addedCount === 0 ? null : doc;
+  }, libraryID);
   return addedCount;
 }
 

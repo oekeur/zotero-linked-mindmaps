@@ -11,7 +11,7 @@ import { getLocaleID } from "../../utils/locale";
 import {
   findMindmapNote,
   readMindmapDocument,
-  writeMindmapDocument,
+  updateMindmapDocument,
 } from "./storage";
 import { getLinkTypeById } from "./linkTypes";
 import { renderAddLinkForm } from "./addLinkForm";
@@ -259,9 +259,13 @@ async function handleRemoveNode(
   mindmapDoc: MindmapDocument,
   nodeId: string,
 ): Promise<void> {
-  removeNode(mindmapDoc, nodeId);
   try {
-    await writeMindmapDocument(mindmapDoc, item.libraryID);
+    // Removes from the document as it stands at write time, not from the copy
+    // the panel rendered: the panel can sit open across other edits.
+    await updateMindmapDocument((doc) => {
+      removeNode(doc, nodeId);
+      return doc;
+    }, item.libraryID);
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to remove node: ${
@@ -278,9 +282,11 @@ async function handleRemoveLink(
   mindmapDoc: MindmapDocument,
   linkId: string,
 ): Promise<void> {
-  removeLink(mindmapDoc, linkId);
   try {
-    await writeMindmapDocument(mindmapDoc, item.libraryID);
+    await updateMindmapDocument((doc) => {
+      removeLink(doc, linkId);
+      return doc;
+    }, item.libraryID);
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to remove link: ${

@@ -81,6 +81,11 @@ export async function layoutUnplacedNodes(
     }),
   };
 
+  // Writes the caller's document rather than re-reading storage inside the
+  // write: this function's contract is to lay out the document it was handed,
+  // which is not necessarily the persisted one (tests hand it a bare doc, and
+  // the caller reads storage immediately before calling). The write itself is
+  // still serialized against every other storage operation.
   await writeMindmapDocument(updatedDoc);
   return updatedDoc;
 }
