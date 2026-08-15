@@ -1,7 +1,17 @@
 import { getString, initLocale } from "./utils/locale";
-import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
 import { registerSpikeShortcut } from "./spike/cytoscapeSpike";
+import { ConnectionsPanelFactory } from "./modules/mindmap/connectionsPanel";
+import {
+  closeMindmapTab,
+  registerMindmapMenu,
+} from "./modules/mindmap/mindmapTab";
+import {
+  registerDeletionObserver,
+  unregisterDeletionObserver,
+} from "./modules/mindmap/deletionCleanup";
+
+let deletionObserverID: string | undefined;
 
 async function onStartup() {
   await Promise.all([
@@ -11,6 +21,9 @@ async function onStartup() {
   ]);
 
   initLocale();
+
+  ConnectionsPanelFactory.register();
+  deletionObserverID = registerDeletionObserver();
 
   // TASK-1 spike (Shift+G opens the Cytoscape spike tab) — remove with src/spike/
   registerSpikeShortcut();
@@ -31,6 +44,8 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   win.MozXULElement.insertFTLIfNeeded(
     `${addon.data.config.addonRef}-mainWindow.ftl`,
   );
+
+  registerMindmapMenu();
 
   const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
     closeOnClick: true,
@@ -58,6 +73,12 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  ConnectionsPanelFactory.unregister();
+  if (deletionObserverID) {
+    unregisterDeletionObserver(deletionObserverID);
+    deletionObserverID = undefined;
+  }
+  closeMindmapTab();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
   // Remove addon object
@@ -75,19 +96,10 @@ async function onNotify(
   ztoolkit.log("notify", event, type, ids, extraData);
 }
 
-/**
- * This function is just an example of dispatcher for Preference UI events.
- * Any operations should be placed in a function to keep this funcion clear.
- * @param type event type
- * @param data event data
- */
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   switch (type) {
-    case "load":
-      registerPrefsScripts(data.window);
-      break;
     default:
-      return;
+      break;
   }
 }
 
