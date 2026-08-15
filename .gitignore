@@ -30,3 +30,7 @@ tsconfig.tsbuildinfo
 
 # JetBrains personal IDE state, not shared project config
 /.idea
+
+# transient Claude Code worktree checkouts; settings.json and hooks/ stay
+# tracked so the pre-merge test gate travels with the repo
+/.claude/worktrees
