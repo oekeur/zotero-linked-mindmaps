@@ -16,7 +16,11 @@ export const STORAGE_TAG = "_zoterolinkedmindmaps-storage-v1";
 
 const DATA_BLOCK_ID = "zoterolinkedmindmaps-data";
 const DATA_BLOCK_OPEN = `<pre id="${DATA_BLOCK_ID}">`;
-const DATA_BLOCK_CLOSE = "</pre>";
+// Zotero's note editor re-serializes a note's HTML through its ProseMirror
+// schema the first time the note is opened, and that schema drops attributes
+// it doesn't know - including the id on our <pre>. Match any <pre> so an
+// editor-normalized note still reads back.
+const DATA_BLOCK_PATTERN = /<pre\b[^>]*>([\s\S]*?)<\/pre>/;
 const NOTE_WARNING =
   "<p>This note stores structured data for the Zotero Linked Mindmaps plugin. Editing it manually will corrupt your mindmap.</p>";
 
@@ -65,20 +69,11 @@ function normalizeForStorage(doc: MindmapDocument): MindmapDocument {
 
 function buildNoteHtml(doc: MindmapDocument): string {
   const escaped = escapeHtml(JSON.stringify(normalizeForStorage(doc)));
-  return `${NOTE_WARNING}${DATA_BLOCK_OPEN}${escaped}${DATA_BLOCK_CLOSE}`;
+  return `${NOTE_WARNING}${DATA_BLOCK_OPEN}${escaped}</pre>`;
 }
 
 function extractDataBlock(html: string): string | null {
-  const start = html.indexOf(DATA_BLOCK_OPEN);
-  if (start === -1) {
-    return null;
-  }
-  const contentStart = start + DATA_BLOCK_OPEN.length;
-  const end = html.indexOf(DATA_BLOCK_CLOSE, contentStart);
-  if (end === -1) {
-    return null;
-  }
-  return html.slice(contentStart, end);
+  return DATA_BLOCK_PATTERN.exec(html)?.[1] ?? null;
 }
 
 function defaultLibraryID(): number {

@@ -88,6 +88,21 @@ describe("mindmap/storage", function () {
     }
   });
 
+  it("reads a note the Zotero note editor has normalized (id attribute stripped)", async function () {
+    const doc = docWithNodesAndLinks();
+    await writeMindmapDocument(doc);
+    const note = await findMindmapNote();
+    note!.setNote(
+      note!
+        .getNote()
+        .replace(`<pre id="zoterolinkedmindmaps-data">`, "<pre>")
+        .replace("</pre>", "</pre>\n"),
+    );
+    await note!.saveTx();
+
+    assert.deepEqual(await readMindmapDocument(), doc);
+  });
+
   it("throws a StorageError when the note's JSON payload is malformed", async function () {
     const item = new Zotero.Item("note");
     item.libraryID = Zotero.Libraries.userLibraryID;
