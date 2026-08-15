@@ -21,9 +21,7 @@ const NOTE_WARNING =
   "<p>This note stores structured data for the Zotero Linked Mindmaps plugin. Editing it manually will corrupt your mindmap.</p>";
 
 export type StorageErrorReason =
-  | "block-missing"
-  | "parse-failed"
-  | "invalid-schema";
+  "block-missing" | "parse-failed" | "invalid-schema";
 
 export class StorageError extends Error {
   reason: StorageErrorReason;
@@ -36,11 +34,17 @@ export class StorageError extends Error {
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function unescapeHtml(value: string): string {
-  return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
 // JSON.stringify turns a NaN *value* into null, but only when NaN sits at
