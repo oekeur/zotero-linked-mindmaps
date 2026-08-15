@@ -7,6 +7,8 @@ export type FluentMessageId =
   | 'connections-error-state'
   | 'connections-mindmap-label'
   | 'connections-no-links-state'
+  | 'connections-remove-link-button'
+  | 'connections-remove-node-button'
   | 'connections-section-head-text'
   | 'connections-section-sidenav-tooltip'
   | 'menuitem-mindmap-open'

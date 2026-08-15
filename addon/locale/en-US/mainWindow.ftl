@@ -6,5 +6,7 @@ connections-empty-state = Not in any mindmap yet.
 connections-error-state = Could not read mindmap data.
 connections-no-links-state = No links yet.
 connections-mindmap-label = Mindmap:
+connections-remove-node-button = Remove from mindmap
+connections-remove-link-button = Remove
 menuitem-mindmap-open = Mindmap
 mindmap-tab-title = Mindmap
