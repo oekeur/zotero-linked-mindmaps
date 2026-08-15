@@ -15,8 +15,7 @@
  */
 import {
   findMindmapNote,
-  readMindmapDocument,
-  writeMindmapDocument,
+  updateMindmapDocument,
   StorageError,
 } from "./storage";
 
@@ -39,9 +38,28 @@ async function pruneLibrary(
     return;
   }
 
-  let doc;
   try {
-    doc = await readMindmapDocument(libraryID);
+    await updateMindmapDocument((doc) => {
+      const removedNodeIds = new Set(
+        doc.nodes
+          .filter((node) =>
+            deletedRefs.has(refKey(node.ref.libraryID, node.ref.key)),
+          )
+          .map((node) => node.id),
+      );
+      if (removedNodeIds.size === 0) {
+        return null;
+      }
+      return {
+        ...doc,
+        nodes: doc.nodes.filter((node) => !removedNodeIds.has(node.id)),
+        links: doc.links.filter(
+          (link) =>
+            !removedNodeIds.has(link.sourceNodeId) &&
+            !removedNodeIds.has(link.targetNodeId),
+        ),
+      };
+    }, libraryID);
   } catch (err) {
     if (err instanceof StorageError) {
       Zotero.debug(
@@ -51,26 +69,6 @@ async function pruneLibrary(
     }
     throw err;
   }
-
-  const removedNodeIds = new Set(
-    doc.nodes
-      .filter((node) =>
-        deletedRefs.has(refKey(node.ref.libraryID, node.ref.key)),
-      )
-      .map((node) => node.id),
-  );
-  if (removedNodeIds.size === 0) {
-    return;
-  }
-
-  doc.nodes = doc.nodes.filter((node) => !removedNodeIds.has(node.id));
-  doc.links = doc.links.filter(
-    (link) =>
-      !removedNodeIds.has(link.sourceNodeId) &&
-      !removedNodeIds.has(link.targetNodeId),
-  );
-
-  await writeMindmapDocument(doc, libraryID);
 }
 
 async function handleDelete(

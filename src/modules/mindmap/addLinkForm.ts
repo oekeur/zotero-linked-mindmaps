@@ -7,7 +7,7 @@
  */
 import { getLocaleID } from "../../utils/locale";
 import { getLinkTypeById, getLinkTypes } from "./linkTypes";
-import { readMindmapDocument, writeMindmapDocument } from "./storage";
+import { readMindmapDocument, updateMindmapDocument } from "./storage";
 import { openTargetPicker } from "./targetPicker";
 import type { MindmapDocument, MindmapLink, ZoteroObjectRef } from "./schema";
 
@@ -246,35 +246,34 @@ export function renderAddLinkForm(
         return;
       }
       const selectedType = getLinkTypeById(typeSelect.value);
-      // Snapshot lengths so a failed write can be rolled back cleanly:
-      // completeLink only ever pushes onto the end of doc.nodes/doc.links,
-      // never inserts elsewhere, so truncating back to these lengths
-      // exactly undoes this attempt.
-      const nodesLengthBefore = doc.nodes.length;
-      const linksLengthBefore = doc.links.length;
 
       try {
-        const result = completeLink(doc, {
-          sourceRef,
-          targetRef: selectedTargetRef,
-          typeId: typeSelect.value,
-          name: nameInput.value.trim() || undefined,
-          direction: selectedType?.directional
-            ? (directionSelect.value as "forward" | "backward")
-            : undefined,
-        });
-        if (!result.ok) {
+        // The link is appended to the document as it stands at write time,
+        // not to the copy this form was rendered from - the form can sit open
+        // while other edits land. A failed write needs no rollback now: the
+        // mutation happens on a document the queue discards on throw, and the
+        // form's own copy is never touched.
+        let completed = false;
+        await updateMindmapDocument((current) => {
+          const result = completeLink(current, {
+            sourceRef,
+            targetRef: selectedTargetRef!,
+            typeId: typeSelect.value,
+            name: nameInput.value.trim() || undefined,
+            direction: selectedType?.directional
+              ? (directionSelect.value as "forward" | "backward")
+              : undefined,
+          });
+          completed = result.ok;
           // The picker already blocks selecting a self-referential target,
           // so this only guards against selectedTargetRef changing meaning
           // between pick and save.
-          return;
+          return result.ok ? current : null;
+        });
+        if (completed) {
+          onSaved();
         }
-
-        await writeMindmapDocument(doc);
-        onSaved();
       } catch (err) {
-        doc.nodes.length = nodesLengthBefore;
-        doc.links.length = linksLengthBefore;
         Zotero.debug(
           `[zoteroLinkedMindmaps] failed to save link: ${(err as Error).message}`,
         );
