@@ -13,6 +13,7 @@ export type FluentMessageId =
   | 'add-link-self-link-error'
   | 'add-link-type-label'
   | 'add-to-mindmap-progress'
+  | 'connections-add-link-header-button'
   | 'connections-empty-state'
   | 'connections-error-state'
   | 'connections-mindmap-label'
