@@ -91,9 +91,48 @@ export function resolveLinkVisual(
   };
 }
 
+const PARALLEL_EDGE_STEP = 40;
+
+/**
+ * Two or more links between the same node pair would otherwise render as
+ * overlapping edges. Groups links by unordered node pair (source/target
+ * order doesn't affect which links visually overlap) and assigns each a
+ * symmetric offset around 0, sorted by link id for stability across
+ * live-refresh rebuilds. A pair with a single link (the common case) gets
+ * offset 0, i.e. renders unchanged. A self-link (source === target) lands
+ * alone in its own group and also gets offset 0 - offsetting via
+ * control-point-distances doesn't apply to a Cytoscape loop edge, so it's
+ * left as-is rather than special-cased here.
+ */
+export function computeParallelOffsets(
+  links: MindmapLink[],
+): Map<string, number> {
+  const pairGroups = new Map<string, MindmapLink[]>();
+  for (const link of links) {
+    const pairKey = [link.sourceNodeId, link.targetNodeId].sort().join("::");
+    const group = pairGroups.get(pairKey);
+    if (group) {
+      group.push(link);
+    } else {
+      pairGroups.set(pairKey, [link]);
+    }
+  }
+
+  const offsets = new Map<string, number>();
+  for (const group of pairGroups.values()) {
+    const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+    const n = sorted.length;
+    sorted.forEach((link, i) => {
+      offsets.set(link.id, PARALLEL_EDGE_STEP * (i - (n - 1) / 2));
+    });
+  }
+  return offsets;
+}
+
 function buildEdgeElement(
   link: MindmapLink,
   typeMap: Map<string, LinkType>,
+  parallelOffset: number,
 ): cytoscape.EdgeDefinition {
   const { label, classes } = resolveLinkVisual(link, typeMap);
   return {
@@ -102,6 +141,7 @@ function buildEdgeElement(
       source: link.sourceNodeId,
       target: link.targetNodeId,
       label,
+      parallelOffset,
     },
     classes,
   };
@@ -138,6 +178,8 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
       width: 2,
       "line-color": "#666",
       "target-arrow-color": "#666",
+      "control-point-distances": "data(parallelOffset)",
+      "control-point-weights": 0.5,
     },
   },
   {
@@ -175,12 +217,15 @@ export async function renderMindmap(
   ensureCytoscapeWindowGlobals(win);
 
   const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
+  const parallelOffsets = computeParallelOffsets(doc.links);
 
   return cytoscape({
     container,
     elements: {
       nodes: doc.nodes.map(buildNodeElement),
-      edges: doc.links.map((link) => buildEdgeElement(link, typeMap)),
+      edges: doc.links.map((link) =>
+        buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
+      ),
     },
     style: STYLESHEET,
     layout: { name: "preset" },
