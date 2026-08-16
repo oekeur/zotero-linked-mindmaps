@@ -182,7 +182,7 @@ async function loadAddLinkForm(
   panelContainer: HTMLElement,
 ) {
   try {
-    const mindmapDoc = await readMindmapDocument(item.libraryID);
+    const mindmapDoc = await readMindmapDocument(undefined, item.libraryID);
     renderAddLinkForm(formContainer, item, mindmapDoc, () => {
       void renderConnectionsContent(panelContainer, item);
     });
@@ -225,7 +225,7 @@ export async function renderConnectionsContent(
 
   let mindmapDoc: MindmapDocument;
   try {
-    mindmapDoc = await readMindmapDocument(item.libraryID);
+    mindmapDoc = await readMindmapDocument(undefined, item.libraryID);
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to read mindmap document: ${
@@ -322,10 +322,14 @@ async function handleRemoveNode(
   try {
     // Removes from the document as it stands at write time, not from the copy
     // the panel rendered: the panel can sit open across other edits.
-    await updateMindmapDocument((doc) => {
-      removeNode(doc, nodeId);
-      return doc;
-    }, item.libraryID);
+    await updateMindmapDocument(
+      (doc) => {
+        removeNode(doc, nodeId);
+        return doc;
+      },
+      mindmapDoc.id,
+      item.libraryID,
+    );
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to remove node: ${
@@ -343,10 +347,14 @@ async function handleRemoveLink(
   linkId: string,
 ): Promise<void> {
   try {
-    await updateMindmapDocument((doc) => {
-      removeLink(doc, linkId);
-      return doc;
-    }, item.libraryID);
+    await updateMindmapDocument(
+      (doc) => {
+        removeLink(doc, linkId);
+        return doc;
+      },
+      mindmapDoc.id,
+      item.libraryID,
+    );
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to remove link: ${

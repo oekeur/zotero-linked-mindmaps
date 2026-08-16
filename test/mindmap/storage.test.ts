@@ -5,16 +5,19 @@ import {
   isUnplaced,
 } from "../../src/modules/mindmap/schema";
 import {
+  createMindmap,
+  findAllMindmapNotes,
   findMindmapNote,
+  listMindmaps,
   readMindmapDocument,
   StorageError,
   STORAGE_TAG,
+  updateMindmapDocument,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 
 async function clearStorageNote() {
-  const item = await findMindmapNote();
-  if (item) {
+  for (const item of await findAllMindmapNotes()) {
     await item.eraseTx();
   }
 }
@@ -162,5 +165,105 @@ describe("mindmap/storage", function () {
       assert.instanceOf(err, StorageError);
       assert.equal((err as StorageError).reason, "invalid-schema");
     }
+  });
+
+  describe("registry", function () {
+    it("lists every mindmap with its id, title and description (AC #1)", async function () {
+      const first = await createMindmap("Chapter one", "sources for ch. 1");
+      const second = await createMindmap("Methods");
+
+      const listed = await listMindmaps();
+
+      assert.equal(listed.length, 2);
+      const byId = new Map(listed.map((entry) => [entry.id, entry]));
+      assert.equal(byId.get(first.id)!.title, "Chapter one");
+      assert.equal(byId.get(first.id)!.description, "sources for ch. 1");
+      assert.isUndefined(byId.get(second.id)!.description);
+      assert.isNumber(byId.get(second.id)!.noteItemID);
+    });
+
+    it("gives each mindmap its own storage note and leaves the others alone (AC #2)", async function () {
+      const first = await createMindmap("First");
+      await writeMindmapDocument({
+        ...docWithNodesAndLinks(),
+        id: first.id,
+        title: "First",
+      });
+
+      const second = await createMindmap("Second");
+
+      assert.equal((await findAllMindmapNotes()).length, 2);
+      const firstDoc = await readMindmapDocument(first.id);
+      assert.equal(firstDoc.nodes.length, 1);
+      assert.equal(firstDoc.title, "First");
+      assert.deepEqual(await readMindmapDocument(second.id), second);
+    });
+
+    it("writes to the note the document's own id belongs to", async function () {
+      const first = await createMindmap("First");
+      const second = await createMindmap("Second");
+
+      await updateMindmapDocument(
+        (doc) => ({ ...doc, title: "Second, renamed" }),
+        second.id,
+      );
+
+      assert.equal((await readMindmapDocument(first.id)).title, "First");
+      assert.equal(
+        (await readMindmapDocument(second.id)).title,
+        "Second, renamed",
+      );
+    });
+
+    it("throws not-found for an id no mindmap carries", async function () {
+      await createMindmap("Only one");
+      try {
+        await readMindmapDocument("no-such-mindmap");
+        assert.fail("expected readMindmapDocument to throw");
+      } catch (err) {
+        assert.instanceOf(err, StorageError);
+        assert.equal((err as StorageError).reason, "not-found");
+      }
+    });
+
+    it("rejects a mindmap with a blank title", async function () {
+      try {
+        await createMindmap("   ");
+        assert.fail("expected createMindmap to throw");
+      } catch (err) {
+        assert.instanceOf(err, StorageError);
+        assert.equal((err as StorageError).reason, "invalid-schema");
+      }
+      assert.isEmpty(await listMindmaps());
+    });
+
+    // The registry is the set of tagged notes, and a note written before it
+    // existed already carries its own id and title, so it needs no migrating -
+    // it lists as an ordinary entry with its nodes and links intact (AC #3).
+    it("lists a document written by the single-mindmap path as its first entry (AC #3)", async function () {
+      await writeMindmapDocument(docWithNodesAndLinks());
+
+      const listed = await listMindmaps();
+
+      assert.equal(listed.length, 1);
+      assert.equal(listed[0].id, "doc-storage-test");
+      assert.equal(listed[0].title, "Storage round-trip");
+      const doc = await readMindmapDocument(listed[0].id);
+      assert.deepEqual(doc, docWithNodesAndLinks());
+    });
+
+    it("skips a note that no longer parses rather than failing the whole listing", async function () {
+      const good = await createMindmap("Readable");
+      const broken = new Zotero.Item("note");
+      broken.libraryID = Zotero.Libraries.userLibraryID;
+      broken.setNote('<p>warn</p><pre id="x">{not valid json</pre>');
+      broken.addTag(STORAGE_TAG);
+      await broken.saveTx();
+
+      const listed = await listMindmaps();
+
+      assert.equal(listed.length, 1);
+      assert.equal(listed[0].id, good.id);
+    });
   });
 });

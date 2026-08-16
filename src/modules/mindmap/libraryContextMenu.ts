@@ -30,18 +30,22 @@ export async function addToMindmap(items: Zotero.Item[]): Promise<number> {
 
   const libraryID = eligible[0].libraryID;
   let addedCount = 0;
-  await updateMindmapDocument((doc) => {
-    addedCount = 0;
-    for (const item of eligible) {
-      const ref = refFor(item);
-      if (doc.nodes.some((node) => refsMatch(node.ref, ref))) {
-        continue;
+  await updateMindmapDocument(
+    (doc) => {
+      addedCount = 0;
+      for (const item of eligible) {
+        const ref = refFor(item);
+        if (doc.nodes.some((node) => refsMatch(node.ref, ref))) {
+          continue;
+        }
+        doc.nodes.push(createMemberNode(ref));
+        addedCount++;
       }
-      doc.nodes.push(createMemberNode(ref));
-      addedCount++;
-    }
-    return addedCount === 0 ? null : doc;
-  }, libraryID);
+      return addedCount === 0 ? null : doc;
+    },
+    undefined,
+    libraryID,
+  );
   return addedCount;
 }
 
