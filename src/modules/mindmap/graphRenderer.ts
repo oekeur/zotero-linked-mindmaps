@@ -53,9 +53,57 @@ function resolveZoteroItem(ref: ZoteroObjectRef): Zotero.Item | false {
   return Zotero.Items.getByLibraryAndKey(ref.libraryID, ref.key);
 }
 
+export const EMPTY_NOTE_LABEL = "(empty note)";
+
+// Long enough to tell two notes apart at a glance, short enough that the
+// label still wraps inside a node.
+const NOTE_PREVIEW_LENGTH = 60;
+
+// The entities Zotero's note editor actually emits. A DOM parse would be more
+// thorough, but note HTML is simple enough not to warrant one here.
+const ENTITIES: Array<[RegExp, string]> = [
+  [/&nbsp;/g, " "],
+  [/&lt;/g, "<"],
+  [/&gt;/g, ">"],
+  [/&quot;/g, '"'],
+  [/&#39;/g, "'"],
+  [/&amp;/g, "&"],
+];
+
+/**
+ * A note's label is a preview of its content, not its title: Zotero derives a
+ * note's title from its first line and it is often absent or unhelpful.
+ *
+ * Tags become spaces rather than nothing, so `</p><p>` doesn't glue the last
+ * word of one paragraph to the first of the next. A note that reduces to
+ * nothing - genuinely empty, or only markup like a blank paragraph - gets a
+ * placeholder, because Cytoscape renders an empty label as a bare circle with
+ * no indication of what it is.
+ */
+export function buildNoteLabel(item: Zotero.Item): string {
+  let text = item.getNote().replace(/<[^>]*>/g, " ");
+  for (const [pattern, replacement] of ENTITIES) {
+    text = text.replace(pattern, replacement);
+  }
+  text = text.replace(/\s+/g, " ").trim();
+
+  if (text === "") {
+    return EMPTY_NOTE_LABEL;
+  }
+  if (text.length <= NOTE_PREVIEW_LENGTH) {
+    return text;
+  }
+  return `${text.slice(0, NOTE_PREVIEW_LENGTH).trimEnd()}…`;
+}
+
 export function resolveNodeLabel(ref: ZoteroObjectRef): string {
   const target = resolveZoteroItem(ref);
-  return target ? target.getDisplayTitle() : MISSING_ITEM_LABEL;
+  if (!target) {
+    return MISSING_ITEM_LABEL;
+  }
+  // Checks the item rather than ref.kind: a ref can outlive what it points at
+  // being replaced, and the label should describe what is actually there.
+  return target.isNote() ? buildNoteLabel(target) : target.getDisplayTitle();
 }
 
 // Returns a copy: Cytoscape takes ownership of the position object it is
@@ -175,6 +223,59 @@ function buildEdgeElement(
   };
 }
 
+export const PARENT_CHILD_TIE_CLASS = "parent-child-tie";
+
+/**
+ * Connectors between an item node and its own child-note nodes, drawn when
+ * both are on the mindmap. They are not links: nothing authored them, they
+ * carry no type and no name, and they never touch doc.links - they are
+ * recomputed on every render from Zotero's own parent/child data, so a tie
+ * appears and disappears as nodes are added, removed or reparented, with no
+ * persisted state to go stale.
+ *
+ * A child note whose parent isn't on this mindmap gets no tie; there is
+ * nothing to connect it to.
+ */
+export function buildParentChildTies(
+  nodes: MindmapNode[],
+): cytoscape.EdgeDefinition[] {
+  const itemNodeIdByItemID = new Map<number, string>();
+  const noteNodes: Array<{ nodeId: string; item: Zotero.Item }> = [];
+  for (const node of nodes) {
+    const item = resolveZoteroItem(node.ref);
+    if (!item) {
+      continue;
+    }
+    if (item.isNote()) {
+      noteNodes.push({ nodeId: node.id, item });
+    } else {
+      itemNodeIdByItemID.set(item.id, node.id);
+    }
+  }
+
+  const ties: cytoscape.EdgeDefinition[] = [];
+  for (const { nodeId, item } of noteNodes) {
+    const parentNodeId = item.parentItemID
+      ? itemNodeIdByItemID.get(item.parentItemID)
+      : undefined;
+    if (!parentNodeId) {
+      continue;
+    }
+    ties.push({
+      // The prefix keeps these ids clear of real link ids, so nothing can
+      // mistake a tie for a link when selecting or styling.
+      data: {
+        id: `tie:${parentNodeId}:${nodeId}`,
+        source: parentNodeId,
+        target: nodeId,
+        parallelOffset: 0,
+      },
+      classes: PARENT_CHILD_TIE_CLASS,
+    });
+  }
+  return ties;
+}
+
 const STYLESHEET: cytoscape.StylesheetStyle[] = [
   {
     selector: "node",
@@ -231,6 +332,21 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
       "line-color": "#999",
       "target-arrow-color": "#999",
       "target-arrow-shape": "none",
+    },
+  },
+  {
+    // Lighter than the unknown-type dotted line so the two don't read alike,
+    // and labelless on purpose: every real edge carries a label, even the
+    // unknown-type fallback, so an unlabelled line cannot be mistaken for an
+    // authored relationship.
+    selector: `edge.${PARENT_CHILD_TIE_CLASS}`,
+    style: {
+      "line-style": "dotted",
+      "line-color": "#ddd",
+      width: 1,
+      label: "",
+      "target-arrow-shape": "none",
+      "source-arrow-shape": "none",
     },
   },
 ];
@@ -429,9 +545,14 @@ export async function renderMindmap(
     container,
     elements: {
       nodes: doc.nodes.map((node) => buildNodeElement(node, piled)),
-      edges: doc.links.map((link) =>
-        buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
-      ),
+      // Ties come after the real links, so an authored link between the same
+      // parent and child paints (and keeps its label) above the plain tie.
+      edges: [
+        ...doc.links.map((link) =>
+          buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
+        ),
+        ...buildParentChildTies(doc.nodes),
+      ],
     },
     style: STYLESHEET,
     layout: { name: "preset" },
