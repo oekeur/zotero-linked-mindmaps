@@ -1,0 +1,25 @@
+startup-begin = Add-on wordt geladen
+startup-finish = Add-on is gereed
+preferences-pane-label = Koppelingstypen
+preferences-heading = Koppelingstypen
+preferences-column-label = Label
+preferences-column-directional = Gericht
+preferences-directional-yes = Ja
+preferences-directional-no = Nee
+preferences-add-button = Toevoegen
+preferences-edit-button = Bewerken
+preferences-delete-button = Verwijderen
+preferences-save-button = Opslaan
+preferences-cancel-button = Annuleren
+preferences-field-label = Label
+preferences-field-directional = Gericht
+preferences-delete-confirm-title = Koppelingstype verwijderen
+preferences-delete-confirm-used =
+    { $count ->
+        [one] Dit koppelingstype verwijderen? { $count } koppeling gebruikt het en toont daar "(onbekend type)".
+       *[other] Dit koppelingstype verwijderen? { $count } koppelingen gebruiken het en tonen daar "(onbekend type)".
+    }
+preferences-delete-confirm-unknown = Kon niet nagaan hoeveel koppelingen dit type gebruiken; de mindmapgegevens waren niet te lezen. Toch verwijderen?
+itemmenu-add-to-mindmap = Aan mindmap toevoegen
+itemmenu-add-link = Koppeling toevoegen…
+add-to-mindmap-progress = { $count } item(s) aan de mindmap toegevoegd

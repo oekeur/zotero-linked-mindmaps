@@ -41,6 +41,25 @@ import type {
 } from "../../src/modules/mindmap/schema";
 
 describe("mindmap/graphRenderer", function () {
+  /**
+   * ZoteroPane.selectItem resolves before the pane has finished settling on
+   * the selection, so a single read right after it can still see the previous
+   * one. Polls instead of guessing a delay.
+   */
+  async function waitForSelection(itemID: number): Promise<number[]> {
+    let selected: number[] = [];
+    for (let attempt = 0; attempt < 30; attempt++) {
+      selected = Zotero.getActiveZoteroPane()
+        .getSelectedItems()
+        .map((item) => item.id);
+      if (selected.includes(itemID)) {
+        return selected;
+      }
+      await Zotero.Promise.delay(100);
+    }
+    return selected;
+  }
+
   describe("resolveNodeLabel", function () {
     let article: Zotero.Item;
 
@@ -304,11 +323,7 @@ describe("mindmap/graphRenderer", function () {
 
       await tapHandler({ target: { id: () => "n1" } });
 
-      const selected = Zotero.getActiveZoteroPane().getSelectedItems();
-      assert.deepEqual(
-        selected.map((item) => item.id),
-        [article.id],
-      );
+      assert.deepEqual(await waitForSelection(article.id), [article.id]);
     });
 
     it("does not throw when the tapped node's ref points at a deleted item", async function () {
@@ -641,14 +656,8 @@ describe("mindmap/graphRenderer", function () {
       cy = await renderMindmap(container, docWithExternal(), []);
 
       cy.getElementById("n-external").emit("tap");
-      await Zotero.Promise.delay(500);
 
-      assert.include(
-        Zotero.getActiveZoteroPane()
-          .getSelectedItems()
-          .map((selected) => selected.id),
-        article.id,
-      );
+      assert.include(await waitForSelection(article.id), article.id);
     });
   });
 
