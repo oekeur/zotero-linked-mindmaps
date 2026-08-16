@@ -23,7 +23,13 @@ import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
 import { getLinkTypeById } from "./linkTypes";
 import { MISSING_ITEM_LABEL, resolveNodeLabel } from "./nodeLabels";
 import { renderAddLinkForm } from "./addLinkForm";
-import { canBeMindmapNode, refFor, removeLink, removeNode } from "./mutations";
+import {
+  canBeMindmapNode,
+  refFor,
+  removeFromGroup,
+  removeLink,
+  removeNode,
+} from "./mutations";
 import { refsMatch, type MindmapDocument, type MindmapNode } from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
@@ -328,6 +334,20 @@ export async function renderConnectionsContent(
   });
   container.appendChild(removeNodeButton);
 
+  // Only offered when the node is actually in a group: this is where a single
+  // node leaves one, as opposed to dissolving the whole group from the graph.
+  if (node.groupId) {
+    const removeFromGroupButton = doc.createElement("button");
+    removeFromGroupButton.setAttribute(
+      "data-l10n-id",
+      getLocaleID("connections-remove-from-group-button"),
+    );
+    removeFromGroupButton.addEventListener("click", () => {
+      void handleRemoveFromGroup(container, item, mindmapDoc, node.id);
+    });
+    container.appendChild(removeFromGroupButton);
+  }
+
   const links = mindmapDoc.links.filter(
     (link) => link.sourceNodeId === node.id || link.targetNodeId === node.id,
   );
@@ -399,6 +419,31 @@ async function handleRemoveNode(
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to remove node: ${
+        (err as Error).message
+      }`,
+    );
+  }
+  await renderConnectionsContent(container, item);
+}
+
+async function handleRemoveFromGroup(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapDoc: MindmapDocument,
+  nodeId: string,
+): Promise<void> {
+  try {
+    await updateMindmapDocument(
+      (doc) => {
+        removeFromGroup(doc, nodeId);
+        return doc;
+      },
+      mindmapDoc.id,
+      item.libraryID,
+    );
+  } catch (err) {
+    Zotero.debug(
+      `[zoteroLinkedMindmaps] Connections panel failed to remove node from group: ${
         (err as Error).message
       }`,
     );

@@ -8,6 +8,7 @@ import {
   buildParentChildTies,
   computeParallelOffsets,
   EXTERNAL_NODE_CLASS,
+  GROUP_NODE_CLASS,
   PARENT_CHILD_TIE_CLASS,
   renderMindmap,
   resolveLinkVisual,
@@ -337,8 +338,17 @@ describe("mindmap/graphRenderer", function () {
     let article: Zotero.Item;
     let otherArticle: Zotero.Item;
     let dockContainer: HTMLDivElement;
-    let cxttapHandler: (evt: { target: { id(): string } }) => void;
+    let cxttapHandler: (evt: {
+      target: { id(): string; data(key: string): unknown };
+    }) => void;
     let contextmenuListener: (evt: { preventDefault(): void }) => void;
+
+    // The shape a Cytoscape node event actually has. `data` matters here: the
+    // handler asks whether the target is a group container before doing
+    // anything else.
+    function nodeEvent(id: string) {
+      return { target: { id: () => id, data: () => undefined } };
+    }
 
     beforeEach(async function () {
       article = new Zotero.Item("journalArticle");
@@ -396,7 +406,7 @@ describe("mindmap/graphRenderer", function () {
       ]);
       attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
 
-      cxttapHandler({ target: { id: () => "n1" } });
+      cxttapHandler(nodeEvent("n1"));
 
       assert.notEqual(dockContainer.style.display, "none");
     });
@@ -410,8 +420,8 @@ describe("mindmap/graphRenderer", function () {
       ]);
       attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
 
-      cxttapHandler({ target: { id: () => "n1" } });
-      cxttapHandler({ target: { id: () => "n1" } });
+      cxttapHandler(nodeEvent("n1"));
+      cxttapHandler(nodeEvent("n1"));
 
       assert.equal(dockContainer.style.display, "none");
       assert.equal(dockContainer.textContent, "");
@@ -434,8 +444,8 @@ describe("mindmap/graphRenderer", function () {
       ]);
       attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
 
-      cxttapHandler({ target: { id: () => "n1" } });
-      cxttapHandler({ target: { id: () => "n2" } });
+      cxttapHandler(nodeEvent("n1"));
+      cxttapHandler(nodeEvent("n2"));
 
       assert.notEqual(dockContainer.style.display, "none");
     });
@@ -443,7 +453,7 @@ describe("mindmap/graphRenderer", function () {
     it("no-ops when the right-clicked node id has no matching ref", function () {
       attachNodeContextMenuHandler(fakeCy(), new Map(), dockContainer);
 
-      assert.doesNotThrow(() => cxttapHandler({ target: { id: () => "n1" } }));
+      assert.doesNotThrow(() => cxttapHandler(nodeEvent("n1")));
       assert.equal(dockContainer.style.display, "none");
     });
 
@@ -639,6 +649,137 @@ describe("mindmap/graphRenderer", function () {
           .map((selected) => selected.id),
         article.id,
       );
+    });
+  });
+
+  describe("groups", function () {
+    let container: HTMLDivElement;
+    let article: Zotero.Item;
+    let cy: cytoscape.Core | undefined;
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Grouped");
+      await article.saveTx();
+
+      const doc = Zotero.getMainWindow().document;
+      container = doc.createElement("div");
+      container.style.cssText =
+        "position: relative; width: 300px; height: 300px;";
+      doc.documentElement.appendChild(container);
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      cy?.destroy();
+      cy = undefined;
+      container.remove();
+      await article.eraseTx();
+    });
+
+    function groupedDoc(): MindmapDocument {
+      const ref = {
+        kind: "item" as const,
+        libraryID: article.libraryID,
+        key: article.key,
+      };
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-groups-test",
+        title: "Groups",
+        nodes: [
+          {
+            membership: "member",
+            id: "n-a",
+            position: { x: 40, y: 40 },
+            ref,
+            groupId: "g-1",
+          },
+          {
+            membership: "member",
+            id: "n-b",
+            position: { x: 160, y: 40 },
+            ref,
+            groupId: "g-1",
+          },
+          { membership: "member", id: "n-c", position: { x: 40, y: 200 }, ref },
+        ],
+        links: [],
+        groups: [{ id: "g-1", name: "Chapter one" }],
+      };
+    }
+
+    it("draws a group container holding exactly its members (AC #2)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, groupedDoc(), []);
+
+      const group = cy.getElementById("g-1");
+      assert.isTrue(group.hasClass(GROUP_NODE_CLASS));
+      assert.equal(group.data("label"), "Chapter one");
+      assert.deepEqual(
+        group
+          .children()
+          .map((child) => child.id())
+          .sort(),
+        ["n-a", "n-b"],
+      );
+      assert.isTrue(cy.getElementById("n-c").parent().empty());
+    });
+
+    it("leaves every member where it already was (AC #3)", async function () {
+      this.timeout(30000);
+      const doc = groupedDoc();
+      cy = await renderMindmap(container, doc, []);
+
+      assert.deepEqual(cy.getElementById("n-a").position(), { x: 40, y: 40 });
+      assert.deepEqual(cy.getElementById("n-b").position(), { x: 160, y: 40 });
+      assert.deepEqual(
+        doc.nodes.map((node) => node.position),
+        [
+          { x: 40, y: 40 },
+          { x: 160, y: 40 },
+          { x: 40, y: 200 },
+        ],
+      );
+    });
+
+    it("does not offer the group container as a draggable node (AC #3)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, groupedDoc(), []);
+
+      assert.isFalse(cy.getElementById("g-1").grabbable());
+    });
+
+    it("survives a write and read of the document (AC #4)", async function () {
+      this.timeout(30000);
+      for (const note of await findAllMindmapNotes()) {
+        await note.eraseTx();
+      }
+      await writeMindmapDocument(groupedDoc());
+
+      const readBack = await readMindmapDocument("doc-groups-test");
+
+      assert.deepEqual(readBack.groups, [{ id: "g-1", name: "Chapter one" }]);
+      assert.equal(
+        readBack.nodes.find((node) => node.id === "n-a")!.groupId,
+        "g-1",
+      );
+
+      for (const note of await findAllMindmapNotes()) {
+        await note.eraseTx();
+      }
+    });
+
+    it("skips a group no node belongs to, rather than drawing an empty region", async function () {
+      this.timeout(30000);
+      const doc = groupedDoc();
+      doc.groups!.push({ id: "g-empty", name: "Nobody" });
+
+      cy = await renderMindmap(container, doc, []);
+
+      assert.isTrue(cy.getElementById("g-empty").empty());
     });
   });
 

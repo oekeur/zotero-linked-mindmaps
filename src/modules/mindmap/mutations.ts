@@ -9,6 +9,7 @@
 import {
   UNPLACED_POSITION,
   type MindmapDocument,
+  type MindmapGroup,
   type MindmapNode,
   type ZoteroObjectRef,
 } from "./schema";
@@ -72,4 +73,65 @@ export function removeNode(doc: MindmapDocument, nodeId: string): void {
 
 export function removeLink(doc: MindmapDocument, linkId: string): void {
   doc.links = doc.links.filter((link) => link.id !== linkId);
+}
+
+/**
+ * Puts `nodeIds` in a new group and returns it. Membership is exclusive: a
+ * node already in another group moves, it doesn't end up in both. That falls
+ * out of the rendering (a Cytoscape node has one parent) rather than being a
+ * product judgement, and is the one thing here that would need rethinking if
+ * overlapping groups are ever wanted.
+ *
+ * Positions are not touched. A group is drawn around wherever its members
+ * already sit; it never moves them.
+ */
+export function createGroup(
+  doc: MindmapDocument,
+  nodeIds: string[],
+  name?: string,
+): MindmapGroup {
+  const group: MindmapGroup = {
+    id: Zotero.Utilities.generateObjectKey(),
+    ...(name ? { name } : {}),
+  };
+  const members = new Set(nodeIds);
+  doc.groups = [...(doc.groups ?? []), group];
+  doc.nodes = doc.nodes.map((node) =>
+    members.has(node.id) ? { ...node, groupId: group.id } : node,
+  );
+  return group;
+}
+
+export function renameGroup(
+  doc: MindmapDocument,
+  groupId: string,
+  name: string,
+): void {
+  doc.groups = (doc.groups ?? []).map((group) =>
+    group.id === groupId ? { ...group, ...(name ? { name } : {}) } : group,
+  );
+}
+
+/**
+ * Removes the group itself. Its members stay exactly where they are, keeping
+ * their links; only the fact that they were clustered goes away.
+ */
+export function deleteGroup(doc: MindmapDocument, groupId: string): void {
+  doc.groups = (doc.groups ?? []).filter((group) => group.id !== groupId);
+  doc.nodes = doc.nodes.map((node) =>
+    node.groupId === groupId ? withoutGroup(node) : node,
+  );
+}
+
+export function removeFromGroup(doc: MindmapDocument, nodeId: string): void {
+  doc.nodes = doc.nodes.map((node) =>
+    node.id === nodeId ? withoutGroup(node) : node,
+  );
+}
+
+// Deletes the key rather than setting it undefined, so a node that was never
+// grouped and one that has been ungrouped serialize identically.
+function withoutGroup(node: MindmapNode): MindmapNode {
+  const { groupId: _dropped, ...rest } = node;
+  return rest as MindmapNode;
 }

@@ -76,12 +76,23 @@ export function piledNodeIds(nodes: MindmapNode[]): Set<string> {
   return new Set(placed.map((node) => node.id));
 }
 
+/**
+ * A visual cluster of nodes, not a relationship between them. Grouping says
+ * "these belong together" without claiming every pair is linked, which is what
+ * the link vocabulary would have to do otherwise.
+ */
+export interface MindmapGroup {
+  id: string;
+  name?: string;
+}
+
 export type MindmapNode =
   | {
       membership: "member";
       id: string;
       position: Position | null;
       ref: ZoteroObjectRef;
+      groupId?: string;
     }
   | {
       membership: "external";
@@ -90,6 +101,7 @@ export type MindmapNode =
       ref: ZoteroObjectRef;
       homeMindmapId: string;
       homeNodeId: string;
+      groupId?: string;
     };
 
 export interface MindmapLink {
@@ -108,4 +120,8 @@ export interface MindmapDocument {
   description?: string;
   nodes: MindmapNode[];
   links: MindmapLink[];
+  // Optional rather than defaulted to []: a document written before grouping
+  // existed has no groups key, and leaving it absent keeps that document
+  // byte-identical through a read/write cycle.
+  groups?: MindmapGroup[];
 }
