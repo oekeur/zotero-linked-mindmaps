@@ -1,9 +1,10 @@
 import { assert } from "chai";
-import type cytoscape from "cytoscape";
+import cytoscape from "cytoscape";
 import {
   attachLiveRefresh,
   attachNodeClickHandler,
   attachNodeContextMenuHandler,
+  attachNodeDragHandler,
   computeParallelOffsets,
   MISSING_ITEM_LABEL,
   renderMindmap,
@@ -14,7 +15,9 @@ import {
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
   findMindmapNote,
+  readMindmapDocument,
   updateMindmapDocument,
+  whenStorageIdle,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import type { LinkType } from "../../src/modules/mindmap/linkTypes";
@@ -464,6 +467,267 @@ describe("mindmap/graphRenderer", function () {
         title: "refresh-2",
       }));
       assert.equal(second?.title, "refresh-2");
+    });
+  });
+
+  describe("attachNodeDragHandler", function () {
+    const NODE_IDS = ["node-a", "node-b", "node-c"];
+
+    function docAt(positions: Record<string, { x: number; y: number }>) {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-drag-test",
+        title: "Drag",
+        nodes: NODE_IDS.map((id) => ({
+          membership: "member" as const,
+          id,
+          position: positions[id],
+          ref: {
+            kind: "item" as const,
+            libraryID: Zotero.Libraries.userLibraryID,
+            key: "NOSUCHKEY",
+          },
+        })),
+        links: [],
+      } satisfies MindmapDocument;
+    }
+
+    const SPREAD = {
+      "node-a": { x: 0, y: 0 },
+      "node-b": { x: 200, y: 0 },
+      "node-c": { x: 0, y: 200 },
+    };
+
+    // A headless core mirroring buildNodeElement's shape. Dragging is a
+    // pointer gesture the renderer turns into a "dragfree" event per node, so
+    // the tests emit that event directly rather than synthesizing pointer
+    // input against a canvas.
+    function headlessCy(positions: Record<string, { x: number; y: number }>) {
+      return cytoscape({
+        elements: {
+          nodes: NODE_IDS.map((id) => ({
+            data: { id, label: id },
+            position: { ...positions[id] },
+          })),
+        },
+      });
+    }
+
+    /**
+     * One gesture: Cytoscape moves each selected node and emits "dragfree"
+     * for each of them in the same tick.
+     */
+    function dragTo(
+      cy: cytoscape.Core,
+      moves: Record<string, { x: number; y: number }>,
+    ) {
+      for (const [id, position] of Object.entries(moves)) {
+        const node = cy.getElementById(id);
+        node.position(position);
+        node.emit("dragfree");
+      }
+    }
+
+    // The handler flushes on a microtask and never awaits its own write, so
+    // the test has to let the microtask run before the queue has anything to
+    // wait on.
+    async function settle() {
+      await Promise.resolve();
+      await whenStorageIdle();
+    }
+
+    // Creating and filling the storage note fires its own notifications, and
+    // Zotero delivers them on its own schedule. Counting writes or watching
+    // for a rebuild has to start after they have drained, or the setup shows
+    // up in the measurement.
+    async function settleSetup() {
+      await Zotero.Promise.delay(250);
+    }
+
+    function countModifications(storageNoteItemID: number) {
+      let count = 0;
+      const observerID = Zotero.Notifier.registerObserver(
+        {
+          notify(
+            event: _ZoteroTypes.Notifier.Event,
+            type: _ZoteroTypes.Notifier.Type,
+            ids: string[] | number[],
+          ) {
+            if (
+              event === "modify" &&
+              type === "item" &&
+              ids.some((id) => Number(id) === storageNoteItemID)
+            ) {
+              count += 1;
+            }
+          },
+        },
+        ["item"],
+        "zoterolinkedmindmaps-drag-write-count-test",
+      );
+      return {
+        get count() {
+          return count;
+        },
+        stop: () => Zotero.Notifier.unregisterObserver(observerID),
+      };
+    }
+
+    let cy: cytoscape.Core | undefined;
+
+    afterEach(async function () {
+      cy?.destroy();
+      cy = undefined;
+      const note = await findMindmapNote();
+      await note?.eraseTx();
+    });
+
+    it("persists where a dragged node was dropped", async function () {
+      await writeMindmapDocument(docAt(SPREAD));
+      cy = headlessCy(SPREAD);
+      attachNodeDragHandler(cy);
+
+      dragTo(cy, { "node-a": { x: 640, y: 480 } });
+      await settle();
+
+      const persisted = await readMindmapDocument();
+      const moved = persisted.nodes.find((n) => n.id === "node-a")!;
+      assert.deepEqual(moved.position, { x: 640, y: 480 });
+    });
+
+    it("writes once for a gesture that moves several nodes", async function () {
+      this.timeout(30000);
+      await writeMindmapDocument(docAt(SPREAD));
+      const note = await findMindmapNote();
+      await settleSetup();
+      cy = headlessCy(SPREAD);
+      attachNodeDragHandler(cy);
+
+      const writes = countModifications(note!.id);
+      try {
+        dragTo(cy, {
+          "node-a": { x: 500, y: 500 },
+          "node-b": { x: 700, y: 500 },
+          "node-c": { x: 500, y: 700 },
+        });
+        await settle();
+      } finally {
+        writes.stop();
+      }
+
+      assert.equal(writes.count, 1);
+      const persisted = await readMindmapDocument();
+      const byId = new Map(persisted.nodes.map((n) => [n.id, n.position]));
+      assert.deepEqual(byId.get("node-a"), { x: 500, y: 500 });
+      assert.deepEqual(byId.get("node-b"), { x: 700, y: 500 });
+      assert.deepEqual(byId.get("node-c"), { x: 500, y: 700 });
+    });
+
+    it("writes nothing when the gesture left every node where it was", async function () {
+      this.timeout(30000);
+      await writeMindmapDocument(docAt(SPREAD));
+      const note = await findMindmapNote();
+      await settleSetup();
+      cy = headlessCy(SPREAD);
+      attachNodeDragHandler(cy);
+
+      const writes = countModifications(note!.id);
+      try {
+        dragTo(cy, { "node-a": { ...SPREAD["node-a"] } });
+        await settle();
+      } finally {
+        writes.stop();
+      }
+
+      assert.equal(writes.count, 0);
+    });
+
+    it("survives a live-refresh rebuild triggered by an unrelated edit", async function () {
+      this.timeout(30000);
+      await writeMindmapDocument(docAt(SPREAD));
+      cy = headlessCy(SPREAD);
+      attachNodeDragHandler(cy);
+
+      dragTo(cy, { "node-a": { x: 640, y: 480 } });
+      await settle();
+
+      await updateMindmapDocument((doc) => ({ ...doc, title: "renamed" }));
+
+      const persisted = await readMindmapDocument();
+      assert.equal(persisted.title, "renamed");
+      assert.deepEqual(
+        persisted.nodes.find((n) => n.id === "node-a")!.position,
+        { x: 640, y: 480 },
+      );
+    });
+
+    describe("live-refresh interaction", function () {
+      let container: HTMLDivElement;
+      let teardown: (() => void) | undefined;
+
+      // attachLiveRefresh answers a notification by destroying the graph and
+      // rebuilding it, so a destroy is the observable signal that a rebuild
+      // ran.
+      function destroyCountingCy() {
+        let destroyed = 0;
+        return {
+          cy: {
+            destroy() {
+              destroyed += 1;
+            },
+          } as unknown as cytoscape.Core,
+          get destroyed() {
+            return destroyed;
+          },
+        };
+      }
+
+      beforeEach(function () {
+        const doc = Zotero.getMainWindow().document;
+        container = doc.createElement("div");
+        container.style.cssText =
+          "position: relative; width: 200px; height: 200px;";
+        doc.documentElement.appendChild(container);
+      });
+
+      afterEach(function () {
+        teardown?.();
+        teardown = undefined;
+        container.remove();
+      });
+
+      it("does not rebuild the graph for the drag write it made itself", async function () {
+        this.timeout(30000);
+        await writeMindmapDocument(docAt(SPREAD));
+        const note = await findMindmapNote();
+        await settleSetup();
+        cy = headlessCy(SPREAD);
+        attachNodeDragHandler(cy);
+
+        const rendered = destroyCountingCy();
+        teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+
+        dragTo(cy, { "node-a": { x: 640, y: 480 } });
+        await settle();
+        await Zotero.Promise.delay(200);
+
+        assert.equal(rendered.destroyed, 0);
+      });
+
+      it("still rebuilds for a write the graph did not make", async function () {
+        this.timeout(30000);
+        await writeMindmapDocument(docAt(SPREAD));
+        const note = await findMindmapNote();
+        await settleSetup();
+
+        const rendered = destroyCountingCy();
+        teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+
+        await updateMindmapDocument((doc) => ({ ...doc, title: "renamed" }));
+        await Zotero.Promise.delay(200);
+
+        assert.equal(rendered.destroyed, 1);
+      });
     });
   });
 

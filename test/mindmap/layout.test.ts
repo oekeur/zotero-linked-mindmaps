@@ -11,7 +11,7 @@ import {
 import {
   CURRENT_SCHEMA_VERSION,
   UNPLACED_POSITION,
-  coincidentNodeIds,
+  piledNodeIds,
   isCoincident,
   isUnplaced,
   type MindmapDocument,
@@ -43,16 +43,18 @@ function docWith(nodes: MindmapNode[]): MindmapDocument {
 // core has no measured viewport, which is also the state the real tab is in
 // when it lays out: whatever passes here has to work without one.
 function headlessCy(nodes: MindmapNode[]) {
-  const collided = coincidentNodeIds(nodes);
+  const piled = piledNodeIds(nodes);
   return cytoscape({
     elements: {
       nodes: nodes.map((n) => ({
         data: {
           id: n.id,
           label: n.id,
-          unplaced: isUnplaced(n.position) || collided.has(n.id),
+          unplaced: isUnplaced(n.position) || piled.has(n.id),
         },
-        position: isUnplaced(n.position) ? { x: 0, y: 0 } : n.position!,
+        // Copied, like buildNodeElement's toElementPosition: Cytoscape writes
+        // to the position object it is given.
+        position: isUnplaced(n.position) ? { x: 0, y: 0 } : { ...n.position! },
       })),
     },
   });
@@ -127,7 +129,7 @@ describe("mindmap/layout", function () {
   it("positions only the new node, leaving existing positions untouched (AC #3)", async function () {
     const placedPosition = { x: 5, y: 7 };
     const doc = docWith([
-      node("node-a", placedPosition),
+      node("node-a", { ...placedPosition }),
       node("node-b", UNPLACED_POSITION),
     ]);
     const cy = headlessCy(doc.nodes);
@@ -155,7 +157,7 @@ describe("mindmap/layout", function () {
     assert.isFalse(anyPairCoincident(positionsOf(result!)));
   });
 
-  it("re-lays out nodes stacked on each other despite having stored positions", async function () {
+  it("re-lays out a document piled entirely on one point despite stored positions", async function () {
     const doc = docWith([
       node("node-a", { x: 0, y: 0 }),
       node("node-b", { x: 0, y: 0 }),
@@ -166,6 +168,39 @@ describe("mindmap/layout", function () {
 
     assert.isNotNull(result);
     assert.isFalse(anyPairCoincident(positionsOf(result!)));
+  });
+
+  it("leaves a hand-made overlap alone: a dragged node is not re-placed", async function () {
+    const overlap = { x: 20, y: 20 };
+    const doc = docWith([
+      node("node-a", { ...overlap }),
+      node("node-b", { ...overlap }),
+      node("node-c", { x: 400, y: 400 }),
+    ]);
+    const cy = headlessCy(doc.nodes);
+
+    const result = await layoutUnplacedNodes(cy, doc);
+
+    assert.isNull(result);
+    assert.isNull(await findMindmapNote());
+  });
+
+  it("places a new node without disturbing an existing hand-made overlap", async function () {
+    const overlap = { x: 20, y: 20 };
+    const doc = docWith([
+      node("node-a", { ...overlap }),
+      node("node-b", { ...overlap }),
+      node("node-c", UNPLACED_POSITION),
+    ]);
+    const cy = headlessCy(doc.nodes);
+
+    const result = await layoutUnplacedNodes(cy, doc);
+
+    assert.isNotNull(result);
+    const byId = new Map(result!.nodes.map((n) => [n.id, n.position!]));
+    assert.deepEqual(byId.get("node-a"), overlap);
+    assert.deepEqual(byId.get("node-b"), overlap);
+    assert.isFalse(isCoincident(byId.get("node-c")!, overlap));
   });
 
   it("converges: a repaired layout is not laid out again on reopen", async function () {
@@ -215,19 +250,38 @@ describe("mindmap/layout", function () {
     });
   });
 
-  describe("coincidentNodeIds", function () {
-    it("reports both nodes of a stacked pair", function () {
-      const ids = coincidentNodeIds([
+  describe("piledNodeIds", function () {
+    it("reports every node when the whole document sits on the origin", function () {
+      const ids = piledNodeIds([
+        node("node-a", { x: 0, y: 0 }),
+        node("node-b", { x: 0, y: 0 }),
+        node("node-c", { x: 0, y: 0 }),
+      ]);
+
+      assert.deepEqual([...ids].sort(), ["node-a", "node-b", "node-c"]);
+    });
+
+    it("reports nothing for a pile the user dragged together away from the origin", function () {
+      const ids = piledNodeIds([
+        node("node-a", { x: 80, y: 40 }),
+        node("node-b", { x: 80, y: 40 }),
+      ]);
+
+      assert.equal(ids.size, 0);
+    });
+
+    it("reports nothing when only some nodes overlap", function () {
+      const ids = piledNodeIds([
         node("node-a", { x: 0, y: 0 }),
         node("node-b", { x: 0, y: 0 }),
         node("node-c", { x: 300, y: 300 }),
       ]);
 
-      assert.deepEqual([...ids].sort(), ["node-a", "node-b"]);
+      assert.equal(ids.size, 0);
     });
 
     it("ignores nodes with no position yet", function () {
-      const ids = coincidentNodeIds([
+      const ids = piledNodeIds([
         node("node-a", UNPLACED_POSITION),
         node("node-b", UNPLACED_POSITION),
       ]);
@@ -235,8 +289,18 @@ describe("mindmap/layout", function () {
       assert.equal(ids.size, 0);
     });
 
+    it("counts only placed nodes towards the pile", function () {
+      const ids = piledNodeIds([
+        node("node-a", { x: 0, y: 0 }),
+        node("node-b", { x: 0, y: 0 }),
+        node("node-c", UNPLACED_POSITION),
+      ]);
+
+      assert.deepEqual([...ids].sort(), ["node-a", "node-b"]);
+    });
+
     it("reports nothing for a lone node", function () {
-      assert.equal(coincidentNodeIds([node("node-a", { x: 0, y: 0 })]).size, 0);
+      assert.equal(piledNodeIds([node("node-a", { x: 0, y: 0 })]).size, 0);
     });
   });
 });

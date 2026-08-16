@@ -78,10 +78,21 @@ export function gridPositions(
   return positions;
 }
 
-function anyCoincident(positions: Position[]): boolean {
-  for (let i = 0; i < positions.length; i++) {
-    for (let j = i + 1; j < positions.length; j++) {
-      if (isCoincident(positions[i], positions[j])) {
+/**
+ * Whether the layout put a node on top of something. Only collisions that
+ * involve a node this run just placed count: two already-placed nodes sharing
+ * a spot is a position the user dragged them into, and is not a reason to
+ * throw away the layout's result for an unrelated new node.
+ */
+function anyNewCollision(updated: Position[], placed: Position[]): boolean {
+  for (let i = 0; i < updated.length; i++) {
+    for (let j = i + 1; j < updated.length; j++) {
+      if (isCoincident(updated[i], updated[j])) {
+        return true;
+      }
+    }
+    for (const existing of placed) {
+      if (isCoincident(updated[i], existing)) {
         return true;
       }
     }
@@ -138,7 +149,7 @@ export async function layoutUnplacedNodes(
   // the pile then reads as a set of real positions. Fall back to the grid,
   // covering collisions with the already-placed nodes too.
   const placedPositions = placed.map((node) => node.position());
-  if (anyCoincident([...updatedPositions.values(), ...placedPositions])) {
+  if (anyNewCollision([...updatedPositions.values()], placedPositions)) {
     updatedPositions = gridPositions([...updatedPositions.keys()], box);
     unplaced.forEach((node) => {
       node.position(updatedPositions.get(node.id())!);

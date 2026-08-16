@@ -67,9 +67,17 @@ function normalizeForStorage(doc: MindmapDocument): MindmapDocument {
   };
 }
 
+/**
+ * The document exactly as it goes into the note. Two documents that serialize
+ * identically are the same stored document, which is how a caller can tell a
+ * change it made itself apart from someone else's.
+ */
+export function serializeDocument(doc: MindmapDocument): string {
+  return JSON.stringify(normalizeForStorage(doc));
+}
+
 function buildNoteHtml(doc: MindmapDocument): string {
-  const escaped = escapeHtml(JSON.stringify(normalizeForStorage(doc)));
-  return `${NOTE_WARNING}${DATA_BLOCK_OPEN}${escaped}</pre>`;
+  return `${NOTE_WARNING}${DATA_BLOCK_OPEN}${escapeHtml(serializeDocument(doc))}</pre>`;
 }
 
 function extractDataBlock(html: string): string | null {
@@ -167,8 +175,17 @@ export async function writeMindmapDocument(
   }
   await enqueue(async () => {
     const item = await findOrCreateMindmapNote(libraryID);
-    item.setNote(buildNoteHtml(result.doc));
-    await item.saveTx();
+    // setNote runs inside the transaction, not before it. saveTx() calls
+    // _initSave - which reads the item's change flags - before Zotero opens
+    // the transaction, so a save that queues behind another transaction on
+    // the same item can have its pending note change wiped in between by the
+    // earlier save's _finalizeSave (reload() + _clearChanged()). The save then
+    // reports success and writes nothing, and the item's in-memory note text
+    // silently reverts. Opening the transaction first closes that window.
+    await Zotero.DB.executeTransaction(async () => {
+      item.setNote(buildNoteHtml(result.doc));
+      await item.save();
+    });
   });
 }
 
@@ -222,8 +239,11 @@ export async function updateMindmapDocument(
       throw new StorageError("invalid-schema", result.error);
     }
     const item = await findOrCreateMindmapNote(libraryID);
-    item.setNote(buildNoteHtml(result.doc));
-    await item.saveTx();
+    // Transaction first, then setNote - see writeMindmapDocument for why.
+    await Zotero.DB.executeTransaction(async () => {
+      item.setNote(buildNoteHtml(result.doc));
+      await item.save();
+    });
     return result.doc;
   });
 }
