@@ -19,7 +19,9 @@ import {
   updateMindmapDocument,
   type MindmapSummary,
 } from "./storage";
+import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
 import { getLinkTypeById } from "./linkTypes";
+import { MISSING_ITEM_LABEL, resolveNodeLabel } from "./nodeLabels";
 import { renderAddLinkForm } from "./addLinkForm";
 import { canBeMindmapNode, refFor, removeLink, removeNode } from "./mutations";
 import { refsMatch, type MindmapDocument, type MindmapNode } from "./schema";
@@ -83,16 +85,6 @@ export class ConnectionsPanelFactory {
     Zotero.ItemPaneManager.unregisterSection(registeredPaneID);
     registeredPaneID = false;
   }
-}
-
-const MISSING_ITEM_LABEL = "(missing item)";
-
-function resolveNodeTitle(node: MindmapNode): string {
-  const target = Zotero.Items.getByLibraryAndKey(
-    node.ref.libraryID,
-    node.ref.key,
-  );
-  return target ? target.getDisplayTitle() : MISSING_ITEM_LABEL;
 }
 
 function appendL10nText(container: HTMLElement, doc: Document, id: string) {
@@ -351,7 +343,7 @@ export async function renderConnectionsContent(
     const otherNodeId = isSource ? link.targetNodeId : link.sourceNodeId;
     const otherNode = mindmapDoc.nodes.find((n) => n.id === otherNodeId);
     const otherTitle = otherNode
-      ? resolveNodeTitle(otherNode)
+      ? resolveNodeLabel(otherNode.ref)
       : MISSING_ITEM_LABEL;
 
     const linkType = getLinkTypeById(link.typeId);
@@ -400,6 +392,10 @@ async function handleRemoveNode(
       mindmapDoc.id,
       item.libraryID,
     );
+    // Another mindmap may have been reaching into the node just removed.
+    // Nothing records that, by design, so the stubs are reconciled against
+    // what still exists.
+    await pruneDanglingExternalNodes(item.libraryID);
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to remove node: ${

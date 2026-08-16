@@ -7,14 +7,17 @@ import {
   attachNodeDragHandler,
   buildParentChildTies,
   computeParallelOffsets,
-  EMPTY_NOTE_LABEL,
-  MISSING_ITEM_LABEL,
+  EXTERNAL_NODE_CLASS,
   PARENT_CHILD_TIE_CLASS,
   renderMindmap,
   resolveLinkVisual,
-  resolveNodeLabel,
   UNKNOWN_TYPE_LABEL,
 } from "../../src/modules/mindmap/graphRenderer";
+import {
+  EMPTY_NOTE_LABEL,
+  MISSING_ITEM_LABEL,
+  resolveNodeLabel,
+} from "../../src/modules/mindmap/nodeLabels";
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
   findAllMindmapNotes,
@@ -532,6 +535,110 @@ describe("mindmap/graphRenderer", function () {
         title: "refresh-2",
       }));
       assert.equal(second?.title, "refresh-2");
+    });
+  });
+
+  describe("external nodes", function () {
+    let container: HTMLDivElement;
+    let article: Zotero.Item;
+    let cy: cytoscape.Core | undefined;
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Borrowed From Another Mindmap");
+      await article.saveTx();
+
+      const doc = Zotero.getMainWindow().document;
+      container = doc.createElement("div");
+      container.style.cssText =
+        "position: relative; width: 200px; height: 200px;";
+      doc.documentElement.appendChild(container);
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      cy?.destroy();
+      cy = undefined;
+      container.remove();
+      await article.eraseTx();
+    });
+
+    function docWithExternal(): MindmapDocument {
+      const ref = {
+        kind: "item" as const,
+        libraryID: article.libraryID,
+        key: article.key,
+      };
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-external-test",
+        title: "External",
+        nodes: [
+          {
+            membership: "member",
+            id: "n-member",
+            position: { x: 0, y: 0 },
+            ref,
+          },
+          {
+            membership: "external",
+            id: "n-external",
+            position: { x: 200, y: 0 },
+            ref,
+            homeMindmapId: "other-mindmap",
+            homeNodeId: "their-node",
+          },
+        ],
+        links: [
+          {
+            id: "l-1",
+            typeId: "cites",
+            sourceNodeId: "n-member",
+            targetNodeId: "n-external",
+          },
+        ],
+      };
+    }
+
+    it("marks a borrowed node so it renders differently (AC #2)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, docWithExternal(), []);
+
+      assert.isTrue(
+        cy.getElementById("n-external").hasClass(EXTERNAL_NODE_CLASS),
+      );
+      assert.isFalse(
+        cy.getElementById("n-member").hasClass(EXTERNAL_NODE_CLASS),
+      );
+    });
+
+    it("labels and links a borrowed node like any other (AC #3)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, docWithExternal(), []);
+
+      assert.equal(
+        cy.getElementById("n-external").data("label"),
+        "Borrowed From Another Mindmap",
+      );
+      // The link into it is an ordinary edge, not special-cased anywhere.
+      assert.equal(cy.getElementById("l-1").data("target"), "n-external");
+    });
+
+    it("opens the underlying item when a borrowed node is tapped (AC #3)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, docWithExternal(), []);
+
+      cy.getElementById("n-external").emit("tap");
+      await Zotero.Promise.delay(500);
+
+      assert.include(
+        Zotero.getActiveZoteroPane()
+          .getSelectedItems()
+          .map((selected) => selected.id),
+        article.id,
+      );
     });
   });
 

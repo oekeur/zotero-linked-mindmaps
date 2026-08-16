@@ -20,6 +20,7 @@ import {
 } from "./storage";
 import { layoutUnplacedNodes } from "./layout";
 import { piledNodeIds, isUnplaced } from "./schema";
+import { resolveNodeLabel, resolveZoteroItem } from "./nodeLabels";
 import { renderConnectionsContent } from "./connectionsPanel";
 import type { LinkType } from "./linkTypes";
 import type {
@@ -30,7 +31,6 @@ import type {
   ZoteroObjectRef,
 } from "./schema";
 
-export const MISSING_ITEM_LABEL = "(missing item)";
 export const UNKNOWN_TYPE_LABEL = "(unknown type)";
 
 // Zotero's main chrome window is a XUL document with no <head> element, but
@@ -49,63 +49,6 @@ function ensureDocumentHead(doc: Document) {
   Object.defineProperty(doc, "head", { value: head, configurable: true });
 }
 
-function resolveZoteroItem(ref: ZoteroObjectRef): Zotero.Item | false {
-  return Zotero.Items.getByLibraryAndKey(ref.libraryID, ref.key);
-}
-
-export const EMPTY_NOTE_LABEL = "(empty note)";
-
-// Long enough to tell two notes apart at a glance, short enough that the
-// label still wraps inside a node.
-const NOTE_PREVIEW_LENGTH = 60;
-
-// The entities Zotero's note editor actually emits. A DOM parse would be more
-// thorough, but note HTML is simple enough not to warrant one here.
-const ENTITIES: Array<[RegExp, string]> = [
-  [/&nbsp;/g, " "],
-  [/&lt;/g, "<"],
-  [/&gt;/g, ">"],
-  [/&quot;/g, '"'],
-  [/&#39;/g, "'"],
-  [/&amp;/g, "&"],
-];
-
-/**
- * A note's label is a preview of its content, not its title: Zotero derives a
- * note's title from its first line and it is often absent or unhelpful.
- *
- * Tags become spaces rather than nothing, so `</p><p>` doesn't glue the last
- * word of one paragraph to the first of the next. A note that reduces to
- * nothing - genuinely empty, or only markup like a blank paragraph - gets a
- * placeholder, because Cytoscape renders an empty label as a bare circle with
- * no indication of what it is.
- */
-export function buildNoteLabel(item: Zotero.Item): string {
-  let text = item.getNote().replace(/<[^>]*>/g, " ");
-  for (const [pattern, replacement] of ENTITIES) {
-    text = text.replace(pattern, replacement);
-  }
-  text = text.replace(/\s+/g, " ").trim();
-
-  if (text === "") {
-    return EMPTY_NOTE_LABEL;
-  }
-  if (text.length <= NOTE_PREVIEW_LENGTH) {
-    return text;
-  }
-  return `${text.slice(0, NOTE_PREVIEW_LENGTH).trimEnd()}…`;
-}
-
-export function resolveNodeLabel(ref: ZoteroObjectRef): string {
-  const target = resolveZoteroItem(ref);
-  if (!target) {
-    return MISSING_ITEM_LABEL;
-  }
-  // Checks the item rather than ref.kind: a ref can outlive what it points at
-  // being replaced, and the label should describe what is actually there.
-  return target.isNote() ? buildNoteLabel(target) : target.getDisplayTitle();
-}
-
 // Returns a copy: Cytoscape takes ownership of the position object it is
 // handed and moves the node by writing to it, which would otherwise rewrite
 // the document's own coordinates in place.
@@ -119,6 +62,8 @@ function toElementPosition(position: Position | null): Position {
   }
   return { x: position.x, y: position.y };
 }
+
+export const EXTERNAL_NODE_CLASS = "external-node";
 
 function buildNodeElement(
   node: MindmapNode,
@@ -134,6 +79,7 @@ function buildNodeElement(
       unplaced: isUnplaced(node.position) || piled.has(node.id),
     },
     position: toElementPosition(node.position),
+    ...(node.membership === "external" ? { classes: EXTERNAL_NODE_CLASS } : {}),
   };
 }
 
@@ -292,6 +238,20 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
       "font-size": 10,
       width: 50,
       height: 50,
+    },
+  },
+  {
+    // A node borrowed from another mindmap: same shape and size, dashed
+    // border and a paler fill. Shape was left alone because shape is how a
+    // future node-kind distinction (item vs note) would read; a dashed
+    // outline says "not really from here" without spending that channel, and
+    // stays legible for anyone who can't rely on the colour difference.
+    selector: `node.${EXTERNAL_NODE_CLASS}`,
+    style: {
+      "background-color": "#eef3fa",
+      "border-style": "dashed",
+      "border-color": "#7aa7d9",
+      "border-width": 2,
     },
   },
   {

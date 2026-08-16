@@ -3,9 +3,18 @@ import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import type { MindmapDocument } from "../../src/modules/mindmap/schema";
 import {
   appendLink,
+  completeExternalLink,
   completeLink,
+  EXTERNAL_TARGET_BUTTON_CLASS,
+  EXTERNAL_TARGET_CLASS,
   renderAddLinkForm,
 } from "../../src/modules/mindmap/addLinkForm";
+import {
+  createMindmap,
+  findAllMindmapNotes,
+  readMindmapDocument,
+  writeMindmapDocument,
+} from "../../src/modules/mindmap/storage";
 
 function emptyDoc(): MindmapDocument {
   return {
@@ -180,6 +189,57 @@ describe("mindmap/addLinkForm", function () {
     });
   });
 
+  describe("completeExternalLink", function () {
+    const sourceRef = { kind: "item" as const, libraryID: 1, key: "AAAAAAAA" };
+    const targetRef = { kind: "item" as const, libraryID: 1, key: "BBBBBBBB" };
+
+    function params() {
+      return {
+        sourceRef,
+        targetRef,
+        homeMindmapId: "other-mindmap",
+        homeNodeId: "their-node",
+        typeId: "cites",
+      };
+    }
+
+    it("adds an external stub in this document and links to it (AC #2)", function () {
+      const doc = emptyDoc();
+
+      const link = completeExternalLink(doc, params());
+
+      const stub = doc.nodes.find((node) => node.membership === "external")!;
+      assert.isDefined(stub);
+      assert.equal(stub.homeMindmapId, "other-mindmap");
+      assert.equal(stub.homeNodeId, "their-node");
+      assert.equal(link.targetNodeId, stub.id);
+      assert.deepEqual(doc.links, [link]);
+    });
+
+    it("reuses an existing stub for the same borrowed node", function () {
+      const doc = emptyDoc();
+
+      completeExternalLink(doc, params());
+      completeExternalLink(doc, { ...params(), typeId: "supports" });
+
+      assert.lengthOf(
+        doc.nodes.filter((node) => node.membership === "external"),
+        1,
+      );
+      assert.lengthOf(doc.links, 2);
+      assert.equal(doc.links[0].targetNodeId, doc.links[1].targetNodeId);
+    });
+
+    it("keeps the borrowed node's own ref so it can be drawn and opened", function () {
+      const doc = emptyDoc();
+
+      completeExternalLink(doc, params());
+
+      const stub = doc.nodes.find((node) => node.membership === "external")!;
+      assert.deepEqual(stub.ref, targetRef);
+    });
+  });
+
   describe("renderAddLinkForm", function () {
     let container: HTMLDivElement;
     let item: Zotero.Item;
@@ -215,6 +275,122 @@ describe("mindmap/addLinkForm", function () {
       ) as HTMLButtonElement;
       assert.isDefined(saveButton);
       assert.isTrue(saveButton.disabled);
+    });
+
+    describe("choosing a target in another mindmap", function () {
+      async function clearStorageNotes() {
+        for (const note of await findAllMindmapNotes()) {
+          await note.eraseTx();
+        }
+      }
+
+      function externalButton(): HTMLButtonElement {
+        return container.querySelector(
+          `.${EXTERNAL_TARGET_BUTTON_CLASS}`,
+        ) as HTMLButtonElement;
+      }
+
+      function externalArea(): HTMLElement {
+        return container.querySelector(
+          `.${EXTERNAL_TARGET_CLASS}`,
+        ) as HTMLElement;
+      }
+
+      async function buildOtherMindmapWithNode() {
+        const here = await createMindmap("Here");
+        const there = await createMindmap("There");
+        await writeMindmapDocument({
+          ...emptyDoc(),
+          id: there.id,
+          title: "There",
+          nodes: [
+            {
+              membership: "member",
+              id: "their-node",
+              position: { x: 0, y: 0 },
+              ref: { kind: "item", libraryID: item.libraryID, key: item.key },
+            },
+          ],
+        });
+        return { here, there };
+      }
+
+      beforeEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+      });
+
+      afterEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+      });
+
+      it("lists the other mindmaps and their nodes, never this one (AC #1)", async function () {
+        this.timeout(30000);
+        const { here } = await buildOtherMindmapWithNode();
+        const hereDoc = await readMindmapDocument(here.id);
+
+        renderAddLinkForm(container, item, hereDoc, () => {});
+        externalButton().click();
+        await Zotero.Promise.delay(700);
+
+        const selects = externalArea().querySelectorAll("select");
+        assert.lengthOf(selects, 2);
+        assert.deepEqual(
+          [...selects[0].options].map((option) => option.textContent),
+          ["There"],
+        );
+        assert.deepEqual(
+          [...selects[1].options].map((option) => option.value),
+          ["their-node"],
+        );
+      });
+
+      it("says so when there is no other mindmap to link to", async function () {
+        this.timeout(30000);
+        const here = await createMindmap("Here");
+        const hereDoc = await readMindmapDocument(here.id);
+
+        renderAddLinkForm(container, item, hereDoc, () => {});
+        externalButton().click();
+        await Zotero.Promise.delay(700);
+
+        assert.isEmpty(externalArea().querySelectorAll("select"));
+        assert.isNotNull(
+          externalArea().querySelector('[data-l10n-id*="external-none"]'),
+        );
+      });
+
+      it("saves the link into the mindmap being edited, leaving the other alone (AC #2)", async function () {
+        this.timeout(30000);
+        const { here, there } = await buildOtherMindmapWithNode();
+        const hereDoc = await readMindmapDocument(here.id);
+
+        renderAddLinkForm(container, item, hereDoc, () => {});
+        externalButton().click();
+        await Zotero.Promise.delay(700);
+
+        const saveButton = Array.from(
+          container.querySelectorAll("button"),
+        ).find((button) =>
+          button.getAttribute("data-l10n-id")?.includes("save"),
+        ) as HTMLButtonElement;
+        assert.isFalse(saveButton.disabled);
+        saveButton.click();
+        await Zotero.Promise.delay(900);
+
+        const saved = await readMindmapDocument(here.id);
+        const stub = saved.nodes.find((node) => node.membership === "external");
+        assert.isDefined(stub);
+        assert.equal(stub!.homeMindmapId, there.id);
+        assert.equal(stub!.homeNodeId, "their-node");
+        assert.lengthOf(saved.links, 1);
+        assert.equal(saved.links[0].targetNodeId, stub!.id);
+
+        const other = await readMindmapDocument(there.id);
+        assert.isEmpty(other.links);
+        assert.lengthOf(other.nodes, 1);
+      });
     });
   });
 });

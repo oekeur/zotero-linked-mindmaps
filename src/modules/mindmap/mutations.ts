@@ -41,6 +41,28 @@ export function createMemberNode(ref: ZoteroObjectRef): MindmapNode {
   };
 }
 
+/**
+ * Builds a stub standing in, on this mindmap, for a node that belongs to
+ * another one. The pair (homeMindmapId, homeNodeId) is the whole record: the
+ * ref is carried alongside so the node can be drawn without opening the other
+ * document, but the other document stays the source of truth, and the stub is
+ * dropped when what it points at goes away.
+ */
+export function createExternalNode(
+  ref: ZoteroObjectRef,
+  homeMindmapId: string,
+  homeNodeId: string,
+): MindmapNode {
+  return {
+    membership: "external",
+    id: Zotero.Utilities.generateObjectKey(),
+    position: UNPLACED_POSITION,
+    ref,
+    homeMindmapId,
+    homeNodeId,
+  };
+}
+
 export function removeNode(doc: MindmapDocument, nodeId: string): void {
   doc.nodes = doc.nodes.filter((node) => node.id !== nodeId);
   doc.links = doc.links.filter(
