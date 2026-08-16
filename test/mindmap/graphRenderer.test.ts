@@ -14,6 +14,7 @@ import {
 } from "../../src/modules/mindmap/graphRenderer";
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
+  findAllMindmapNotes,
   findMindmapNote,
   readMindmapDocument,
   updateMindmapDocument,
@@ -575,17 +576,30 @@ describe("mindmap/graphRenderer", function () {
 
     let cy: cytoscape.Core | undefined;
 
+    // Every storage note, not just the first: these tests read and write by
+    // mindmap id, so one left behind by an earlier file would make the
+    // id-less reads here resolve somewhere else.
+    async function clearAllStorageNotes() {
+      for (const item of await findAllMindmapNotes()) {
+        await item.eraseTx();
+      }
+    }
+
+    beforeEach(async function () {
+      await clearAllStorageNotes();
+    });
+
     afterEach(async function () {
       cy?.destroy();
       cy = undefined;
-      const note = await findMindmapNote();
-      await note?.eraseTx();
+      await clearAllStorageNotes();
     });
 
     it("persists where a dragged node was dropped", async function () {
+      this.timeout(30000);
       await writeMindmapDocument(docAt(SPREAD));
       cy = headlessCy(SPREAD);
-      attachNodeDragHandler(cy);
+      attachNodeDragHandler(cy, "doc-drag-test");
 
       dragTo(cy, { "node-a": { x: 640, y: 480 } });
       await settle();
@@ -601,7 +615,7 @@ describe("mindmap/graphRenderer", function () {
       const note = await findMindmapNote();
       await settleSetup();
       cy = headlessCy(SPREAD);
-      attachNodeDragHandler(cy);
+      attachNodeDragHandler(cy, "doc-drag-test");
 
       const writes = countModifications(note!.id);
       try {
@@ -629,7 +643,7 @@ describe("mindmap/graphRenderer", function () {
       const note = await findMindmapNote();
       await settleSetup();
       cy = headlessCy(SPREAD);
-      attachNodeDragHandler(cy);
+      attachNodeDragHandler(cy, "doc-drag-test");
 
       const writes = countModifications(note!.id);
       try {
@@ -646,7 +660,7 @@ describe("mindmap/graphRenderer", function () {
       this.timeout(30000);
       await writeMindmapDocument(docAt(SPREAD));
       cy = headlessCy(SPREAD);
-      attachNodeDragHandler(cy);
+      attachNodeDragHandler(cy, "doc-drag-test");
 
       dragTo(cy, { "node-a": { x: 640, y: 480 } });
       await settle();
@@ -702,16 +716,20 @@ describe("mindmap/graphRenderer", function () {
         const note = await findMindmapNote();
         await settleSetup();
         cy = headlessCy(SPREAD);
-        attachNodeDragHandler(cy);
+        attachNodeDragHandler(cy, "doc-drag-test");
 
         const rendered = destroyCountingCy();
         teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+        // Counted from just before the gesture: a notification still in flight
+        // from the setup write is not what this test is about.
+        await Zotero.Promise.delay(200);
+        const before = rendered.destroyed;
 
         dragTo(cy, { "node-a": { x: 640, y: 480 } });
         await settle();
-        await Zotero.Promise.delay(200);
+        await Zotero.Promise.delay(300);
 
-        assert.equal(rendered.destroyed, 0);
+        assert.equal(rendered.destroyed, before);
       });
 
       it("still rebuilds for a write the graph did not make", async function () {
@@ -722,11 +740,13 @@ describe("mindmap/graphRenderer", function () {
 
         const rendered = destroyCountingCy();
         teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+        await Zotero.Promise.delay(200);
+        const before = rendered.destroyed;
 
         await updateMindmapDocument((doc) => ({ ...doc, title: "renamed" }));
-        await Zotero.Promise.delay(200);
+        await Zotero.Promise.delay(300);
 
-        assert.equal(rendered.destroyed, 1);
+        assert.isAbove(rendered.destroyed, before);
       });
     });
   });

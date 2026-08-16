@@ -293,7 +293,10 @@ export function openAddLinkDialog(
               "zoterolinkedmindmaps-add-link-dialog-content",
             ) as HTMLElement;
             try {
-              const mindmapDoc = await readMindmapDocument(item.libraryID);
+              const mindmapDoc = await readMindmapDocument(
+                undefined,
+                item.libraryID,
+              );
               renderAddLinkForm(contentEl, item, mindmapDoc, () => {
                 dialog.window.close();
               });

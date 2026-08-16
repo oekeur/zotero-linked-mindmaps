@@ -14,7 +14,7 @@
 import cytoscape from "cytoscape";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
 import {
-  readMindmapDocument,
+  readDocumentFromNote,
   serializeDocument,
   updateMindmapDocument,
 } from "./storage";
@@ -292,6 +292,7 @@ let selfWrittenDocument: string | null = null;
  * change landed in between.
  */
 async function persistNodePositions(
+  mindmapId: string,
   moved: Map<string, Position>,
 ): Promise<void> {
   try {
@@ -318,7 +319,7 @@ async function persistNodePositions(
       const next = { ...doc, nodes };
       selfWrittenDocument = serializeDocument(next);
       return next;
-    });
+    }, mindmapId);
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] persisting dragged node positions failed: ${(err as Error).message}`,
@@ -332,7 +333,10 @@ async function persistNodePositions(
  * the same tick; they accumulate into `pending` and flush on a microtask, so
  * one gesture produces one write instead of one per node.
  */
-export function attachNodeDragHandler(cy: cytoscape.Core): void {
+export function attachNodeDragHandler(
+  cy: cytoscape.Core,
+  mindmapId: string,
+): void {
   const pending = new Map<string, Position>();
   let flushScheduled = false;
 
@@ -343,7 +347,7 @@ export function attachNodeDragHandler(cy: cytoscape.Core): void {
     if (moved.size === 0) {
       return;
     }
-    void persistNodePositions(moved);
+    void persistNodePositions(mindmapId, moved);
   }
 
   cy.on("dragfree", "node", (evt) => {
@@ -433,7 +437,7 @@ export async function renderMindmap(
     layout: { name: "preset" },
   });
   attachNodeClickHandler(cy, nodeRefsById);
-  attachNodeDragHandler(cy);
+  attachNodeDragHandler(cy, doc.id);
   if (dockContainer) {
     attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer);
   }
@@ -462,7 +466,13 @@ export function attachLiveRefresh(
 
   async function rebuild(): Promise<void> {
     try {
-      const doc = await readMindmapDocument();
+      // Reads the note this graph was opened from rather than looking a
+      // mindmap up again: with several mindmaps in the library, an id-less
+      // lookup would resolve to whichever one happens to sort first.
+      const item = (await Zotero.Items.getAsync(
+        storageNoteItemID,
+      )) as Zotero.Item;
+      const doc = await readDocumentFromNote(item);
       // The graph's own drag write already left the rendered nodes where the
       // user dropped them, so rebuilding for it would only flash.
       if (serializeDocument(doc) === selfWrittenDocument) {
