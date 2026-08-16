@@ -325,10 +325,16 @@ export async function readMindmapDocument(
 
 /**
  * Writes the document into the note it belongs to, resolved by the document's
- * own id. A document whose id matches no existing note falls back to the
- * library's default storage note, which is what makes a document assembled in
- * memory (or carried over from before the registry existed) still land
- * somewhere sensible.
+ * own id. A document whose id matches no note gets a new note of its own, but
+ * only in a library that holds no storage note at all - that is the case this
+ * fallback exists for, a document assembled in memory (or carried over from
+ * before the registry existed) landing somewhere sensible on first write.
+ *
+ * Where the library already has mindmaps, an unrecognised id is an error
+ * rather than a write. Overwriting one of them would replace its whole
+ * document - title, nodes and links - with this one, and the id says the
+ * caller did not mean that note: a layout still in flight for a mindmap that
+ * was deleted in the meantime would otherwise land on an unrelated mindmap.
  */
 export async function writeMindmapDocument(
   doc: MindmapDocument,
@@ -340,8 +346,17 @@ export async function writeMindmapDocument(
   }
   await enqueue(async () => {
     const existing = await findMindmapById(result.doc.id, libraryID);
-    const item = existing?.item ?? (await findOrCreateMindmapNote(libraryID));
-    await saveDocumentToNote(item, result.doc);
+    if (existing) {
+      await saveDocumentToNote(existing.item, result.doc);
+      return;
+    }
+    if ((await findAllMindmapNotes(libraryID)).length > 0) {
+      throw new StorageError(
+        "not-found",
+        `no mindmap with id ${result.doc.id}`,
+      );
+    }
+    await createNoteFor(result.doc, libraryID);
   });
 }
 

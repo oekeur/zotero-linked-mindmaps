@@ -494,8 +494,15 @@ export function attachNodeDragHandler(
  * Connections panel content the item-pane mount renders (renderConnections
  * Content), scoped to that node's item/note, into `dockContainer` next to
  * the graph - reusing C1's component rather than a parallel implementation
- * (AC #2). Also suppresses the native browser/OS context menu over the
- * graph, since the right-click here has its own meaning.
+ * (AC #2). The dock is told which mindmap the graph is showing, so a node
+ * that also appears in another mindmap docks the links this graph draws
+ * rather than some other mindmap's.
+ *
+ * The native context menu needs no suppressing here: Cytoscape registers its
+ * own preventDefault on the container's contextmenu event, and unregisters it
+ * on destroy. A second listener added per render would outlive every rebuild,
+ * since the container is reused and cy.destroy() only removes bindings
+ * Cytoscape made itself.
  *
  * Right-clicking the node that's already docked hides the dock again;
  * right-clicking a different node re-renders in place. This toggle state
@@ -506,12 +513,9 @@ export function attachNodeContextMenuHandler(
   cy: cytoscape.Core,
   nodeRefsById: Map<string, ZoteroObjectRef>,
   dockContainer: HTMLElement,
+  mindmapId?: string,
 ): void {
   let dockedNodeId: string | undefined;
-
-  cy.container()?.addEventListener("contextmenu", (evt) => {
-    evt.preventDefault();
-  });
 
   cy.on("cxttap", "node", (evt) => {
     // A group container is a node to Cytoscape but has no item behind it;
@@ -538,7 +542,7 @@ export function attachNodeContextMenuHandler(
 
     dockedNodeId = nodeId;
     dockContainer.style.display = "";
-    void renderConnectionsContent(dockContainer, item);
+    void renderConnectionsContent(dockContainer, item, mindmapId);
   });
 }
 
@@ -561,6 +565,15 @@ function openMenu(
   const menu = container.ownerDocument!.createElement("div");
   menu.classList.add(GROUP_MENU_CLASS);
   menu.style.cssText = `position: absolute; left: ${at.x}px; top: ${at.y}px; z-index: 10; background: Field; color: FieldText; border: 1px solid ThreeDShadow; padding: 4px; display: flex; flex-direction: column; gap: 2px;`;
+  // The menu is a child of the graph container, so without this Cytoscape
+  // treats a click on it as a click on the canvas: its container mousedown
+  // handler calls preventDefault (the rename field can then never take focus)
+  // and sets the capture flag its window-level mouseup handler needs to emit
+  // "tap" - which closeMenu answers by removing the menu during mouseup,
+  // before the button's own click event is dispatched. Stopping mousedown at
+  // the menu leaves that flag unset, so the mouseup handler returns early and
+  // no tap is emitted for clicks inside the menu.
+  menu.addEventListener("mousedown", (evt) => evt.stopPropagation());
   container.appendChild(menu);
   return menu;
 }
@@ -691,7 +704,7 @@ export async function renderMindmap(
   attachNodeDragHandler(cy, doc.id, rendered);
   attachGroupingHandlers(cy, doc.id);
   if (dockContainer) {
-    attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer);
+    attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer, doc.id);
   }
   return cy;
 }
@@ -716,6 +729,7 @@ export function attachLiveRefresh(
 ): () => void {
   let current = cy;
   let refreshing = false;
+  let dirty = false;
 
   async function rebuild(): Promise<void> {
     try {
@@ -747,9 +761,33 @@ export function attachLiveRefresh(
       Zotero.debug(
         `[zoteroLinkedMindmaps] mindmap live refresh failed: ${(err as Error).message}`,
       );
-    } finally {
-      refreshing = false;
     }
+  }
+
+  /**
+   * Runs one rebuild at a time, and runs another straight after when a
+   * notification arrived while the first was in flight. A rebuild awaits
+   * several times over (the note read, the render, the layout), so simply
+   * dropping notifications that land in that window loses them: a prune from
+   * deletionCleanup that arrives during a user-triggered rebuild would leave
+   * the graph showing a node that no longer exists until the tab is reopened.
+   */
+  function schedule(): void {
+    if (refreshing) {
+      dirty = true;
+      return;
+    }
+    refreshing = true;
+    void (async () => {
+      try {
+        do {
+          dirty = false;
+          await rebuild();
+        } while (dirty);
+      } finally {
+        refreshing = false;
+      }
+    })();
   }
 
   /**
@@ -761,8 +799,7 @@ export function attachLiveRefresh(
    * a queue whose head is the task waiting for this very notification to
    * return, wedging the queue for the rest of the session - every later save
    * then hangs silently. So the rebuild is started and deliberately not
-   * awaited; `refreshing` still collapses notifications that arrive while
-   * one is in flight.
+   * awaited.
    */
   function notify(
     event: _ZoteroTypes.Notifier.Event,
@@ -775,11 +812,7 @@ export function attachLiveRefresh(
     if (!ids.some((id) => Number(id) === storageNoteItemID)) {
       return;
     }
-    if (refreshing) {
-      return;
-    }
-    refreshing = true;
-    void rebuild();
+    schedule();
   }
 
   const observerID = Zotero.Notifier.registerObserver(

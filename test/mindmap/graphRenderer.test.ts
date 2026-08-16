@@ -357,7 +357,6 @@ describe("mindmap/graphRenderer", function () {
     let cxttapHandler: (evt: {
       target: { id(): string; data(key: string): unknown };
     }) => void;
-    let contextmenuListener: (evt: { preventDefault(): void }) => void;
 
     // The shape a Cytoscape node event actually has. `data` matters here: the
     // handler asks whether the target is a group container before doing
@@ -399,16 +398,6 @@ describe("mindmap/graphRenderer", function () {
           if (events === "cxttap") {
             cxttapHandler = handler;
           }
-        },
-        container() {
-          return {
-            addEventListener(
-              _type: string,
-              listener: (evt: { preventDefault(): void }) => void,
-            ) {
-              contextmenuListener = listener;
-            },
-          } as unknown as HTMLElement;
         },
       } as unknown as cytoscape.Core;
     }
@@ -473,18 +462,10 @@ describe("mindmap/graphRenderer", function () {
       assert.equal(dockContainer.style.display, "none");
     });
 
-    it("suppresses the native context menu over the graph", function () {
-      attachNodeContextMenuHandler(fakeCy(), new Map(), dockContainer);
-
-      let prevented = false;
-      contextmenuListener({
-        preventDefault: () => {
-          prevented = true;
-        },
-      });
-
-      assert.isTrue(prevented);
-    });
+    // The native context menu over the graph is suppressed by Cytoscape's own
+    // container binding, which it removes on destroy - the handler no longer
+    // adds one of its own, since a per-render listener would outlive every
+    // rebuild. Nothing a fake Core can observe, so there is no test for it.
   });
 
   describe("attachLiveRefresh", function () {

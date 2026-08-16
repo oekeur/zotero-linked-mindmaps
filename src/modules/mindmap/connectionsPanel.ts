@@ -13,7 +13,7 @@
  */
 import { getLocaleID } from "../../utils/locale";
 import {
-  findMindmapNote,
+  findAllMindmapNotes,
   listMindmaps,
   readDocumentFromNote,
   readMindmapDocument,
@@ -250,18 +250,77 @@ async function mountAddLinkForm(
   const mindmapDoc = await readMindmapDocument(mindmapId, item.libraryID);
   formContainer.textContent = "";
   renderAddLinkForm(formContainer, item, mindmapDoc, () => {
-    void renderConnectionsContent(panelContainer, item);
+    // Redraws against the mindmap the form just wrote to. Without it the
+    // panel would resolve the item's mindmap from scratch and could land on a
+    // different one, so the link the user just saved would vanish.
+    void renderConnectionsContent(panelContainer, item, mindmapDoc.id);
   });
+}
+
+/** What the panel found to show, and whether anything was unreadable. */
+interface PanelMindmap {
+  doc: MindmapDocument | null;
+  unreadable: boolean;
+}
+
+/**
+ * The mindmap to show for `item`: the one `preferredId` names when the caller
+ * knows it, otherwise the first one holding a node for the item.
+ *
+ * Reads every storage note rather than only the library's first. An item can
+ * be a node in any mindmap, and taking the lowest-numbered note makes every
+ * other mindmap's links invisible from the panel.
+ *
+ * Notes are reloaded before parsing because the panel redraws straight after
+ * its own write, which is exactly when a note's cached text lags. A note that
+ * won't parse is skipped rather than failing the lookup - one corrupt mindmap
+ * must not hide the item's links in the others - but it is reported back, so
+ * finding nothing at all after skipping one shows the error state rather than
+ * claiming the item is in no mindmap.
+ */
+async function findMindmapForItem(
+  item: Zotero.Item,
+  preferredId: string | undefined,
+): Promise<PanelMindmap> {
+  const ref = refFor(item);
+  let holding: MindmapDocument | null = null;
+  let unreadable = false;
+  for (const note of await findAllMindmapNotes(item.libraryID)) {
+    let candidate: MindmapDocument;
+    try {
+      candidate = readDocumentFromNote(await refreshNote(note));
+    } catch (err) {
+      unreadable = true;
+      Zotero.debug(
+        `[zoteroLinkedMindmaps] Connections panel skipping unreadable storage note ${
+          note.id
+        }: ${(err as Error).message}`,
+      );
+      continue;
+    }
+    if (candidate.id === preferredId) {
+      return { doc: candidate, unreadable };
+    }
+    if (!holding && candidate.nodes.some((node) => refsMatch(node.ref, ref))) {
+      holding = candidate;
+    }
+  }
+  return { doc: holding, unreadable };
 }
 
 /**
  * Renders the Connections panel content for `item` into `container`: the
  * mindmap the item belongs to (if any), its existing links (each with a
  * remove control), a remove-node control, and an "Add link" action.
+ *
+ * `mindmapId` pins the panel to one mindmap - the graph the dock hangs off,
+ * or the one the add-link form just wrote to. Left out, the panel picks the
+ * first mindmap the item is a node in.
  */
 export async function renderConnectionsContent(
   container: HTMLElement,
   item: Zotero.Item,
+  mindmapId?: string,
 ): Promise<void> {
   const doc = container.ownerDocument!;
   container.textContent = "";
@@ -270,19 +329,9 @@ export async function renderConnectionsContent(
     return;
   }
 
-  const note = await findMindmapNote(item.libraryID);
-  if (!note) {
-    appendL10nText(container, doc, getLocaleID("connections-empty-state"));
-    appendAddLinkSection(container, doc, item);
-    return;
-  }
-
-  let mindmapDoc: MindmapDocument;
+  let found: PanelMindmap;
   try {
-    // Parses the note found just above rather than resolving one again: the
-    // id-less read would repeat the same search, and would create a note as a
-    // side effect of merely viewing the panel.
-    mindmapDoc = readDocumentFromNote(await refreshNote(note));
+    found = await findMindmapForItem(item, mindmapId);
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to read mindmap document: ${
@@ -292,6 +341,23 @@ export async function renderConnectionsContent(
     appendL10nText(container, doc, getLocaleID("connections-error-state"));
     return;
   }
+
+  if (!found.doc) {
+    appendL10nText(
+      container,
+      doc,
+      getLocaleID(
+        found.unreadable
+          ? "connections-error-state"
+          : "connections-empty-state",
+      ),
+    );
+    if (!found.unreadable) {
+      appendAddLinkSection(container, doc, item);
+    }
+    return;
+  }
+  const mindmapDoc = found.doc;
 
   const ref = refFor(item);
   const node = mindmapDoc.nodes.find((candidate) =>
@@ -400,7 +466,10 @@ async function applyToMindmap(
       }`,
     );
   }
-  await renderConnectionsContent(container, item);
+  // Stays on the mindmap the change was made to, even when the change was
+  // removing the item's last node from it - the panel then correctly reads as
+  // empty for that mindmap rather than jumping to another one.
+  await renderConnectionsContent(container, item, mindmapDoc.id);
 }
 
 function handleRemoveNode(

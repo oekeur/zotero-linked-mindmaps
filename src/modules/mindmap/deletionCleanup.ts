@@ -118,22 +118,39 @@ async function handleDelete(
   }
 }
 
-async function notify(
+/**
+ * Returns nothing rather than a promise, and must keep doing so. Zotero awaits
+ * each observer's return value inside the commit of the transaction that fired
+ * the notification, and the pruning below ends in a storage-queue write - so
+ * awaiting it here parks that write behind whichever queued task is waiting on
+ * this notification to return. deleteMindmap is exactly that case: it erases
+ * the storage note from inside a queued task, and the erase fires this
+ * observer. Neither would ever settle, and every later write in the session
+ * would hang silently (see the queue note in storage.ts).
+ *
+ * The work is deferred a turn rather than started inline for the same reason
+ * the erase is what triggers it: the reads it opens with must see the state
+ * the transaction leaves behind, not the one it is still committing.
+ */
+function notify(
   event: _ZoteroTypes.Notifier.Event,
   type: _ZoteroTypes.Notifier.Type,
   ids: string[] | number[],
   extraData: { [key: string]: any },
-): Promise<void> {
+): void {
   if (event !== "delete" || type !== "item") {
     return;
   }
-  try {
-    await handleDelete(ids, extraData);
-  } catch (err) {
-    Zotero.debug(
-      `[zoteroLinkedMindmaps] deletion cleanup failed: ${(err as Error).message}`,
-    );
-  }
+  void (async () => {
+    try {
+      await Zotero.Promise.delay(0);
+      await handleDelete(ids, extraData);
+    } catch (err) {
+      Zotero.debug(
+        `[zoteroLinkedMindmaps] deletion cleanup failed: ${(err as Error).message}`,
+      );
+    }
+  })();
 }
 
 export function registerDeletionObserver(): string {

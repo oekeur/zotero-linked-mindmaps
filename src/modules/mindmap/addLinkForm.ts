@@ -295,7 +295,7 @@ export function renderAddLinkForm(
 
   chooseTargetButton.addEventListener("click", () => {
     void (async () => {
-      const targetItem = await openTargetPicker();
+      const targetItem = await openTargetPicker(item.libraryID);
       if (!targetItem) {
         return;
       }
@@ -439,26 +439,35 @@ export function renderAddLinkForm(
         // while other edits land. A failed write needs no rollback now: the
         // mutation happens on a document the queue discards on throw, and the
         // form's own copy is never touched.
+        //
+        // The library is threaded through with the id: without it the write
+        // resolves doc.id against the user library, so a link authored in a
+        // group library never finds its own mindmap and the save does nothing
+        // - silently, since the throw is swallowed below.
         let completed = false;
-        await updateMindmapDocument((current) => {
-          if (target.kind === "external") {
-            // A borrowed node is a different object from the source by
-            // definition, so there is no self-link to guard against.
-            completeExternalLink(current, {
-              ...common,
-              homeMindmapId: target.homeMindmapId,
-              homeNodeId: target.homeNodeId,
-            });
-            completed = true;
-            return current;
-          }
-          const result = completeLink(current, common);
-          completed = result.ok;
-          // The picker already blocks selecting a self-referential target,
-          // so this only guards against the selection changing meaning
-          // between pick and save.
-          return result.ok ? current : null;
-        }, doc.id);
+        await updateMindmapDocument(
+          (current) => {
+            if (target.kind === "external") {
+              // A borrowed node is a different object from the source by
+              // definition, so there is no self-link to guard against.
+              completeExternalLink(current, {
+                ...common,
+                homeMindmapId: target.homeMindmapId,
+                homeNodeId: target.homeNodeId,
+              });
+              completed = true;
+              return current;
+            }
+            const result = completeLink(current, common);
+            completed = result.ok;
+            // The picker already blocks selecting a self-referential target,
+            // so this only guards against the selection changing meaning
+            // between pick and save.
+            return result.ok ? current : null;
+          },
+          doc.id,
+          item.libraryID,
+        );
         if (completed) {
           onSaved();
         }
