@@ -23,8 +23,7 @@ import { piledNodeIds, isUnplaced } from "./schema";
 import { resolveNodeLabel, resolveZoteroItem } from "./nodeLabels";
 import { renderConnectionsContent } from "./connectionsPanel";
 import { createGroup, deleteGroup, renameGroup } from "./mutations";
-import { getLocaleID } from "../../utils/locale";
-import type { FluentMessageId } from "../../../typings/i10n";
+import { appendL10nButton } from "./uiElements";
 import type { LinkType } from "./linkTypes";
 import type {
   MindmapDocument,
@@ -569,18 +568,6 @@ function closeMenu(cy: cytoscape.Core): void {
     .forEach((menu: Element) => menu.remove());
 }
 
-function menuButton(
-  menu: HTMLElement,
-  localeId: FluentMessageId,
-  onClick: () => void,
-): HTMLButtonElement {
-  const button = menu.ownerDocument!.createElement("button");
-  button.setAttribute("data-l10n-id", getLocaleID(localeId));
-  button.addEventListener("click", onClick);
-  menu.appendChild(button);
-  return button;
-}
-
 /**
  * Grouping, driven from right-click: on empty canvas with two or more nodes
  * selected, offer to group them; on a group's own region, offer to rename or
@@ -625,7 +612,7 @@ export function attachGroupingHandlers(
       return;
     }
     const ids = selected.map((node) => node.id());
-    menuButton(menu, "mindmap-group-create", () => {
+    appendL10nButton(menu, "mindmap-group-create", () => {
       void apply((doc) => createGroup(doc, ids));
     });
   });
@@ -645,10 +632,10 @@ export function attachGroupingHandlers(
     nameInput.value = String(evt.target.data("label") ?? "");
     menu.appendChild(nameInput);
 
-    menuButton(menu, "mindmap-group-rename", () => {
+    appendL10nButton(menu, "mindmap-group-rename", () => {
       void apply((doc) => renameGroup(doc, groupId, nameInput.value.trim()));
     });
-    menuButton(menu, "mindmap-group-delete", () => {
+    appendL10nButton(menu, "mindmap-group-delete", () => {
       void apply((doc) => deleteGroup(doc, groupId));
     });
   });

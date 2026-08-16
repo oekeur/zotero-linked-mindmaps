@@ -11,10 +11,10 @@ import {
 } from "../../src/modules/mindmap/addLinkForm";
 import {
   createMindmap,
-  findAllMindmapNotes,
   readMindmapDocument,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
+import { clearStorageNotes } from "./storageNotes";
 
 function emptyDoc(): MindmapDocument {
   return {
@@ -278,12 +278,6 @@ describe("mindmap/addLinkForm", function () {
     });
 
     describe("choosing a target in another mindmap", function () {
-      async function clearStorageNotes() {
-        for (const note of await findAllMindmapNotes()) {
-          await note.eraseTx();
-        }
-      }
-
       function externalButton(): HTMLButtonElement {
         return container.querySelector(
           `.${EXTERNAL_TARGET_BUTTON_CLASS}`,

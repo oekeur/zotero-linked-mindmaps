@@ -21,7 +21,6 @@ import {
 } from "../../src/modules/mindmap/nodeLabels";
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
-  findAllMindmapNotes,
   findMindmapNote,
   readMindmapDocument,
   updateMindmapDocument,
@@ -39,6 +38,7 @@ import type {
   MindmapNode,
   ZoteroObjectRef,
 } from "../../src/modules/mindmap/schema";
+import { clearStorageNotes } from "./storageNotes";
 
 describe("mindmap/graphRenderer", function () {
   /**
@@ -763,9 +763,7 @@ describe("mindmap/graphRenderer", function () {
 
     it("survives a write and read of the document (AC #4)", async function () {
       this.timeout(30000);
-      for (const note of await findAllMindmapNotes()) {
-        await note.eraseTx();
-      }
+      await clearStorageNotes();
       await writeMindmapDocument(groupedDoc());
 
       const readBack = await readMindmapDocument("doc-groups-test");
@@ -776,9 +774,7 @@ describe("mindmap/graphRenderer", function () {
         "g-1",
       );
 
-      for (const note of await findAllMindmapNotes()) {
-        await note.eraseTx();
-      }
+      await clearStorageNotes();
     });
 
     it("skips a group no node belongs to, rather than drawing an empty region", async function () {
@@ -1002,23 +998,14 @@ describe("mindmap/graphRenderer", function () {
 
     let cy: cytoscape.Core | undefined;
 
-    // Every storage note, not just the first: these tests read and write by
-    // mindmap id, so one left behind by an earlier file would make the
-    // id-less reads here resolve somewhere else.
-    async function clearAllStorageNotes() {
-      for (const item of await findAllMindmapNotes()) {
-        await item.eraseTx();
-      }
-    }
-
     beforeEach(async function () {
-      await clearAllStorageNotes();
+      await clearStorageNotes();
     });
 
     afterEach(async function () {
       cy?.destroy();
       cy = undefined;
-      await clearAllStorageNotes();
+      await clearStorageNotes();
     });
 
     it("persists where a dragged node was dropped", async function () {

@@ -22,6 +22,7 @@ import {
 import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
 import { getLinkTypeById } from "./linkTypes";
 import { MISSING_ITEM_LABEL, resolveNodeLabel } from "./nodeLabels";
+import { appendL10nButton, appendMindmapOptions } from "./uiElements";
 import { renderAddLinkForm } from "./addLinkForm";
 import {
   canBeMindmapNode,
@@ -130,16 +131,13 @@ function appendAddLinkSection(
   formContainer.style.display = "none";
 
   if (needsInBodyAddButton(container)) {
-    const toggleButton = doc.createElement("button");
-    toggleButton.setAttribute("data-l10n-id", getLocaleID("add-link-button"));
-    toggleButton.addEventListener("click", () => {
+    appendL10nButton(wrapper, "add-link-button", () => {
       if (formContainer.style.display === "none") {
         openAddLinkForm(container, item);
       } else {
         formContainer.style.display = "none";
       }
     });
-    wrapper.appendChild(toggleButton);
   }
 
   wrapper.appendChild(formContainer);
@@ -231,26 +229,12 @@ function renderMindmapChoice(
   appendL10nText(wrapper, doc, getLocaleID("connections-choose-mindmap-label"));
 
   const picker = doc.createElement("select");
-  for (const mindmap of mindmaps) {
-    const option = doc.createElement("option");
-    option.value = mindmap.id;
-    option.textContent = mindmap.title;
-    if (mindmap.description) {
-      option.title = mindmap.description;
-    }
-    picker.appendChild(option);
-  }
+  appendMindmapOptions(picker, mindmaps);
   wrapper.appendChild(picker);
 
-  const continueButton = doc.createElement("button");
-  continueButton.setAttribute(
-    "data-l10n-id",
-    getLocaleID("connections-choose-mindmap-continue"),
-  );
-  continueButton.addEventListener("click", () => {
+  appendL10nButton(wrapper, "connections-choose-mindmap-continue", () => {
     void mountAddLinkForm(formContainer, item, panelContainer, picker.value);
   });
-  wrapper.appendChild(continueButton);
 
   formContainer.appendChild(wrapper);
 }
@@ -324,28 +308,16 @@ export async function renderConnectionsContent(
   titleEl.appendChild(doc.createTextNode(` ${mindmapDoc.title}`));
   container.appendChild(titleEl);
 
-  const removeNodeButton = doc.createElement("button");
-  removeNodeButton.setAttribute(
-    "data-l10n-id",
-    getLocaleID("connections-remove-node-button"),
-  );
-  removeNodeButton.addEventListener("click", () => {
+  appendL10nButton(container, "connections-remove-node-button", () => {
     void handleRemoveNode(container, item, mindmapDoc, node.id);
   });
-  container.appendChild(removeNodeButton);
 
   // Only offered when the node is actually in a group: this is where a single
   // node leaves one, as opposed to dissolving the whole group from the graph.
   if (node.groupId) {
-    const removeFromGroupButton = doc.createElement("button");
-    removeFromGroupButton.setAttribute(
-      "data-l10n-id",
-      getLocaleID("connections-remove-from-group-button"),
-    );
-    removeFromGroupButton.addEventListener("click", () => {
+    appendL10nButton(container, "connections-remove-from-group-button", () => {
       void handleRemoveFromGroup(container, item, mindmapDoc, node.id);
     });
-    container.appendChild(removeFromGroupButton);
   }
 
   const links = mindmapDoc.links.filter(
@@ -379,15 +351,9 @@ export async function renderConnectionsContent(
     const li = doc.createElement("li");
     li.textContent = `${parts.join(" ")} → ${otherTitle}`;
 
-    const removeLinkButton = doc.createElement("button");
-    removeLinkButton.setAttribute(
-      "data-l10n-id",
-      getLocaleID("connections-remove-link-button"),
-    );
-    removeLinkButton.addEventListener("click", () => {
+    appendL10nButton(li, "connections-remove-link-button", () => {
       void handleRemoveLink(container, item, mindmapDoc, link.id);
     });
-    li.appendChild(removeLinkButton);
 
     list.appendChild(li);
   }
@@ -395,83 +361,84 @@ export async function renderConnectionsContent(
   appendAddLinkSection(container, doc, item);
 }
 
-async function handleRemoveNode(
+/**
+ * Applies a change to the mindmap behind the panel and redraws it.
+ *
+ * `mutate` runs against the document as it stands at write time, not the copy
+ * the panel rendered from: the panel can sit open while other edits land. A
+ * failed write is logged and swallowed rather than thrown, and the redraw
+ * happens either way, so the panel always ends up showing what is actually
+ * stored rather than a half-applied change.
+ */
+async function applyToMindmap(
   container: HTMLElement,
   item: Zotero.Item,
   mindmapDoc: MindmapDocument,
-  nodeId: string,
+  what: string,
+  mutate: (doc: MindmapDocument) => void,
+  after?: () => Promise<unknown>,
 ): Promise<void> {
   try {
-    // Removes from the document as it stands at write time, not from the copy
-    // the panel rendered: the panel can sit open across other edits.
     await updateMindmapDocument(
       (doc) => {
-        removeNode(doc, nodeId);
+        mutate(doc);
         return doc;
       },
       mindmapDoc.id,
       item.libraryID,
     );
+    await after?.();
+  } catch (err) {
+    Zotero.debug(
+      `[zoteroLinkedMindmaps] Connections panel failed to ${what}: ${
+        (err as Error).message
+      }`,
+    );
+  }
+  await renderConnectionsContent(container, item);
+}
+
+function handleRemoveNode(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapDoc: MindmapDocument,
+  nodeId: string,
+): Promise<void> {
+  return applyToMindmap(
+    container,
+    item,
+    mindmapDoc,
+    "remove node",
+    (doc) => removeNode(doc, nodeId),
     // Another mindmap may have been reaching into the node just removed.
     // Nothing records that, by design, so the stubs are reconciled against
     // what still exists.
-    await pruneDanglingExternalNodes(item.libraryID);
-  } catch (err) {
-    Zotero.debug(
-      `[zoteroLinkedMindmaps] Connections panel failed to remove node: ${
-        (err as Error).message
-      }`,
-    );
-  }
-  await renderConnectionsContent(container, item);
+    () => pruneDanglingExternalNodes(item.libraryID),
+  );
 }
 
-async function handleRemoveFromGroup(
+function handleRemoveFromGroup(
   container: HTMLElement,
   item: Zotero.Item,
   mindmapDoc: MindmapDocument,
   nodeId: string,
 ): Promise<void> {
-  try {
-    await updateMindmapDocument(
-      (doc) => {
-        removeFromGroup(doc, nodeId);
-        return doc;
-      },
-      mindmapDoc.id,
-      item.libraryID,
-    );
-  } catch (err) {
-    Zotero.debug(
-      `[zoteroLinkedMindmaps] Connections panel failed to remove node from group: ${
-        (err as Error).message
-      }`,
-    );
-  }
-  await renderConnectionsContent(container, item);
+  return applyToMindmap(
+    container,
+    item,
+    mindmapDoc,
+    "remove node from group",
+    (doc) => removeFromGroup(doc, nodeId),
+  );
 }
 
-async function handleRemoveLink(
+function handleRemoveLink(
   container: HTMLElement,
   item: Zotero.Item,
   mindmapDoc: MindmapDocument,
   linkId: string,
 ): Promise<void> {
-  try {
-    await updateMindmapDocument(
-      (doc) => {
-        removeLink(doc, linkId);
-        return doc;
-      },
-      mindmapDoc.id,
-      item.libraryID,
-    );
-  } catch (err) {
-    Zotero.debug(
-      `[zoteroLinkedMindmaps] Connections panel failed to remove link: ${
-        (err as Error).message
-      }`,
-    );
-  }
-  await renderConnectionsContent(container, item);
+  return applyToMindmap(container, item, mindmapDoc, "remove link", (doc) =>
+    removeLink(doc, linkId),
+  );
 }

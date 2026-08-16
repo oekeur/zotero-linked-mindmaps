@@ -3,11 +3,9 @@ import {
   MINDMAP_CHOICE_CLASS,
   renderConnectionsContent,
 } from "../../src/modules/mindmap/connectionsPanel";
-import {
-  createMindmap,
-  findAllMindmapNotes,
-} from "../../src/modules/mindmap/storage";
+import { createMindmap } from "../../src/modules/mindmap/storage";
 import { getLocaleID } from "../../src/utils/locale";
+import { clearStorageNotes } from "./storageNotes";
 
 describe("mindmap/connectionsPanel", function () {
   let article: Zotero.Item;
@@ -48,12 +46,6 @@ describe("mindmap/connectionsPanel", function () {
   });
 
   describe("choosing a target mindmap", function () {
-    async function clearStorageNotes() {
-      for (const item of await findAllMindmapNotes()) {
-        await item.eraseTx();
-      }
-    }
-
     function addLinkButton() {
       return container.querySelector(
         `[data-l10n-id="${getLocaleID("add-link-button")}"]`,

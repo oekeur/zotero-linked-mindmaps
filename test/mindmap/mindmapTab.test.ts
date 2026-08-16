@@ -8,10 +8,10 @@ import {
 } from "../../src/modules/mindmap/mindmapTab";
 import {
   createMindmap,
-  findAllMindmapNotes,
   listMindmaps,
   readMindmapDocument,
 } from "../../src/modules/mindmap/storage";
+import { clearStorageNotes } from "./storageNotes";
 
 const PICKER = "#zoterolinkedmindmaps-mindmap-picker";
 const NEW = "#zoterolinkedmindmaps-mindmap-new";
@@ -31,12 +31,6 @@ describe("mindmap/mindmapTab", function () {
     const found = surfaces.toolbar.querySelector(selector);
     assert.isNotNull(found, `expected ${selector} in the toolbar`);
     return found as T;
-  }
-
-  async function clearStorageNotes() {
-    for (const item of await findAllMindmapNotes()) {
-      await item.eraseTx();
-    }
   }
 
   before(function () {
