@@ -7,9 +7,19 @@
  */
 import { getLocaleID } from "../../utils/locale";
 import { getLinkTypeById, getLinkTypes } from "./linkTypes";
-import { readMindmapDocument, updateMindmapDocument } from "./storage";
+import {
+  listMindmaps,
+  readMindmapDocument,
+  updateMindmapDocument,
+} from "./storage";
 import { openTargetPicker } from "./targetPicker";
-import { canBeMindmapNode, createMemberNode, refFor } from "./mutations";
+import {
+  canBeMindmapNode,
+  createExternalNode,
+  createMemberNode,
+  refFor,
+} from "./mutations";
+import { resolveNodeLabel } from "./nodeLabels";
 import {
   refsMatch,
   type MindmapDocument,
@@ -82,6 +92,53 @@ export interface CompleteLinkParams {
 export type CompleteLinkResult =
   { ok: true; link: MindmapLink } | { ok: false; reason: "self-link" };
 
+export interface CompleteExternalLinkParams {
+  sourceRef: ZoteroObjectRef;
+  targetRef: ZoteroObjectRef;
+  homeMindmapId: string;
+  homeNodeId: string;
+  typeId: string;
+  name?: string;
+  direction?: "forward" | "backward";
+}
+
+/**
+ * Links to a node that belongs to another mindmap. The link and the stub
+ * standing in for that node both live here, in the mindmap being edited - the
+ * other mindmap is not written to at all, which is what makes the one being
+ * edited the link's owner.
+ *
+ * An existing stub for the same (mindmap, node) pair is reused, so linking to
+ * the same borrowed node twice doesn't put it on the graph twice.
+ */
+export function completeExternalLink(
+  doc: MindmapDocument,
+  params: CompleteExternalLinkParams,
+): MindmapLink {
+  let targetNode = doc.nodes.find(
+    (node) =>
+      node.membership === "external" &&
+      node.homeMindmapId === params.homeMindmapId &&
+      node.homeNodeId === params.homeNodeId,
+  );
+  if (!targetNode) {
+    targetNode = createExternalNode(
+      params.targetRef,
+      params.homeMindmapId,
+      params.homeNodeId,
+    );
+    doc.nodes.push(targetNode);
+  }
+
+  return appendLink(doc, {
+    sourceRef: params.sourceRef,
+    targetNodeId: targetNode.id,
+    typeId: params.typeId,
+    name: params.name,
+    direction: params.direction,
+  });
+}
+
 /**
  * Resolves `params.targetRef` to a node (creating one if none matches yet,
  * mirroring appendLink's own source-side find-or-create) and appends the
@@ -114,6 +171,9 @@ export function completeLink(
   return { ok: true, link };
 }
 
+export const EXTERNAL_TARGET_BUTTON_CLASS = "mindmap-choose-external-target";
+export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
+
 /**
  * Renders the "Add link" form into `container`: Type/Name/Direction fields,
  * a target-item picker, and a Save action that's enabled once a valid
@@ -126,7 +186,15 @@ export function renderAddLinkForm(
   onSaved: () => void,
 ): void {
   const sourceRef = refFor(item);
-  let selectedTargetRef: ZoteroObjectRef | null = null;
+  type ChosenTarget =
+    | { kind: "local"; ref: ZoteroObjectRef }
+    | {
+        kind: "external";
+        ref: ZoteroObjectRef;
+        homeMindmapId: string;
+        homeNodeId: string;
+      };
+  let selectedTarget: ChosenTarget | null = null;
 
   const ownerDoc = container.ownerDocument!;
   container.textContent = "";
@@ -193,6 +261,14 @@ export function renderAddLinkForm(
   );
   targetWrapper.appendChild(chooseTargetButton);
 
+  const chooseExternalButton = ownerDoc.createElement("button");
+  chooseExternalButton.classList.add(EXTERNAL_TARGET_BUTTON_CLASS);
+  chooseExternalButton.setAttribute(
+    "data-l10n-id",
+    getLocaleID("add-link-choose-external-button"),
+  );
+  targetWrapper.appendChild(chooseExternalButton);
+
   const targetLabel = ownerDoc.createElement("span");
   targetLabel.style.display = "none";
   targetWrapper.appendChild(targetLabel);
@@ -200,6 +276,14 @@ export function renderAddLinkForm(
   const targetValidationMessage = ownerDoc.createElement("span");
   targetValidationMessage.style.display = "none";
   targetWrapper.appendChild(targetValidationMessage);
+
+  // Where the other-mindmap pickers land once that button is used. Kept empty
+  // until then, so the common case of linking within the library never has to
+  // read past it.
+  const externalWrapper = ownerDoc.createElement("div");
+  externalWrapper.classList.add(EXTERNAL_TARGET_CLASS);
+  externalWrapper.style.display = "none";
+  targetWrapper.appendChild(externalWrapper);
 
   container.appendChild(targetWrapper);
 
@@ -237,7 +321,8 @@ export function renderAddLinkForm(
         return;
       }
 
-      selectedTargetRef = ref;
+      selectedTarget = { kind: "local", ref };
+      externalWrapper.style.display = "none";
       targetLabel.textContent = targetTitle(targetItem);
       targetLabel.style.display = "";
       targetValidationMessage.style.display = "none";
@@ -245,12 +330,116 @@ export function renderAddLinkForm(
     })();
   });
 
-  saveButton.addEventListener("click", () => {
+  chooseExternalButton.addEventListener("click", () => {
     void (async () => {
-      if (!selectedTargetRef) {
+      // Only mindmaps other than the one being edited: a link inside this
+      // mindmap is what the item picker above is for, and offering this one
+      // here would produce an external stub pointing at its own document.
+      const others = (await listMindmaps(item.libraryID)).filter(
+        (summary) => summary.id !== doc.id,
+      );
+      externalWrapper.textContent = "";
+      externalWrapper.style.display = "";
+
+      if (others.length === 0) {
+        const empty = ownerDoc.createElement("span");
+        empty.setAttribute(
+          "data-l10n-id",
+          getLocaleID("add-link-external-none"),
+        );
+        externalWrapper.appendChild(empty);
         return;
       }
+
+      const mindmapSelect = ownerDoc.createElement("select");
+      for (const summary of others) {
+        const option = ownerDoc.createElement("option");
+        option.value = summary.id;
+        option.textContent = summary.title;
+        mindmapSelect.appendChild(option);
+      }
+      externalWrapper.appendChild(mindmapSelect);
+
+      const nodeSelect = ownerDoc.createElement("select");
+      externalWrapper.appendChild(nodeSelect);
+
+      // Only member nodes: a mindmap's own borrowings are not its to lend on.
+      async function loadNodes() {
+        nodeSelect.textContent = "";
+        saveButton.disabled = true;
+        const target = await readMindmapDocument(
+          mindmapSelect.value,
+          item.libraryID,
+        );
+        for (const node of target.nodes) {
+          if (node.membership !== "member") {
+            continue;
+          }
+          const option = ownerDoc.createElement("option");
+          option.value = node.id;
+          option.textContent = resolveNodeLabel(node.ref);
+          nodeSelect.appendChild(option);
+        }
+        applyExternalSelection();
+      }
+
+      function applyExternalSelection() {
+        const target = nodeSelect.selectedOptions[0] as
+          HTMLOptionElement | undefined;
+        if (!target) {
+          selectedTarget = null;
+          saveButton.disabled = true;
+          targetLabel.style.display = "none";
+          return;
+        }
+        void (async () => {
+          const targetDoc = await readMindmapDocument(
+            mindmapSelect.value,
+            item.libraryID,
+          );
+          const node = targetDoc.nodes.find(
+            (candidate) => candidate.id === target.value,
+          );
+          if (!node) {
+            return;
+          }
+          selectedTarget = {
+            kind: "external",
+            ref: node.ref,
+            homeMindmapId: targetDoc.id,
+            homeNodeId: node.id,
+          };
+          targetLabel.textContent = `${target.textContent} (${
+            mindmapSelect.selectedOptions[0]?.textContent ?? ""
+          })`;
+          targetLabel.style.display = "";
+          targetValidationMessage.style.display = "none";
+          saveButton.disabled = false;
+        })();
+      }
+
+      mindmapSelect.addEventListener("change", () => void loadNodes());
+      nodeSelect.addEventListener("change", applyExternalSelection);
+      await loadNodes();
+    })();
+  });
+
+  saveButton.addEventListener("click", () => {
+    void (async () => {
+      if (!selectedTarget) {
+        return;
+      }
+      const target = selectedTarget;
       const selectedType = getLinkTypeById(typeSelect.value);
+      const common = {
+        sourceRef,
+        targetRef: target.ref,
+        typeId: typeSelect.value,
+        name: nameInput.value.trim() || undefined,
+        direction: selectedType?.directional
+          ? (directionSelect.value as "forward" | "backward")
+          : undefined,
+      };
 
       try {
         // The link is appended to the document as it stands at write time,
@@ -260,21 +449,24 @@ export function renderAddLinkForm(
         // form's own copy is never touched.
         let completed = false;
         await updateMindmapDocument((current) => {
-          const result = completeLink(current, {
-            sourceRef,
-            targetRef: selectedTargetRef!,
-            typeId: typeSelect.value,
-            name: nameInput.value.trim() || undefined,
-            direction: selectedType?.directional
-              ? (directionSelect.value as "forward" | "backward")
-              : undefined,
-          });
+          if (target.kind === "external") {
+            // A borrowed node is a different object from the source by
+            // definition, so there is no self-link to guard against.
+            completeExternalLink(current, {
+              ...common,
+              homeMindmapId: target.homeMindmapId,
+              homeNodeId: target.homeNodeId,
+            });
+            completed = true;
+            return current;
+          }
+          const result = completeLink(current, common);
           completed = result.ok;
           // The picker already blocks selecting a self-referential target,
-          // so this only guards against selectedTargetRef changing meaning
+          // so this only guards against the selection changing meaning
           // between pick and save.
           return result.ok ? current : null;
-        });
+        }, doc.id);
         if (completed) {
           onSaved();
         }

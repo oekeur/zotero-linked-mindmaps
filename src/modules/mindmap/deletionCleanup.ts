@@ -14,6 +14,7 @@
  * pre-trash snapshot.
  */
 import { listMindmaps, updateMindmapDocument, StorageError } from "./storage";
+import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
 
 const OBSERVER_ID = "zoterolinkedmindmaps-deletion-cleanup";
 
@@ -94,6 +95,12 @@ async function handleDelete(
 
   for (const libraryID of libraryIDs) {
     await pruneLibrary(libraryID, deletedRefs);
+    // The deleted item may have been a mindmap's own storage note, which
+    // leaves every stub reaching into that mindmap pointing at nothing. The
+    // notification can't say so - it carries a key, and the document that key
+    // named is already gone - so the check is done by reconciling against
+    // what still exists rather than by identifying what was removed.
+    await pruneDanglingExternalNodes(libraryID);
   }
 }
 

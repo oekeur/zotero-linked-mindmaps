@@ -4,10 +4,12 @@
 // @ts-nocheck
 export type FluentMessageId =
   | 'add-link-button'
+  | 'add-link-choose-external-button'
   | 'add-link-choose-target-button'
   | 'add-link-direction-backward'
   | 'add-link-direction-forward'
   | 'add-link-direction-label'
+  | 'add-link-external-none'
   | 'add-link-name-label'
   | 'add-link-save-button'
   | 'add-link-self-link-error'
