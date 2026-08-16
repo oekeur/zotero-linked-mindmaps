@@ -15,13 +15,19 @@ import {
   findAllMindmapNotes,
   listMindmaps,
   readMindmapDocument,
+  resolveMindmap,
+  serializeDocument,
   StorageError,
   updateMindmapMetadata,
   type MindmapSummary,
 } from "./storage";
 import { getLinkTypes } from "./linkTypes";
 import { appendMindmapOptions } from "./uiElements";
-import { attachLiveRefresh, renderMindmap } from "./graphRenderer";
+import {
+  attachLiveRefresh,
+  renderMindmap,
+  type RenderedState,
+} from "./graphRenderer";
 import { layoutUnplacedNodes } from "./layout";
 import type { MindmapDocument } from "./schema";
 
@@ -53,7 +59,7 @@ export interface MindmapTabController {
   teardown(): void;
 }
 
-type FormMode = { kind: "none" } | { kind: "new" } | { kind: "edit" };
+type FormMode = "none" | "new" | "edit";
 
 export function createMindmapTabController(
   surfaces: TabSurfaces,
@@ -61,7 +67,7 @@ export function createMindmapTabController(
   let currentDocument: MindmapDocument | undefined;
   let currentMindmapId: string | undefined;
   let teardownLiveRefresh: (() => void) | undefined;
-  let formMode: FormMode = { kind: "none" };
+  let formMode: FormMode = "none";
 
   function detachGraph(): void {
     teardownLiveRefresh?.();
@@ -79,8 +85,11 @@ export function createMindmapTabController(
     surfaces.dock.style.display = "none";
     surfaces.dock.textContent = "";
 
+    let note: Zotero.Item;
     try {
-      currentDocument = await readMindmapDocument(mindmapId);
+      const resolved = await resolveMindmap(mindmapId);
+      note = resolved.item;
+      currentDocument = resolved.doc;
     } catch (err) {
       if (!(err instanceof StorageError)) {
         throw err;
@@ -94,28 +103,32 @@ export function createMindmapTabController(
     currentMindmapId = currentDocument.id;
 
     const linkTypes = getLinkTypes();
+    // One box shared by the graph and its observer, so the observer knows what
+    // the graph already shows. Two boxes would mean it never recognises the
+    // graph's own writes.
+    const rendered: RenderedState = { document: null };
     const cy = await renderMindmap(
       surfaces.graph,
       currentDocument,
       linkTypes,
       surfaces.dock,
+      rendered,
     );
     const laidOut = await layoutUnplacedNodes(cy, currentDocument);
     if (laidOut) {
       currentDocument = laidOut;
+      // The layout moved the nodes on screen before saving them, so the graph
+      // already shows this - recording it keeps the save from flashing.
+      rendered.document = serializeDocument(laidOut);
     }
-    const noteItemID = (await listMindmaps()).find(
-      (entry) => entry.id === currentMindmapId,
-    )?.noteItemID;
-    if (noteItemID !== undefined) {
-      teardownLiveRefresh = attachLiveRefresh(
-        cy,
-        surfaces.graph,
-        noteItemID,
-        linkTypes,
-        surfaces.dock,
-      );
-    }
+    teardownLiveRefresh = attachLiveRefresh(
+      cy,
+      surfaces.graph,
+      note.id,
+      linkTypes,
+      surfaces.dock,
+      rendered,
+    );
   }
 
   function renderEmptyState(): void {
@@ -139,8 +152,8 @@ export function createMindmapTabController(
       mindmaps.find((entry) => entry.id === currentMindmapId) ?? mindmaps[0];
 
     surfaces.toolbar.textContent = "";
-    if (formMode.kind !== "none") {
-      renderForm(formMode.kind === "edit" ? selected : undefined);
+    if (formMode !== "none") {
+      renderForm(formMode === "edit" ? selected : undefined);
       return;
     }
     renderToolbar(mindmaps, selected);
@@ -183,7 +196,7 @@ export function createMindmapTabController(
     newButton.id = "zoterolinkedmindmaps-mindmap-new";
     newButton.textContent = getString("mindmap-new-button");
     newButton.addEventListener("click", () => {
-      formMode = { kind: "new" };
+      formMode = "new";
       void refresh();
     });
     surfaces.toolbar.appendChild(newButton as unknown as Node);
@@ -193,7 +206,7 @@ export function createMindmapTabController(
     editButton.textContent = getString("mindmap-edit-button");
     editButton.disabled = !selected;
     editButton.addEventListener("click", () => {
-      formMode = { kind: "edit" };
+      formMode = "edit";
       void refresh();
     });
     surfaces.toolbar.appendChild(editButton as unknown as Node);
@@ -254,7 +267,7 @@ export function createMindmapTabController(
     cancelButton.id = "zoterolinkedmindmaps-mindmap-cancel";
     cancelButton.textContent = getString("mindmap-form-cancel-button");
     cancelButton.addEventListener("click", () => {
-      formMode = { kind: "none" };
+      formMode = "none";
       void refresh();
     });
     surfaces.toolbar.appendChild(cancelButton as unknown as Node);
@@ -281,7 +294,7 @@ export function createMindmapTabController(
         `[zoteroLinkedMindmaps] mindmap save failed: ${(err as Error).message}`,
       );
     }
-    formMode = { kind: "none" };
+    formMode = "none";
     await refresh();
   }
 
@@ -324,7 +337,7 @@ export function createMindmapTabController(
       detachGraph();
       currentDocument = undefined;
       currentMindmapId = undefined;
-      formMode = { kind: "none" };
+      formMode = "none";
     },
   };
 }

@@ -13,8 +13,13 @@
  * dataObject.js, so this reads extraData directly rather than caching a
  * pre-trash snapshot.
  */
-import { listMindmaps, updateMindmapDocument, StorageError } from "./storage";
+import {
+  readAllMindmaps,
+  updateMindmapDocument,
+  StorageError,
+} from "./storage";
 import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
+import { withoutNodes } from "./mutations";
 
 const OBSERVER_ID = "zoterolinkedmindmaps-deletion-cleanup";
 
@@ -31,7 +36,24 @@ async function pruneLibrary(
   // and it avoids readMindmapDocument's findOrCreateMindmapNote creating a
   // storage note as a side effect of this notifier when there is nothing to
   // prune (or when the note being deleted *is* the storage note).
-  for (const mindmap of await listMindmaps(libraryID)) {
+  const stored = await readAllMindmaps(libraryID);
+  // Nothing to prune if no node anywhere points at a deleted ref, and nothing
+  // to reconcile if no mindmap borrows from another. Both checks come off
+  // documents already in hand, so an unrelated deletion - the common case -
+  // costs one pass over the registry rather than three.
+  const touched = stored.filter(({ doc }) =>
+    doc.nodes.some((node) =>
+      deletedRefs.has(refKey(node.ref.libraryID, node.ref.key)),
+    ),
+  );
+  const hasExternalNodes = stored.some(({ doc }) =>
+    doc.nodes.some((node) => node.membership === "external"),
+  );
+  if (touched.length === 0 && !hasExternalNodes) {
+    return;
+  }
+
+  for (const mindmap of touched.map(({ doc }) => doc)) {
     try {
       await updateMindmapDocument(
         (doc) => {
@@ -45,15 +67,7 @@ async function pruneLibrary(
           if (removedNodeIds.size === 0) {
             return null;
           }
-          return {
-            ...doc,
-            nodes: doc.nodes.filter((node) => !removedNodeIds.has(node.id)),
-            links: doc.links.filter(
-              (link) =>
-                !removedNodeIds.has(link.sourceNodeId) &&
-                !removedNodeIds.has(link.targetNodeId),
-            ),
-          };
+          return withoutNodes(doc, removedNodeIds);
         },
         mindmap.id,
         libraryID,

@@ -19,12 +19,13 @@ import {
   createMemberNode,
   refFor,
 } from "./mutations";
-import { resolveNodeLabel } from "./nodeLabels";
+import { buildNoteLabel, resolveNodeLabel } from "./nodeLabels";
 import { appendL10nButton, appendMindmapOptions } from "./uiElements";
 import {
   refsMatch,
   type MindmapDocument,
   type MindmapLink,
+  type MindmapNode,
   type ZoteroObjectRef,
 } from "./schema";
 
@@ -35,7 +36,12 @@ import {
  * them can read the same way without knowing which item they hang off.
  */
 function targetTitle(item: Zotero.Item): string {
-  const title = item.getField("title") || item.getDisplayTitle();
+  // A note is named the same way it is on the graph and in the node dropdown
+  // below - by a preview of its content. Zotero derives a note's title from
+  // its first line, which is often absent or unhelpful.
+  const title = item.isNote()
+    ? buildNoteLabel(item)
+    : item.getField("title") || item.getDisplayTitle();
   if (!item.parentItemID) {
     return title;
   }
@@ -353,6 +359,11 @@ export function renderAddLinkForm(
       const nodeSelect = ownerDoc.createElement("select");
       externalWrapper.appendChild(nodeSelect);
 
+      // What the node dropdown is currently offering, kept from the read that
+      // built it - picking a node is then a lookup rather than another trip to
+      // storage, which is what lets the change handler stay synchronous.
+      let offered = new Map<string, MindmapNode>();
+
       // Only member nodes: a mindmap's own borrowings are not its to lend on.
       async function loadNodes() {
         nodeSelect.textContent = "";
@@ -361,10 +372,12 @@ export function renderAddLinkForm(
           mindmapSelect.value,
           item.libraryID,
         );
-        for (const node of target.nodes) {
-          if (node.membership !== "member") {
-            continue;
-          }
+        offered = new Map(
+          target.nodes
+            .filter((node) => node.membership === "member")
+            .map((node) => [node.id, node]),
+        );
+        for (const node of offered.values()) {
           const option = ownerDoc.createElement("option");
           option.value = node.id;
           option.textContent = resolveNodeLabel(node.ref);
@@ -376,36 +389,25 @@ export function renderAddLinkForm(
       function applyExternalSelection() {
         const target = nodeSelect.selectedOptions[0] as
           HTMLOptionElement | undefined;
-        if (!target) {
+        const node = target && offered.get(target.value);
+        if (!target || !node) {
           selectedTarget = null;
           saveButton.disabled = true;
           targetLabel.style.display = "none";
           return;
         }
-        void (async () => {
-          const targetDoc = await readMindmapDocument(
-            mindmapSelect.value,
-            item.libraryID,
-          );
-          const node = targetDoc.nodes.find(
-            (candidate) => candidate.id === target.value,
-          );
-          if (!node) {
-            return;
-          }
-          selectedTarget = {
-            kind: "external",
-            ref: node.ref,
-            homeMindmapId: targetDoc.id,
-            homeNodeId: node.id,
-          };
-          targetLabel.textContent = `${target.textContent} (${
-            mindmapSelect.selectedOptions[0]?.textContent ?? ""
-          })`;
-          targetLabel.style.display = "";
-          targetValidationMessage.style.display = "none";
-          saveButton.disabled = false;
-        })();
+        selectedTarget = {
+          kind: "external",
+          ref: node.ref,
+          homeMindmapId: mindmapSelect.value,
+          homeNodeId: node.id,
+        };
+        targetLabel.textContent = `${target.textContent} (${
+          mindmapSelect.selectedOptions[0]?.textContent ?? ""
+        })`;
+        targetLabel.style.display = "";
+        targetValidationMessage.style.display = "none";
+        saveButton.disabled = false;
       }
 
       mindmapSelect.addEventListener("change", () => void loadNodes());

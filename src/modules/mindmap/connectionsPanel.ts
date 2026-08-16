@@ -15,7 +15,9 @@ import { getLocaleID } from "../../utils/locale";
 import {
   findMindmapNote,
   listMindmaps,
+  readDocumentFromNote,
   readMindmapDocument,
+  refreshNote,
   updateMindmapDocument,
   type MindmapSummary,
 } from "./storage";
@@ -277,7 +279,10 @@ export async function renderConnectionsContent(
 
   let mindmapDoc: MindmapDocument;
   try {
-    mindmapDoc = await readMindmapDocument(undefined, item.libraryID);
+    // Parses the note found just above rather than resolving one again: the
+    // id-less read would repeat the same search, and would create a note as a
+    // side effect of merely viewing the panel.
+    mindmapDoc = readDocumentFromNote(await refreshNote(note));
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Connections panel failed to read mindmap document: ${
