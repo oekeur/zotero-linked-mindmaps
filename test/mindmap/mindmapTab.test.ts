@@ -113,7 +113,12 @@ describe("mindmap/mindmapTab", function () {
 
     const emptyState = surfaces.graph.querySelector(EMPTY_STATE);
     assert.isNotNull(emptyState);
-    assert.equal(emptyState!.textContent, getString("mindmap-empty-state"));
+    // Not compared against getString of the same key: with the locale bundle
+    // broken both sides return the same raw id and the assertion passes over
+    // an empty state reading "zoterolinkedmindmaps-mindmap-empty-state".
+    const emptyText = emptyState!.textContent ?? "";
+    assert.notInclude(emptyText, config.addonRef);
+    assert.equal(emptyText, getString("mindmap-empty-state"));
     assert.isEmpty(rows());
     // Creating one is still reachable with nothing in the list.
     assert.isNotNull(surfaces.sidebar.querySelector(NEW));

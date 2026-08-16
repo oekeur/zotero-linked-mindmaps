@@ -141,6 +141,36 @@ describe("locales", function () {
     });
   }
 
+  /**
+   * The same bundle, asked for in Dutch. getString formats in whatever locale
+   * the profile is set to, so this builds a Localization pinned to nl-NL
+   * instead of switching the profile and restarting.
+   */
+  it("resolves the same keys under nl-NL", function () {
+    const bundle = new (Localization as any)(
+      LOCALE_FILES.map((name) => `${config.addonRef}-${name}.ftl`),
+      true,
+      undefined,
+      ["nl-NL"],
+    );
+    const ids = [
+      "mindmap-sidebar-heading",
+      "mindmap-new-button",
+      "mindmap-empty-state",
+      "mindmap-show-in-library",
+      "mindmap-delete-confirm-title",
+    ].map((id) => `${config.addonRef}-${id}`);
+
+    const formatted = bundle.formatMessagesSync(ids.map((id) => ({ id })));
+    const missing = ids.filter((id, index) => !formatted[index]?.value);
+    assert.deepEqual(missing, [], "keys with no Dutch text");
+    // The control that this really is the Dutch bundle and not en-US again.
+    assert.equal(
+      bundle.formatValueSync(`${config.addonRef}-mindmap-new-button`),
+      "Nieuw",
+    );
+  });
+
   // It was template scaffolding with two of forty-odd strings translated, and
   // nobody here can verify Chinese. A zh-CN profile now falls back to en-US,
   // which is what it was effectively doing anyway.
