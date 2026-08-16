@@ -357,21 +357,7 @@ export function attachLiveRefresh(
   let current = cy;
   let refreshing = false;
 
-  async function notify(
-    event: _ZoteroTypes.Notifier.Event,
-    type: _ZoteroTypes.Notifier.Type,
-    ids: string[] | number[],
-  ): Promise<void> {
-    if (event !== "modify" || type !== "item") {
-      return;
-    }
-    if (!ids.some((id) => Number(id) === storageNoteItemID)) {
-      return;
-    }
-    if (refreshing) {
-      return;
-    }
-    refreshing = true;
+  async function rebuild(): Promise<void> {
     try {
       const doc = await readMindmapDocument();
       current.destroy();
@@ -384,6 +370,36 @@ export function attachLiveRefresh(
     } finally {
       refreshing = false;
     }
+  }
+
+  /**
+   * Returns nothing rather than a promise, and must keep doing so. Zotero
+   * awaits each observer's return value inside the DB transaction commit
+   * that fired the notification (Notifier.trigger, reached from the DB
+   * commit callbacks), and the write that modifies the storage note runs
+   * inside a storage-queue task. Awaiting the rebuild here would park it on
+   * a queue whose head is the task waiting for this very notification to
+   * return, wedging the queue for the rest of the session - every later save
+   * then hangs silently. So the rebuild is started and deliberately not
+   * awaited; `refreshing` still collapses notifications that arrive while
+   * one is in flight.
+   */
+  function notify(
+    event: _ZoteroTypes.Notifier.Event,
+    type: _ZoteroTypes.Notifier.Type,
+    ids: string[] | number[],
+  ): void {
+    if (event !== "modify" || type !== "item") {
+      return;
+    }
+    if (!ids.some((id) => Number(id) === storageNoteItemID)) {
+      return;
+    }
+    if (refreshing) {
+      return;
+    }
+    refreshing = true;
+    void rebuild();
   }
 
   const observerID = Zotero.Notifier.registerObserver(

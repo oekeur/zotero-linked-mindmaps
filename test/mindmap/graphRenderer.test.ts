@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import type cytoscape from "cytoscape";
 import {
+  attachLiveRefresh,
   attachNodeClickHandler,
   attachNodeContextMenuHandler,
   computeParallelOffsets,
@@ -9,8 +10,15 @@ import {
   resolveNodeLabel,
   UNKNOWN_TYPE_LABEL,
 } from "../../src/modules/mindmap/graphRenderer";
+import {
+  findMindmapNote,
+  updateMindmapDocument,
+  writeMindmapDocument,
+} from "../../src/modules/mindmap/storage";
 import type { LinkType } from "../../src/modules/mindmap/linkTypes";
+import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import type {
+  MindmapDocument,
   MindmapLink,
   ZoteroObjectRef,
 } from "../../src/modules/mindmap/schema";
@@ -374,6 +382,83 @@ describe("mindmap/graphRenderer", function () {
       });
 
       assert.isTrue(prevented);
+    });
+  });
+
+  describe("attachLiveRefresh", function () {
+    let container: HTMLDivElement;
+    let teardown: (() => void) | undefined;
+
+    // One unplaced node, so the rebuild the notification kicks off reaches
+    // layoutUnplacedNodes and actually writes a position back. A document with
+    // nothing to lay out never writes, and would not exercise the deadlock.
+    function docWithUnplacedNode(): MindmapDocument {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-live-refresh-test",
+        title: "Live refresh",
+        nodes: [
+          {
+            membership: "member",
+            id: "node-a",
+            position: null,
+            ref: {
+              kind: "item",
+              libraryID: Zotero.Libraries.userLibraryID,
+              key: "NOSUCHKEY",
+            },
+          },
+        ],
+        links: [],
+      };
+    }
+
+    function fakeCy(): cytoscape.Core {
+      return { destroy() {} } as unknown as cytoscape.Core;
+    }
+
+    beforeEach(function () {
+      const doc = Zotero.getMainWindow().document;
+      container = doc.createElement("div");
+      // Cytoscape positions its canvases against the nearest positioned
+      // ancestor, so the container has to establish one itself.
+      container.style.cssText =
+        "position: relative; width: 200px; height: 200px;";
+      doc.documentElement.appendChild(container);
+    });
+
+    afterEach(function () {
+      teardown?.();
+      teardown = undefined;
+      container.remove();
+    });
+
+    it("leaves the storage queue usable after a write triggers a refresh", async function () {
+      // Zotero awaits every notifier observer inside the commit of the
+      // transaction the queued write is running, so an observer that awaits
+      // its own queued write parks it behind the task waiting on the
+      // observer. Neither settles, and every later write hangs silently.
+      // Without the fix the first update below never resolves and this times
+      // out.
+      this.timeout(30000);
+
+      await writeMindmapDocument(docWithUnplacedNode());
+      const note = await findMindmapNote();
+      assert.isNotNull(note);
+
+      teardown = attachLiveRefresh(fakeCy(), container, note!.id, []);
+
+      const first = await updateMindmapDocument((doc) => ({
+        ...doc,
+        title: "refresh-1",
+      }));
+      assert.equal(first?.title, "refresh-1");
+
+      const second = await updateMindmapDocument((doc) => ({
+        ...doc,
+        title: "refresh-2",
+      }));
+      assert.equal(second?.title, "refresh-2");
     });
   });
 });
