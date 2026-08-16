@@ -15,7 +15,7 @@ import cytoscape from "cytoscape";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
 import { readMindmapDocument } from "./storage";
 import { layoutUnplacedNodes } from "./layout";
-import { isUnplaced } from "./schema";
+import { coincidentNodeIds, isUnplaced } from "./schema";
 import { renderConnectionsContent } from "./connectionsPanel";
 import type { LinkType } from "./linkTypes";
 import type {
@@ -65,12 +65,18 @@ function toElementPosition(position: Position | null): Position {
   return position;
 }
 
-function buildNodeElement(node: MindmapNode): cytoscape.NodeDefinition {
+function buildNodeElement(
+  node: MindmapNode,
+  collided: Set<string>,
+): cytoscape.NodeDefinition {
   return {
     data: {
       id: node.id,
       label: resolveNodeLabel(node.ref),
-      unplaced: isUnplaced(node.position),
+      // A node stacked on another one is handed back to the layout even
+      // though it has a stored position, so a document that persisted a pile
+      // recovers on open instead of staying piled forever.
+      unplaced: isUnplaced(node.position) || collided.has(node.id),
     },
     position: toElementPosition(node.position),
   };
@@ -318,11 +324,12 @@ export async function renderMindmap(
   const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
   const parallelOffsets = computeParallelOffsets(doc.links);
   const nodeRefsById = new Map(doc.nodes.map((node) => [node.id, node.ref]));
+  const collided = coincidentNodeIds(doc.nodes);
 
   const cy = cytoscape({
     container,
     elements: {
-      nodes: doc.nodes.map(buildNodeElement),
+      nodes: doc.nodes.map((node) => buildNodeElement(node, collided)),
       edges: doc.links.map((link) =>
         buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
       ),
