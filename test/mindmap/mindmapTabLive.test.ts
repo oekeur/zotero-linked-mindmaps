@@ -35,6 +35,7 @@ describe("mindmap/mindmapTab live tab", function () {
     this.timeout(30000);
     closeMindmapTab();
     await Zotero.Promise.delay(200);
+    Zotero.Prefs.clear(`${config.prefsPrefix}.sidebarCollapsed`, true);
     await clearStorageNotes();
   });
 
@@ -91,5 +92,58 @@ describe("mindmap/mindmapTab live tab", function () {
     // The graph has to end up with real width, or Cytoscape piles every node
     // on the origin.
     assert.isAbove((graph as HTMLElement).getBoundingClientRect().width, 0);
+  });
+
+  /**
+   * The dock rendered off the right edge of the tab: the graph would not
+   * shrink, so the row overflowed and the panel was drawn where it could not
+   * be seen. Clicking a node looked like it did nothing at all.
+   */
+  it("opens the dock inside the tab rather than off its right edge", async function () {
+    this.timeout(30000);
+    await openMindmapTab();
+    await Zotero.Promise.delay(1000);
+
+    const doc = mainDocument();
+    const dock = doc.querySelector(DOCK) as HTMLElement;
+    const graph = doc.querySelector(GRAPH) as HTMLElement;
+    const row = dock.parentElement!;
+    dock.style.display = "";
+    await Zotero.Promise.delay(200);
+
+    const rowRect = row.getBoundingClientRect();
+    const dockRect = dock.getBoundingClientRect();
+    assert.isAbove(dockRect.width, 0, "the dock has no width");
+    assert.isAtMost(
+      Math.round(dockRect.right),
+      Math.round(rowRect.right) + 1,
+      "the dock hangs off the right edge of the tab",
+    );
+    assert.isAtLeast(
+      Math.round(dockRect.left),
+      Math.round(rowRect.left),
+      "the dock starts outside the tab",
+    );
+    // The graph gave the width up rather than the dock being squeezed out.
+    assert.isAbove(graph.getBoundingClientRect().width, 0);
+  });
+
+  it("gives the graph the width back when the sidebar collapses", async function () {
+    this.timeout(30000);
+    await openMindmapTab();
+    await Zotero.Promise.delay(1000);
+
+    const doc = mainDocument();
+    const graph = doc.querySelector(GRAPH) as HTMLElement;
+    const before = graph.getBoundingClientRect().width;
+
+    (
+      doc.querySelector(
+        "#zoterolinkedmindmaps-mindmap-sidebar-toggle",
+      ) as HTMLButtonElement
+    ).click();
+    await Zotero.Promise.delay(400);
+
+    assert.isAbove(graph.getBoundingClientRect().width, before);
   });
 });

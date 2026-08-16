@@ -705,6 +705,43 @@ export function attachGroupingHandlers(
   cy.on("tap", () => closeMenu(cy));
 }
 
+/**
+ * Keeps the graph's idea of its own geometry in step with the tab's layout.
+ *
+ * Two caches go stale when the sidebar collapses or the dock opens: the size
+ * cache (canvas dimensions) and containerBB, the container's on-screen offset
+ * that pointer coordinates are measured against. A stale containerBB is why
+ * clicks land on the wrong node, or on nothing, after a layout change - the
+ * graph still draws correctly, so nothing looks broken until you click.
+ *
+ * cy.resize() clears both: it emits "resize", and the renderer answers that by
+ * calling invalidateContainerClientCoordsCache and re-matching the canvas
+ * size. Cytoscape wires its own ResizeObserver for this, but only if a
+ * ResizeObserver global is visible from the bundle's scope and actually
+ * delivers for elements in Zotero's main window, which it does not here. The
+ * observer is therefore taken from the host window explicitly rather than left
+ * to a bare global.
+ */
+function observeContainerSize(
+  cy: cytoscape.Core,
+  container: HTMLElement,
+  win: Window,
+): void {
+  const Observer = (
+    win as unknown as { ResizeObserver?: typeof ResizeObserver }
+  ).ResizeObserver;
+  if (!Observer) {
+    return;
+  }
+  const observer = new Observer(() => {
+    if (!cy.destroyed()) {
+      cy.resize();
+    }
+  });
+  observer.observe(container);
+  cy.on("destroy", () => observer.disconnect());
+}
+
 export async function renderMindmap(
   container: HTMLElement,
   doc: MindmapDocument,
@@ -743,6 +780,7 @@ export async function renderMindmap(
     style: STYLESHEET,
     layout: { name: "preset" },
   });
+  observeContainerSize(cy, container, win);
   attachNodeClickHandler(cy, nodeRefsById, dockContainer, doc.id);
   attachNodeDragHandler(cy, doc.id, rendered);
   attachGroupingHandlers(cy, doc.id);

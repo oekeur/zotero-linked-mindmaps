@@ -487,25 +487,32 @@ export async function openMindmapTab(): Promise<void> {
   // that flexes, so it absorbs whatever width the other two leave.
   const body = el(doc, "div");
   body.style.cssText =
-    "display: flex; width: 100%; height: 100%; min-height: 0;";
+    "display: flex; width: 100%; height: 100%; min-height: 0; overflow: hidden;";
   container.appendChild(body as unknown as Node);
 
   const sidebar = el(doc, "div");
   sidebar.id = "zoterolinkedmindmaps-mindmap-sidebar";
   // Width is the controller's, since it is what the collapse toggle changes.
+  // flex: 0 0 auto keeps that width from being negotiated away.
   sidebar.style.cssText =
-    "height: 100%; overflow: auto; border-right: 1px solid; padding: 4px; box-sizing: border-box;";
+    "flex: 0 0 auto; height: 100%; overflow: auto; border-right: 1px solid; padding: 4px; box-sizing: border-box;";
   body.appendChild(sidebar as unknown as Node);
 
   const graph = el(doc, "div");
   graph.id = "zoterolinkedmindmaps-mindmap-container";
-  graph.style.cssText = "flex: 1; height: 100%; position: relative;";
+  // min-width: 0 matters: a flex item defaults to min-width: auto, which is
+  // its content-based minimum, and Cytoscape's container carries enough of
+  // one that the graph refuses to shrink. The row then overflows and pushes
+  // the dock off the right edge of the tab, where it renders but cannot be
+  // seen or reached.
+  graph.style.cssText =
+    "flex: 1 1 0; min-width: 0; height: 100%; position: relative;";
   body.appendChild(graph as unknown as Node);
 
   const dock = el(doc, "div");
   dock.id = "zoterolinkedmindmaps-mindmap-connections-dock";
   dock.style.cssText =
-    "display: none; width: 320px; height: 100%; overflow: auto; border-left: 1px solid; padding: 8px;";
+    "display: none; flex: 0 0 320px; height: 100%; overflow: auto; border-left: 1px solid; padding: 8px; box-sizing: border-box;";
   body.appendChild(dock as unknown as Node);
 
   controller = createMindmapTabController({ sidebar, graph, dock });
