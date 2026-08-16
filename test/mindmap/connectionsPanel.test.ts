@@ -1,5 +1,12 @@
 import { assert } from "chai";
-import { renderConnectionsContent } from "../../src/modules/mindmap/connectionsPanel";
+import {
+  MINDMAP_CHOICE_CLASS,
+  renderConnectionsContent,
+} from "../../src/modules/mindmap/connectionsPanel";
+import {
+  createMindmap,
+  findAllMindmapNotes,
+} from "../../src/modules/mindmap/storage";
 import { getLocaleID } from "../../src/utils/locale";
 
 describe("mindmap/connectionsPanel", function () {
@@ -38,5 +45,111 @@ describe("mindmap/connectionsPanel", function () {
     assert.isNotNull(form);
     assert.equal(form!.style.display, "none");
     assert.equal(form!.childElementCount, 0);
+  });
+
+  describe("choosing a target mindmap", function () {
+    async function clearStorageNotes() {
+      for (const item of await findAllMindmapNotes()) {
+        await item.eraseTx();
+      }
+    }
+
+    function addLinkButton() {
+      return container.querySelector(
+        `[data-l10n-id="${getLocaleID("add-link-button")}"]`,
+      ) as HTMLButtonElement;
+    }
+
+    function form() {
+      return container.querySelector<HTMLElement>(".mindmap-add-link-form")!;
+    }
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+    });
+
+    it("asks which mindmap to add to when there is more than one (AC #1)", async function () {
+      this.timeout(30000);
+      await createMindmap("Chapter one", "sources for ch. 1");
+      await createMindmap("Methods");
+      await renderConnectionsContent(container, article);
+
+      addLinkButton().click();
+      await Zotero.Promise.delay(500);
+
+      const choice = form().querySelector(`.${MINDMAP_CHOICE_CLASS}`);
+      assert.isNotNull(choice);
+      const picker = choice!.querySelector("select") as HTMLSelectElement;
+      assert.deepEqual(
+        [...picker.options].map((option) => option.textContent),
+        ["Chapter one", "Methods"],
+      );
+      assert.equal(picker.options[0].title, "sources for ch. 1");
+      // The form itself waits for an answer.
+      assert.isNull(
+        form().querySelector(
+          `[data-l10n-id="${getLocaleID("add-link-save-button")}"]`,
+        ),
+      );
+    });
+
+    it("mounts the form for the chosen mindmap once continued", async function () {
+      this.timeout(30000);
+      await createMindmap("Chapter one");
+      const second = await createMindmap("Methods");
+      await renderConnectionsContent(container, article);
+
+      addLinkButton().click();
+      await Zotero.Promise.delay(500);
+
+      const choice = form().querySelector(`.${MINDMAP_CHOICE_CLASS}`)!;
+      (choice.querySelector("select") as HTMLSelectElement).value = second.id;
+      (choice.querySelector("button") as HTMLButtonElement).click();
+      await Zotero.Promise.delay(600);
+
+      assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
+      assert.isNotNull(
+        form().querySelector(
+          `[data-l10n-id="${getLocaleID("add-link-save-button")}"]`,
+        ),
+      );
+    });
+
+    it("skips the question with exactly one mindmap (AC #2)", async function () {
+      this.timeout(30000);
+      await createMindmap("The only one");
+      await renderConnectionsContent(container, article);
+
+      addLinkButton().click();
+      await Zotero.Promise.delay(600);
+
+      assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
+      assert.isNotNull(
+        form().querySelector(
+          `[data-l10n-id="${getLocaleID("add-link-save-button")}"]`,
+        ),
+      );
+    });
+
+    it("skips the question with no mindmap at all", async function () {
+      this.timeout(30000);
+      await renderConnectionsContent(container, article);
+
+      addLinkButton().click();
+      await Zotero.Promise.delay(600);
+
+      assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
+      assert.isNotNull(
+        form().querySelector(
+          `[data-l10n-id="${getLocaleID("add-link-save-button")}"]`,
+        ),
+      );
+    });
   });
 });

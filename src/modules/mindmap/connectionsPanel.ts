@@ -14,8 +14,10 @@
 import { getLocaleID } from "../../utils/locale";
 import {
   findMindmapNote,
+  listMindmaps,
   readMindmapDocument,
   updateMindmapDocument,
+  type MindmapSummary,
 } from "./storage";
 import { getLinkTypeById } from "./linkTypes";
 import { renderAddLinkForm } from "./addLinkForm";
@@ -176,16 +178,32 @@ function expandSection(body: HTMLElement) {
   }
 }
 
+export const MINDMAP_CHOICE_CLASS = "mindmap-choose-target";
+
+/**
+ * Asks which mindmap the link belongs in before the form appears, but only
+ * when the answer isn't already obvious: with one mindmap it is used
+ * implicitly, and with none the default one is created on save, exactly as
+ * before. Creating a mindmap is the tab's job, so this only ever lists what
+ * already exists.
+ */
 async function loadAddLinkForm(
   formContainer: HTMLElement,
   item: Zotero.Item,
   panelContainer: HTMLElement,
 ) {
   try {
-    const mindmapDoc = await readMindmapDocument(undefined, item.libraryID);
-    renderAddLinkForm(formContainer, item, mindmapDoc, () => {
-      void renderConnectionsContent(panelContainer, item);
-    });
+    const mindmaps = await listMindmaps(item.libraryID);
+    if (mindmaps.length > 1) {
+      renderMindmapChoice(formContainer, item, panelContainer, mindmaps);
+      return;
+    }
+    await mountAddLinkForm(
+      formContainer,
+      item,
+      panelContainer,
+      mindmaps[0]?.id,
+    );
   } catch (err) {
     Zotero.debug(
       `[zoteroLinkedMindmaps] Add-link form failed to load mindmap document: ${
@@ -198,6 +216,58 @@ async function loadAddLinkForm(
       getLocaleID("connections-error-state"),
     );
   }
+}
+
+function renderMindmapChoice(
+  formContainer: HTMLElement,
+  item: Zotero.Item,
+  panelContainer: HTMLElement,
+  mindmaps: MindmapSummary[],
+) {
+  const doc = formContainer.ownerDocument!;
+  formContainer.textContent = "";
+
+  const wrapper = doc.createElement("div");
+  wrapper.classList.add(MINDMAP_CHOICE_CLASS);
+
+  appendL10nText(wrapper, doc, getLocaleID("connections-choose-mindmap-label"));
+
+  const picker = doc.createElement("select");
+  for (const mindmap of mindmaps) {
+    const option = doc.createElement("option");
+    option.value = mindmap.id;
+    option.textContent = mindmap.title;
+    if (mindmap.description) {
+      option.title = mindmap.description;
+    }
+    picker.appendChild(option);
+  }
+  wrapper.appendChild(picker);
+
+  const continueButton = doc.createElement("button");
+  continueButton.setAttribute(
+    "data-l10n-id",
+    getLocaleID("connections-choose-mindmap-continue"),
+  );
+  continueButton.addEventListener("click", () => {
+    void mountAddLinkForm(formContainer, item, panelContainer, picker.value);
+  });
+  wrapper.appendChild(continueButton);
+
+  formContainer.appendChild(wrapper);
+}
+
+async function mountAddLinkForm(
+  formContainer: HTMLElement,
+  item: Zotero.Item,
+  panelContainer: HTMLElement,
+  mindmapId: string | undefined,
+) {
+  const mindmapDoc = await readMindmapDocument(mindmapId, item.libraryID);
+  formContainer.textContent = "";
+  renderAddLinkForm(formContainer, item, mindmapDoc, () => {
+    void renderConnectionsContent(panelContainer, item);
+  });
 }
 
 /**
