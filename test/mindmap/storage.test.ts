@@ -6,6 +6,7 @@ import {
 } from "../../src/modules/mindmap/schema";
 import {
   createMindmap,
+  deleteMindmap,
   findAllMindmapNotes,
   findMindmapNote,
   listMindmaps,
@@ -13,6 +14,7 @@ import {
   StorageError,
   STORAGE_TAG,
   updateMindmapDocument,
+  updateMindmapMetadata,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 
@@ -250,6 +252,107 @@ describe("mindmap/storage", function () {
       assert.equal(listed[0].title, "Storage round-trip");
       const doc = await readMindmapDocument(listed[0].id);
       assert.deepEqual(doc, docWithNodesAndLinks());
+    });
+
+    it("renames a mindmap and edits its description, leaving its content alone (AC #2)", async function () {
+      const created = await createMindmap("Working title", "first pass");
+      await writeMindmapDocument({
+        ...docWithNodesAndLinks(),
+        id: created.id,
+        title: "Working title",
+        description: "first pass",
+      });
+
+      const updated = await updateMindmapMetadata(created.id, {
+        title: "Final title",
+        description: "second pass",
+      });
+
+      assert.equal(updated.title, "Final title");
+      assert.equal(updated.description, "second pass");
+      assert.equal(updated.nodes.length, 1);
+      const listed = await listMindmaps();
+      assert.equal(listed[0].title, "Final title");
+      assert.equal(listed[0].description, "second pass");
+    });
+
+    it("clears a description when passed an empty one", async function () {
+      const created = await createMindmap("Titled", "to be cleared");
+
+      const updated = await updateMindmapMetadata(created.id, {
+        description: "",
+      });
+
+      assert.isUndefined(updated.description);
+      assert.equal(updated.title, "Titled");
+      assert.isUndefined((await listMindmaps())[0].description);
+    });
+
+    it("refuses to rename a mindmap to a blank title", async function () {
+      const created = await createMindmap("Keeps its name");
+      try {
+        await updateMindmapMetadata(created.id, { title: "  " });
+        assert.fail("expected updateMindmapMetadata to throw");
+      } catch (err) {
+        assert.instanceOf(err, StorageError);
+        assert.equal((err as StorageError).reason, "invalid-schema");
+      }
+      assert.equal(
+        (await readMindmapDocument(created.id)).title,
+        "Keeps its name",
+      );
+    });
+
+    it("deletes a mindmap and its links without touching the items they pointed at (AC #3)", async function () {
+      const article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Referenced by a deleted mindmap");
+      await article.saveTx();
+
+      const doomed = await createMindmap("Doomed");
+      const survivor = await createMindmap("Survivor");
+      await writeMindmapDocument({
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: doomed.id,
+        title: "Doomed",
+        nodes: [
+          {
+            membership: "member",
+            id: "node-a",
+            position: { x: 0, y: 0 },
+            ref: {
+              kind: "item",
+              libraryID: article.libraryID,
+              key: article.key,
+            },
+          },
+        ],
+        links: [],
+      });
+
+      await deleteMindmap(doomed.id);
+
+      const remaining = await listMindmaps();
+      assert.deepEqual(
+        remaining.map((entry) => entry.id),
+        [survivor.id],
+      );
+      assert.isFalse(
+        Zotero.Items.getByLibraryAndKey(article.libraryID, article.key) ===
+          false,
+      );
+
+      await article.eraseTx();
+    });
+
+    it("throws not-found when deleting a mindmap that isn't there", async function () {
+      try {
+        await deleteMindmap("no-such-mindmap");
+        assert.fail("expected deleteMindmap to throw");
+      } catch (err) {
+        assert.instanceOf(err, StorageError);
+        assert.equal((err as StorageError).reason, "not-found");
+      }
     });
 
     it("skips a note that no longer parses rather than failing the whole listing", async function () {

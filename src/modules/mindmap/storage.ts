@@ -368,6 +368,61 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Changes a mindmap's title and description, leaving its nodes and links
+ * alone. Passing an empty description clears it; an empty title is rejected,
+ * since the schema makes it non-optional and a blank entry in the registry is
+ * unpickable.
+ */
+export async function updateMindmapMetadata(
+  id: string,
+  updates: { title?: string; description?: string },
+  libraryID = defaultLibraryID(),
+): Promise<MindmapDocument> {
+  if (updates.title !== undefined && updates.title.trim() === "") {
+    throw new StorageError("invalid-schema", "a mindmap needs a title");
+  }
+  const updated = await updateMindmapDocument(
+    (doc) => {
+      const next = { ...doc };
+      if (updates.title !== undefined) {
+        next.title = updates.title;
+      }
+      if (updates.description !== undefined) {
+        if (updates.description === "") {
+          delete next.description;
+        } else {
+          next.description = updates.description;
+        }
+      }
+      return next;
+    },
+    id,
+    libraryID,
+  );
+  // The mutation above never opts out, so a null return is impossible here.
+  return updated!;
+}
+
+/**
+ * Removes a mindmap for good. Its nodes and links live inside the note, so
+ * erasing the note removes them with it; the Zotero items and notes those
+ * nodes pointed at are separate objects this never opens.
+ *
+ * Erases rather than trashes: a trashed storage note is still tagged and
+ * still found by the registry search, so it would keep showing up as a
+ * mindmap the user believes they deleted.
+ */
+export async function deleteMindmap(
+  id: string,
+  libraryID = defaultLibraryID(),
+): Promise<void> {
+  await enqueue(async () => {
+    const item = await requireMindmapNoteById(id, libraryID);
+    await item.eraseTx();
+  });
+}
+
+/**
  * Reads the mindmap named by `id` (or the library's default one), applies
  * `mutate`, and writes the result back with no other storage operation
  * interleaving. Return null from `mutate` to leave the document untouched (no

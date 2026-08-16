@@ -5,7 +5,7 @@
  * XHTML fragment hands over on load - no separate dialog window.
  */
 import { getString } from "../../utils/locale";
-import { readMindmapDocument } from "./storage";
+import { findAllMindmapNotes, readDocumentFromNote } from "./storage";
 import { getLinkTypes, setLinkTypes, type LinkType } from "./linkTypes";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
@@ -193,14 +193,22 @@ function renderForm(container: HTMLElement, editId: string | null): void {
 }
 
 /**
- * Counts links referencing type `id` in the current mindmap document.
- * Returns null (rather than 0) when the document can't be read, so a
- * corrupt/unparseable note doesn't get reported as "unused".
+ * Counts links referencing type `id` across every mindmap in the library -
+ * the vocabulary is shared, so deleting a type affects all of them. Returns
+ * null (rather than 0) when a mindmap can't be read, so a corrupt note isn't
+ * reported as "unused".
  */
 export async function countLinksUsingType(id: string): Promise<number | null> {
   try {
-    const doc = await readMindmapDocument();
-    return doc.links.filter((link) => link.typeId === id).length;
+    let count = 0;
+    // Reads the notes directly rather than going through listMindmaps, which
+    // skips a note it cannot parse. Here that would report a corrupt mindmap's
+    // links as zero and let the type be deleted with no warning at all.
+    for (const note of await findAllMindmapNotes()) {
+      const doc = await readDocumentFromNote(note);
+      count += doc.links.filter((link) => link.typeId === id).length;
+    }
+    return count;
   } catch {
     return null;
   }
