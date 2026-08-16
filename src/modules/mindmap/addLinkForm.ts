@@ -9,13 +9,28 @@ import { getLocaleID } from "../../utils/locale";
 import { getLinkTypeById, getLinkTypes } from "./linkTypes";
 import { readMindmapDocument, updateMindmapDocument } from "./storage";
 import { openTargetPicker } from "./targetPicker";
-import { createMemberNode, refFor } from "./mutations";
+import { canBeMindmapNode, createMemberNode, refFor } from "./mutations";
 import {
   refsMatch,
   type MindmapDocument,
   type MindmapLink,
   type ZoteroObjectRef,
 } from "./schema";
+
+/**
+ * Label for the chosen target. A note has no title field, so getDisplayTitle
+ * (its first line) stands in. A child note is shown with its parent's title
+ * after it: the picker lists child notes as rows of their own, and several of
+ * them can read the same way without knowing which item they hang off.
+ */
+function targetTitle(item: Zotero.Item): string {
+  const title = item.getField("title") || item.getDisplayTitle();
+  if (!item.parentItemID) {
+    return title;
+  }
+  const parent = Zotero.Items.get(item.parentItemID);
+  return parent ? `${title} (${parent.getDisplayTitle()})` : title;
+}
 
 export interface AddLinkParams {
   sourceRef: ZoteroObjectRef;
@@ -195,11 +210,24 @@ export function renderAddLinkForm(
 
   chooseTargetButton.addEventListener("click", () => {
     void (async () => {
-      const ref = await openTargetPicker();
-      if (!ref) {
+      const targetItem = await openTargetPicker();
+      if (!targetItem) {
         return;
       }
 
+      // The picker shows attachments alongside items and notes - Zotero's
+      // dialog has no filter that separates them - so an ineligible pick is
+      // reported here rather than silently ignored.
+      if (!canBeMindmapNode(targetItem)) {
+        targetValidationMessage.setAttribute(
+          "data-l10n-id",
+          getLocaleID("add-link-target-not-linkable"),
+        );
+        targetValidationMessage.style.display = "";
+        return;
+      }
+
+      const ref = refFor(targetItem);
       if (refsMatch(ref, sourceRef)) {
         targetValidationMessage.setAttribute(
           "data-l10n-id",
@@ -209,16 +237,8 @@ export function renderAddLinkForm(
         return;
       }
 
-      const targetItem = Zotero.Items.getByLibraryAndKey(
-        ref.libraryID,
-        ref.key,
-      ) as Zotero.Item | false;
-      const title = targetItem
-        ? targetItem.getField("title") || targetItem.getDisplayTitle()
-        : ref.key;
-
       selectedTargetRef = ref;
-      targetLabel.textContent = title;
+      targetLabel.textContent = targetTitle(targetItem);
       targetLabel.style.display = "";
       targetValidationMessage.style.display = "none";
       saveButton.disabled = false;

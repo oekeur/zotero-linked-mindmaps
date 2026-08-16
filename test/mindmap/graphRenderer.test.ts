@@ -5,8 +5,11 @@ import {
   attachNodeClickHandler,
   attachNodeContextMenuHandler,
   attachNodeDragHandler,
+  buildParentChildTies,
   computeParallelOffsets,
+  EMPTY_NOTE_LABEL,
   MISSING_ITEM_LABEL,
+  PARENT_CHILD_TIE_CLASS,
   renderMindmap,
   resolveLinkVisual,
   resolveNodeLabel,
@@ -29,6 +32,7 @@ import {
 import type {
   MindmapDocument,
   MindmapLink,
+  MindmapNode,
   ZoteroObjectRef,
 } from "../../src/modules/mindmap/schema";
 
@@ -63,6 +67,66 @@ describe("mindmap/graphRenderer", function () {
         key: "NOSUCHKEY",
       });
       assert.equal(label, MISSING_ITEM_LABEL);
+    });
+
+    describe("note labels", function () {
+      let note: Zotero.Item;
+
+      async function noteLabelFor(html: string): Promise<string> {
+        note = new Zotero.Item("note");
+        note.libraryID = Zotero.Libraries.userLibraryID;
+        note.setNote(html);
+        await note.saveTx();
+        return resolveNodeLabel({
+          kind: "note",
+          libraryID: note.libraryID,
+          key: note.key,
+        });
+      }
+
+      afterEach(async function () {
+        await note?.eraseTx();
+      });
+
+      it("previews a note's content instead of its title", async function () {
+        const label = await noteLabelFor(
+          "<p>Ostrom on common-pool resources</p>",
+        );
+        assert.equal(label, "Ostrom on common-pool resources");
+      });
+
+      it("truncates a long note with an ellipsis (AC #1)", async function () {
+        const label = await noteLabelFor(
+          `<p>${"the quick brown fox jumps over the lazy dog ".repeat(4)}</p>`,
+        );
+        assert.isTrue(label.endsWith("…"));
+        assert.isAtMost(label.length, 61);
+      });
+
+      it("leaves a short note without a trailing ellipsis (AC #1)", async function () {
+        const label = await noteLabelFor("<p>Short enough</p>");
+        assert.equal(label, "Short enough");
+      });
+
+      it("does not glue the last word of a paragraph to the next one's first", async function () {
+        const label = await noteLabelFor("<p>first</p><p>second</p>");
+        assert.equal(label, "first second");
+      });
+
+      it("decodes the entities Zotero's note editor emits", async function () {
+        const label = await noteLabelFor("<p>Salt&nbsp;&amp;&nbsp;pepper</p>");
+        assert.equal(label, "Salt & pepper");
+      });
+
+      it("falls back to a placeholder for a note with no text (AC #2)", async function () {
+        const label = await noteLabelFor("<p></p>");
+        assert.equal(label, EMPTY_NOTE_LABEL);
+      });
+
+      it("falls back to a placeholder for a note that is only markup (AC #2)", async function () {
+        const label = await noteLabelFor("<ul><li></li></ul>");
+        assert.equal(label, EMPTY_NOTE_LABEL);
+      });
     });
   });
 
@@ -468,6 +532,111 @@ describe("mindmap/graphRenderer", function () {
         title: "refresh-2",
       }));
       assert.equal(second?.title, "refresh-2");
+    });
+  });
+
+  describe("buildParentChildTies", function () {
+    let article: Zotero.Item;
+    let childNote: Zotero.Item;
+    let otherArticle: Zotero.Item;
+    let standaloneNote: Zotero.Item;
+
+    function node(id: string, item: Zotero.Item): MindmapNode {
+      return {
+        membership: "member",
+        id,
+        position: { x: 0, y: 0 },
+        ref: {
+          kind: item.isNote() ? "note" : "item",
+          libraryID: item.libraryID,
+          key: item.key,
+        },
+      };
+    }
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Parent");
+      await article.saveTx();
+
+      childNote = new Zotero.Item("note");
+      childNote.libraryID = Zotero.Libraries.userLibraryID;
+      childNote.parentID = article.id;
+      childNote.setNote("<p>Child of the parent</p>");
+      await childNote.saveTx();
+
+      otherArticle = new Zotero.Item("journalArticle");
+      otherArticle.libraryID = Zotero.Libraries.userLibraryID;
+      otherArticle.setField("title", "Unrelated");
+      await otherArticle.saveTx();
+
+      standaloneNote = new Zotero.Item("note");
+      standaloneNote.libraryID = Zotero.Libraries.userLibraryID;
+      standaloneNote.setNote("<p>Belongs to nobody</p>");
+      await standaloneNote.saveTx();
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      await standaloneNote.eraseTx();
+      await otherArticle.eraseTx();
+      await article.eraseTx();
+    });
+
+    it("ties a child note to its parent when both are nodes (AC #2)", function () {
+      const ties = buildParentChildTies([
+        node("n-parent", article),
+        node("n-child", childNote),
+      ]);
+
+      assert.equal(ties.length, 1);
+      assert.equal(ties[0].data.source, "n-parent");
+      assert.equal(ties[0].data.target, "n-child");
+      assert.equal(ties[0].classes, PARENT_CHILD_TIE_CLASS);
+    });
+
+    it("carries no label, so it cannot read as an authored link (AC #3)", function () {
+      const ties = buildParentChildTies([
+        node("n-parent", article),
+        node("n-child", childNote),
+      ]);
+
+      assert.notProperty(ties[0].data, "label");
+      assert.notEqual(ties[0].data.id, "n-parent");
+      assert.isTrue(String(ties[0].data.id).startsWith("tie:"));
+    });
+
+    it("draws nothing when the parent isn't on the mindmap", function () {
+      assert.isEmpty(buildParentChildTies([node("n-child", childNote)]));
+    });
+
+    it("draws nothing for a standalone note or an unrelated item", function () {
+      const ties = buildParentChildTies([
+        node("n-other", otherArticle),
+        node("n-standalone", standaloneNote),
+      ]);
+
+      assert.isEmpty(ties);
+    });
+
+    it("ignores a node whose Zotero item is gone", function () {
+      const ties = buildParentChildTies([
+        node("n-parent", article),
+        {
+          membership: "member",
+          id: "n-missing",
+          position: { x: 0, y: 0 },
+          ref: {
+            kind: "note",
+            libraryID: Zotero.Libraries.userLibraryID,
+            key: "NOSUCHKEY",
+          },
+        },
+      ]);
+
+      assert.isEmpty(ties);
     });
   });
 

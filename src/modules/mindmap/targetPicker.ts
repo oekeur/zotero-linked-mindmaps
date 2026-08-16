@@ -7,17 +7,20 @@
  * bundled React table; the native dialog runs in Zotero's main window and
  * has no such dependency.
  */
-import type { ZoteroObjectRef } from "./schema";
-
-export function toRef(item: Zotero.Item): ZoteroObjectRef {
-  return { kind: "item", libraryID: item.libraryID, key: item.key };
-}
-
 /**
- * Opens the picker dialog and resolves with the chosen item's
- * ZoteroObjectRef, or null if the user cancels/closes without selecting.
+ * Resolves with the item the user picked, or null if they cancelled. Returns
+ * the item rather than a ref so the caller can tell an ineligible pick from a
+ * cancelled one and say so; eligibility is canBeMindmapNode's call, and the
+ * message belongs next to the form's other validation.
+ *
+ * onlyRegularItems is off, which is what makes notes selectable: Zotero's
+ * dialog passes the flag straight through to the item tree as `regularOnly`,
+ * and with it off the tree shows standalone notes and expands parents so
+ * child notes are rows of their own. isRegularItem is the tree's only filter
+ * predicate - there is no "notes but not attachments" flag - so attachments
+ * become selectable too and are rejected after the fact.
  */
-export async function openTargetPicker(): Promise<ZoteroObjectRef | null> {
+export async function openTargetPicker(): Promise<Zotero.Item | null> {
   const io: {
     dataIn: null;
     dataOut: number[] | null;
@@ -29,7 +32,7 @@ export async function openTargetPicker(): Promise<ZoteroObjectRef | null> {
     dataOut: null,
     filterLibraryIDs: [Zotero.Libraries.userLibraryID],
     singleSelection: true,
-    onlyRegularItems: true,
+    onlyRegularItems: false,
   };
 
   Zotero.getMainWindow().openDialog(
@@ -43,6 +46,5 @@ export async function openTargetPicker(): Promise<ZoteroObjectRef | null> {
   if (!itemID) {
     return null;
   }
-  const item = Zotero.Items.get(itemID);
-  return toRef(item);
+  return Zotero.Items.get(itemID);
 }
