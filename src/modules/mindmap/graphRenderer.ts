@@ -22,6 +22,9 @@ import { layoutUnplacedNodes } from "./layout";
 import { piledNodeIds, isUnplaced } from "./schema";
 import { resolveNodeLabel, resolveZoteroItem } from "./nodeLabels";
 import { renderConnectionsContent } from "./connectionsPanel";
+import { createGroup, deleteGroup, renameGroup } from "./mutations";
+import { getLocaleID } from "../../utils/locale";
+import type { FluentMessageId } from "../../../typings/i10n";
 import type { LinkType } from "./linkTypes";
 import type {
   MindmapDocument,
@@ -77,10 +80,37 @@ function buildNodeElement(
       // the layout even though it has a stored position, so a mindmap that
       // persisted a pile recovers on open instead of staying piled forever.
       unplaced: isUnplaced(node.position) || piled.has(node.id),
+      ...(node.groupId ? { parent: node.groupId } : {}),
     },
     position: toElementPosition(node.position),
     ...(node.membership === "external" ? { classes: EXTERNAL_NODE_CLASS } : {}),
   };
+}
+
+export const GROUP_NODE_CLASS = "node-group";
+
+/**
+ * One Cytoscape compound node per group, with its members pointing at it as
+ * their parent. Cytoscape sizes a compound node to fit its children, so the
+ * region is derived from where the members already are and never moves them,
+ * which is what keeps grouping from fighting the persisted positions.
+ *
+ * Deliberately given no position of its own: supplying one under a preset
+ * layout would override that auto-fit.
+ */
+function buildGroupElements(doc: MindmapDocument): cytoscape.NodeDefinition[] {
+  const grouped = new Set(
+    doc.nodes.map((node) => node.groupId).filter(Boolean) as string[],
+  );
+  return (doc.groups ?? [])
+    .filter((group) => grouped.has(group.id))
+    .map((group) => ({
+      data: { id: group.id, label: group.name ?? "", isGroup: true },
+      classes: GROUP_NODE_CLASS,
+      // A group container is not draggable: dragging it would carry every
+      // member along and rewrite positions the user set deliberately.
+      grabbable: false,
+    }));
 }
 
 export interface LinkVisual {
@@ -238,6 +268,25 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
       "font-size": 10,
       width: 50,
       height: 50,
+    },
+  },
+  {
+    // The region drawn around a group's members. Low-opacity fill and a label
+    // above the cluster, so it reads as a backdrop rather than as another node
+    // sitting among them.
+    selector: `node.${GROUP_NODE_CLASS}`,
+    style: {
+      shape: "round-rectangle",
+      label: "data(label)",
+      "background-color": "#f2f4f7",
+      "background-opacity": 0.6,
+      "border-style": "dashed",
+      "border-color": "#aab4c2",
+      "border-width": 1,
+      "text-valign": "top",
+      "text-halign": "center",
+      "font-size": 11,
+      padding: "14px",
     },
   },
   {
@@ -463,6 +512,11 @@ export function attachNodeContextMenuHandler(
   });
 
   cy.on("cxttap", "node", (evt) => {
+    // A group container is a node to Cytoscape but has no item behind it;
+    // right-clicking one is the grouping menu's business, not this one's.
+    if (evt.target.data("isGroup")) {
+      return;
+    }
     const nodeId = evt.target.id();
     if (dockedNodeId === nodeId) {
       dockContainer.style.display = "none";
@@ -486,6 +540,123 @@ export function attachNodeContextMenuHandler(
   });
 }
 
+export const GROUP_MENU_CLASS = "mindmap-group-menu";
+
+/**
+ * A small menu drawn into the graph container at the click point. A DOM popup
+ * rather than a native context menu for the same reason the Connections dock
+ * is one: it doesn't block, and it can hold an inline text field.
+ */
+function openMenu(
+  cy: cytoscape.Core,
+  at: { x: number; y: number },
+): HTMLElement | null {
+  closeMenu(cy);
+  const container = cy.container();
+  if (!container) {
+    return null;
+  }
+  const menu = container.ownerDocument!.createElement("div");
+  menu.classList.add(GROUP_MENU_CLASS);
+  menu.style.cssText = `position: absolute; left: ${at.x}px; top: ${at.y}px; z-index: 10; background: Field; color: FieldText; border: 1px solid ThreeDShadow; padding: 4px; display: flex; flex-direction: column; gap: 2px;`;
+  container.appendChild(menu);
+  return menu;
+}
+
+function closeMenu(cy: cytoscape.Core): void {
+  cy.container()
+    ?.querySelectorAll(`.${GROUP_MENU_CLASS}`)
+    .forEach((menu: Element) => menu.remove());
+}
+
+function menuButton(
+  menu: HTMLElement,
+  localeId: FluentMessageId,
+  onClick: () => void,
+): HTMLButtonElement {
+  const button = menu.ownerDocument!.createElement("button");
+  button.setAttribute("data-l10n-id", getLocaleID(localeId));
+  button.addEventListener("click", onClick);
+  menu.appendChild(button);
+  return button;
+}
+
+/**
+ * Grouping, driven from right-click: on empty canvas with two or more nodes
+ * selected, offer to group them; on a group's own region, offer to rename or
+ * dissolve it. Selection itself is Cytoscape's (shift-click, box-select), so
+ * there is no selection model of our own to keep in step.
+ */
+export function attachGroupingHandlers(
+  cy: cytoscape.Core,
+  mindmapId: string,
+  onChanged: () => void,
+): void {
+  async function apply(mutate: (doc: MindmapDocument) => void): Promise<void> {
+    closeMenu(cy);
+    try {
+      await updateMindmapDocument((doc) => {
+        mutate(doc);
+        return doc;
+      }, mindmapId);
+      onChanged();
+    } catch (err) {
+      Zotero.debug(
+        `[zoteroLinkedMindmaps] grouping change failed: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  cy.on("cxttap", (evt) => {
+    if (evt.target !== cy) {
+      return;
+    }
+    const selected = cy
+      .$("node:selected")
+      .filter((node) => !node.data("isGroup"));
+    // Nothing to offer for a single node: a group of one says nothing that
+    // the node doesn't already.
+    if (selected.length < 2) {
+      closeMenu(cy);
+      return;
+    }
+    const menu = openMenu(cy, evt.renderedPosition);
+    if (!menu) {
+      return;
+    }
+    const ids = selected.map((node) => node.id());
+    menuButton(menu, "mindmap-group-create", () => {
+      void apply((doc) => createGroup(doc, ids));
+    });
+  });
+
+  cy.on("cxttap", "node", (evt) => {
+    if (!evt.target.data("isGroup")) {
+      return;
+    }
+    const groupId = evt.target.id();
+    const menu = openMenu(cy, evt.renderedPosition);
+    if (!menu) {
+      return;
+    }
+
+    const nameInput = menu.ownerDocument!.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = String(evt.target.data("label") ?? "");
+    menu.appendChild(nameInput);
+
+    menuButton(menu, "mindmap-group-rename", () => {
+      void apply((doc) => renameGroup(doc, groupId, nameInput.value.trim()));
+    });
+    menuButton(menu, "mindmap-group-delete", () => {
+      void apply((doc) => deleteGroup(doc, groupId));
+    });
+  });
+
+  // Any click that isn't opening a menu dismisses the one that's open.
+  cy.on("tap", () => closeMenu(cy));
+}
+
 export async function renderMindmap(
   container: HTMLElement,
   doc: MindmapDocument,
@@ -504,7 +675,12 @@ export async function renderMindmap(
   const cy = cytoscape({
     container,
     elements: {
-      nodes: doc.nodes.map((node) => buildNodeElement(node, piled)),
+      // Group containers first: Cytoscape needs a parent to exist before the
+      // children naming it.
+      nodes: [
+        ...buildGroupElements(doc),
+        ...doc.nodes.map((node) => buildNodeElement(node, piled)),
+      ],
       // Ties come after the real links, so an authored link between the same
       // parent and child paints (and keeps its label) above the plain tie.
       edges: [
@@ -519,6 +695,9 @@ export async function renderMindmap(
   });
   attachNodeClickHandler(cy, nodeRefsById);
   attachNodeDragHandler(cy, doc.id);
+  // The rebuild that shows the change is the live-refresh observer's job: the
+  // write fires a notification, and the graph is rebuilt from what was stored.
+  attachGroupingHandlers(cy, doc.id, () => {});
   if (dockContainer) {
     attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer);
   }

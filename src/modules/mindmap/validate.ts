@@ -6,6 +6,7 @@
 import {
   CURRENT_SCHEMA_VERSION,
   type MindmapDocument,
+  type MindmapGroup,
   type MindmapLink,
   type MindmapNode,
   type Position,
@@ -36,12 +37,21 @@ export function isZoteroObjectRef(value: unknown): value is ZoteroObjectRef {
   );
 }
 
+export function isMindmapGroup(value: unknown): value is MindmapGroup {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    (value.name === undefined || typeof value.name === "string")
+  );
+}
+
 export function isMindmapNode(value: unknown): value is MindmapNode {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
     (value.position !== null && !isPosition(value.position)) ||
-    !isZoteroObjectRef(value.ref)
+    !isZoteroObjectRef(value.ref) ||
+    (value.groupId !== undefined && typeof value.groupId !== "string")
   ) {
     return false;
   }
@@ -105,6 +115,12 @@ export function parseMindmapDocument(data: unknown): ParseResult {
   if (!Array.isArray(data.links) || !data.links.every(isMindmapLink)) {
     return { ok: false, error: "invalid links array" };
   }
+  if (
+    data.groups !== undefined &&
+    (!Array.isArray(data.groups) || !data.groups.every(isMindmapGroup))
+  ) {
+    return { ok: false, error: "invalid groups array" };
+  }
   return {
     ok: true,
     doc: {
@@ -121,6 +137,11 @@ export function parseMindmapDocument(data: unknown): ParseResult {
         : {}),
       nodes: data.nodes,
       links: data.links,
+      // Same reason as description: absent stays absent, so a document
+      // written before grouping existed round-trips unchanged.
+      ...(data.groups !== undefined
+        ? { groups: data.groups as MindmapGroup[] }
+        : {}),
     },
   };
 }
