@@ -45,6 +45,7 @@ export type FluentMessageId =
   | 'mindmap-group-rename'
   | 'mindmap-new-button'
   | 'mindmap-picker-label'
+  | 'mindmap-show-in-library'
   | 'mindmap-tab-title'
   | 'preferences-add-button'
   | 'preferences-cancel-button'

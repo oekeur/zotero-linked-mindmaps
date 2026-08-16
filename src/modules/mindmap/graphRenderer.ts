@@ -22,6 +22,7 @@ import {
 import { layoutUnplacedNodes } from "./layout";
 import { piledNodeIds, isUnplaced } from "./schema";
 import { resolveNodeLabel, resolveZoteroItem } from "./nodeLabels";
+import { renderMissingItem, renderNodeOverview } from "./nodeOverview";
 import { renderConnectionsContent } from "./connectionsPanel";
 import { createGroup, deleteGroup, renameGroup } from "./mutations";
 import { appendL10nButton } from "./uiElements";
@@ -357,37 +358,75 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
 ];
 
 /**
- * Opens/selects the Zotero item a clicked node represents. A no-op if the
- * underlying item was deleted since the node was created (mirrors
- * resolveNodeLabel's "(missing item)" fallback rather than throwing).
+ * Selects the Zotero item a node represents in the library, which switches
+ * Zotero away from the mindmap tab. Only ever reached from the dock's own
+ * button, never from clicking a node: losing the graph has to be something
+ * the user asks for.
  *
  * ZoteroPane.selectItem is async in Zotero's own source (chrome/content/
  * zotero/zoteroPane.js) despite the vendored zotero-types typing it as
  * synchronous - awaited here to match the real behavior.
  */
-async function openZoteroRef(ref: ZoteroObjectRef): Promise<void> {
-  const item = resolveZoteroItem(ref);
-  if (!item) {
-    return;
-  }
+async function showItemInLibrary(item: Zotero.Item): Promise<void> {
   await Zotero.getActiveZoteroPane().selectItem(item.id);
 }
 
 /**
- * Wires node clicks to select the underlying Zotero item. Uses Cytoscape's
- * "tap" event (fires on pointer-up only when the gesture wasn't a drag) so
- * click-to-select never fires alongside a node reposition.
+ * Fills the docked panel with one node's item: a read-only overview over the
+ * Connections content, which stays the interface for links.
+ *
+ * Shared by the tap and right-click handlers so both put the same thing on
+ * screen. A ref whose item was deleted gets the missing-item state rather
+ * than leaving whatever the dock last showed, which would read as if the
+ * click had simply not registered.
+ */
+export function showNodeInDock(
+  dockContainer: HTMLElement,
+  ref: ZoteroObjectRef,
+  mindmapId?: string,
+): void {
+  dockContainer.style.display = "";
+  const item = resolveZoteroItem(ref);
+  if (!item) {
+    dockContainer.textContent = "";
+    renderMissingItem(dockContainer);
+    return;
+  }
+
+  dockContainer.textContent = "";
+  renderNodeOverview(dockContainer, item, () => {
+    void showItemInLibrary(item);
+  });
+  const connections = dockContainer.ownerDocument!.createElement("div");
+  dockContainer.appendChild(connections);
+  void renderConnectionsContent(connections, item, mindmapId);
+}
+
+/**
+ * Wires node clicks to fill the docked panel beside the graph. Uses
+ * Cytoscape's "tap" event (fires on pointer-up only when the gesture wasn't a
+ * drag) so a click never fires alongside a node reposition.
+ *
+ * Without a dock to draw into - a headless render, or a test - a tap does
+ * nothing at all, which is the honest behavior: there is nowhere to show the
+ * item, and jumping to the library instead is exactly what this replaced.
  */
 export function attachNodeClickHandler(
   cy: cytoscape.Core,
   nodeRefsById: Map<string, ZoteroObjectRef>,
+  dockContainer?: HTMLElement,
+  mindmapId?: string,
 ): void {
   cy.on("tap", "node", (evt) => {
-    const ref = nodeRefsById.get(evt.target.id());
-    if (!ref) {
+    // A group container is a node to Cytoscape but has no item behind it.
+    if (evt.target.data("isGroup")) {
       return;
     }
-    return openZoteroRef(ref);
+    const ref = nodeRefsById.get(evt.target.id());
+    if (!ref || !dockContainer) {
+      return;
+    }
+    showNodeInDock(dockContainer, ref, mindmapId);
   });
 }
 
@@ -490,13 +529,13 @@ export function attachNodeDragHandler(
 }
 
 /**
- * Wires right-click (Cytoscape's "cxttap" event) on a node to dock the same
- * Connections panel content the item-pane mount renders (renderConnections
- * Content), scoped to that node's item/note, into `dockContainer` next to
- * the graph - reusing C1's component rather than a parallel implementation
- * (AC #2). The dock is told which mindmap the graph is showing, so a node
- * that also appears in another mindmap docks the links this graph draws
- * rather than some other mindmap's.
+ * Wires right-click (Cytoscape's "cxttap" event) on a node to close the dock
+ * a click opened, and to dock a node the user right-clicks straight away.
+ * Left-click owns filling the dock; this is the way back out of it.
+ *
+ * The dock is told which mindmap the graph is showing, so a node that also
+ * appears in another mindmap docks the links this graph draws rather than
+ * some other mindmap's.
  *
  * The native context menu needs no suppressing here: Cytoscape registers its
  * own preventDefault on the container's contextmenu event, and unregisters it
@@ -507,7 +546,7 @@ export function attachNodeDragHandler(
  * Right-clicking the node that's already docked hides the dock again;
  * right-clicking a different node re-renders in place. This toggle state
  * is local to the handler and never synced with the item-pane mount's own
- * open/closed state (AC #3).
+ * open/closed state.
  */
 export function attachNodeContextMenuHandler(
   cy: cytoscape.Core,
@@ -516,6 +555,15 @@ export function attachNodeContextMenuHandler(
   mindmapId?: string,
 ): void {
   let dockedNodeId: string | undefined;
+
+  // A tap on the same node is what filled the dock, so the toggle has to know
+  // about it - otherwise the first right-click after a click re-renders what
+  // is already there instead of closing it.
+  cy.on("tap", "node", (evt) => {
+    if (!evt.target.data("isGroup")) {
+      dockedNodeId = evt.target.id();
+    }
+  });
 
   cy.on("cxttap", "node", (evt) => {
     // A group container is a node to Cytoscape but has no item behind it;
@@ -535,14 +583,9 @@ export function attachNodeContextMenuHandler(
     if (!ref) {
       return;
     }
-    const item = resolveZoteroItem(ref);
-    if (!item) {
-      return;
-    }
 
     dockedNodeId = nodeId;
-    dockContainer.style.display = "";
-    void renderConnectionsContent(dockContainer, item, mindmapId);
+    showNodeInDock(dockContainer, ref, mindmapId);
   });
 }
 
@@ -700,7 +743,7 @@ export async function renderMindmap(
     style: STYLESHEET,
     layout: { name: "preset" },
   });
-  attachNodeClickHandler(cy, nodeRefsById);
+  attachNodeClickHandler(cy, nodeRefsById, dockContainer, doc.id);
   attachNodeDragHandler(cy, doc.id, rendered);
   attachGroupingHandlers(cy, doc.id);
   if (dockContainer) {
