@@ -111,6 +111,7 @@ describe("mindmap/mutations", function () {
       assert.lengthOf(doc.links, 2);
     });
   });
+
   describe("grouping", function () {
     function docWithNodes(): MindmapDocument {
       return {

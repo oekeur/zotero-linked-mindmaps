@@ -193,10 +193,12 @@ function renderForm(container: HTMLElement, editId: string | null): void {
 }
 
 /**
- * Counts links referencing type `id` across every mindmap in the library -
- * the vocabulary is shared, so deleting a type affects all of them. Returns
- * null (rather than 0) when a mindmap can't be read, so a corrupt note isn't
- * reported as "unused".
+ * Counts links referencing type `id` across every mindmap in every library.
+ * The vocabulary lives in prefs, so it is shared by all of them; counting only
+ * the user library would report a type used exclusively by a group-library
+ * mindmap as unused, and delete it with no confirmation at all. Returns null
+ * (rather than 0) when a mindmap can't be read, so a corrupt note isn't
+ * reported as "unused" either.
  */
 export async function countLinksUsingType(id: string): Promise<number | null> {
   try {
@@ -204,9 +206,11 @@ export async function countLinksUsingType(id: string): Promise<number | null> {
     // Reads the notes directly rather than going through listMindmaps, which
     // skips a note it cannot parse. Here that would report a corrupt mindmap's
     // links as zero and let the type be deleted with no warning at all.
-    for (const note of await findAllMindmapNotes()) {
-      const doc = readDocumentFromNote(note);
-      count += doc.links.filter((link) => link.typeId === id).length;
+    for (const library of Zotero.Libraries.getAll()) {
+      for (const note of await findAllMindmapNotes(library.libraryID)) {
+        const doc = readDocumentFromNote(note);
+        count += doc.links.filter((link) => link.typeId === id).length;
+      }
     }
     return count;
   } catch {

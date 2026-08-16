@@ -15,6 +15,22 @@ import { renderLinkTypesSettings } from "./modules/mindmap/linkTypesSettings";
 
 let deletionObserverID: string | undefined;
 
+/**
+ * One toolkit per main window. `unregisterAll()` takes down every element the
+ * toolkit it is called on created, in whichever window it created them - so a
+ * single shared toolkit meant closing either of two main windows stripped the
+ * File-menu entry and the "Add to mindmap" context-menu entry from the one
+ * still open.
+ */
+const windowToolkits = new Map<Window, ZToolkit>();
+
+/**
+ * The toolkit in place at startup, before any window replaced it. The keyboard
+ * shortcut is registered against that one, so shutdown has to take it down
+ * alongside the per-window toolkits.
+ */
+let startupToolkit: ZToolkit | undefined;
+
 async function onStartup() {
   await Promise.all([
     Zotero.initializationPromise,
@@ -35,6 +51,7 @@ async function onStartup() {
     image: `${rootURI}content/icons/favicon.png`,
   });
 
+  startupToolkit = addon.data.ztoolkit;
   registerMindmapShortcut();
 
   await Promise.all(
@@ -47,8 +64,12 @@ async function onStartup() {
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
-  // Create ztoolkit for every window
-  addon.data.ztoolkit = createZToolkit();
+  // Its own toolkit, tracked per window, so closing this window unregisters
+  // only what this window registered. The global `ztoolkit` follows the most
+  // recently loaded window, which is what the registrations below use.
+  const toolkit = createZToolkit();
+  windowToolkits.set(win, toolkit);
+  addon.data.ztoolkit = toolkit;
 
   win.MozXULElement.insertFTLIfNeeded(
     `${addon.data.config.addonRef}-mainWindow.ftl`,
@@ -78,7 +99,17 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {
-  ztoolkit.unregisterAll();
+  const toolkit = windowToolkits.get(win);
+  windowToolkits.delete(win);
+  toolkit?.unregisterAll();
+  // The global points at whichever window loaded last; hand it to a window
+  // that is still open rather than leaving it on a closed one.
+  if (addon.data.ztoolkit === toolkit) {
+    addon.data.ztoolkit =
+      windowToolkits.values().next().value ??
+      startupToolkit ??
+      addon.data.ztoolkit;
+  }
   addon.data.dialog?.window?.close();
 }
 
@@ -89,6 +120,12 @@ function onShutdown(): void {
     deletionObserverID = undefined;
   }
   closeMindmapTab();
+  for (const toolkit of windowToolkits.values()) {
+    toolkit.unregisterAll();
+  }
+  windowToolkits.clear();
+  startupToolkit?.unregisterAll();
+  startupToolkit = undefined;
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
   // Remove addon object

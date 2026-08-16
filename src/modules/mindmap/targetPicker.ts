@@ -19,8 +19,15 @@
  * child notes are rows of their own. isRegularItem is the tree's only filter
  * predicate - there is no "notes but not attachments" flag - so attachments
  * become selectable too and are rejected after the fact.
+ *
+ * `libraryID` scopes the picker to the library the link is authored in. A
+ * node's ref carries its own libraryID and deletion cleanup is scoped by the
+ * deleted item's library, so a target from a different library than the
+ * mindmap's own would leave a node nothing can ever prune.
  */
-export async function openTargetPicker(): Promise<Zotero.Item | null> {
+export async function openTargetPicker(
+  libraryID = Zotero.Libraries.userLibraryID,
+): Promise<Zotero.Item | null> {
   const io: {
     dataIn: null;
     dataOut: number[] | null;
@@ -30,7 +37,7 @@ export async function openTargetPicker(): Promise<Zotero.Item | null> {
   } = {
     dataIn: null,
     dataOut: null,
-    filterLibraryIDs: [Zotero.Libraries.userLibraryID],
+    filterLibraryIDs: [libraryID],
     singleSelection: true,
     onlyRegularItems: false,
   };

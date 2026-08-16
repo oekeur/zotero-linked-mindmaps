@@ -75,7 +75,7 @@ describe("locales", function () {
     // A missing file:// URL reads as empty here rather than throwing, so the
     // check is on content, with en-US as the control that a present locale
     // reads as non-empty.
-    let content = "";
+    let content: string;
     try {
       content = await localeSource("zh-CN", "addon");
     } catch {
