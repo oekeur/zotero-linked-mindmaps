@@ -1,13 +1,17 @@
 /**
  * Main-window "Mindmap" tab shell. Registers a tab-bar entry and a File-menu
- * item to open it, and renders one mindmap at a time: a toolbar for picking
- * among the library's mindmaps and creating, renaming and deleting them, over
- * a graph that stays in sync with live edits.
+ * item to open it, and renders one mindmap at a time: a sidebar listing every
+ * mindmap in the library, beside a graph that stays in sync with live edits.
+ *
+ * Managing mindmaps lives in the sidebar and nowhere else. Creating, renaming
+ * and deleting act on the row they sit in rather than on a separate selection,
+ * so what a control affects is whatever it is next to.
  *
  * The per-tab state lives in a controller rather than in module variables, so
- * the toolbar can be driven against a plain set of elements - by a test, or by
+ * the sidebar can be driven against a plain set of elements - by a test, or by
  * a second tab - without two of them sharing one selection.
  */
+import { config } from "../../../package.json";
 import { getString } from "../../utils/locale";
 import {
   createMindmap,
@@ -22,7 +26,6 @@ import {
   type MindmapSummary,
 } from "./storage";
 import { getLinkTypes } from "./linkTypes";
-import { appendMindmapOptions } from "./uiElements";
 import {
   attachLiveRefresh,
   renderMindmap,
@@ -45,15 +48,34 @@ function el<K extends keyof HTMLElementTagNameMap>(
   ) as unknown as HTMLElementTagNameMap[K];
 }
 
-/** The three areas the tab draws into: controls, graph, docked panel. */
+/** The three areas the tab draws into: mindmap list, graph, docked panel. */
 export interface TabSurfaces {
-  toolbar: HTMLElement;
+  sidebar: HTMLElement;
   graph: HTMLElement;
   dock: HTMLElement;
 }
 
+export const SIDEBAR_ROW_CLASS = "mindmap-sidebar-row";
+export const SIDEBAR_ROW_SELECTED_CLASS = "mindmap-sidebar-row-selected";
+export const SIDEBAR_EDIT_CLASS = "mindmap-sidebar-edit";
+export const SIDEBAR_DELETE_CLASS = "mindmap-sidebar-delete";
+export const SIDEBAR_TOGGLE_ID = "zoterolinkedmindmaps-mindmap-sidebar-toggle";
+
+const SIDEBAR_WIDTH = "220px";
+const SIDEBAR_COLLAPSED_WIDTH = "28px";
+
+const SIDEBAR_COLLAPSED_PREF_KEY = `${config.prefsPrefix}.sidebarCollapsed`;
+
+function readSidebarCollapsed(): boolean {
+  return Zotero.Prefs.get(SIDEBAR_COLLAPSED_PREF_KEY, true) === true;
+}
+
+function writeSidebarCollapsed(collapsed: boolean): void {
+  Zotero.Prefs.set(SIDEBAR_COLLAPSED_PREF_KEY, collapsed, true);
+}
+
 export interface MindmapTabController {
-  /** Rebuilds the toolbar from the registry and loads the picked mindmap. */
+  /** Rebuilds the sidebar from the registry and loads the picked mindmap. */
   refresh(): Promise<void>;
   /** Unhooks the live-refresh observer and forgets the loaded mindmap. */
   teardown(): void;
@@ -68,6 +90,10 @@ export function createMindmapTabController(
   let currentMindmapId: string | undefined;
   let teardownLiveRefresh: (() => void) | undefined;
   let formMode: FormMode = "none";
+  // Which row's Edit was clicked, rather than whatever is loaded: the two
+  // differ as soon as the user edits a mindmap they aren't looking at.
+  let formTarget: MindmapSummary | undefined;
+  let sidebarCollapsed = readSidebarCollapsed();
 
   function detachGraph(): void {
     teardownLiveRefresh?.();
@@ -143,20 +169,23 @@ export function createMindmapTabController(
   }
 
   /**
-   * Every create, rename and delete comes back through here, so the picker is
-   * always a fresh read of the registry rather than a list patched in place.
+   * Every create, rename and delete comes back through here, so the list is
+   * always a fresh read of the registry rather than one patched in place.
    */
   async function refresh(): Promise<void> {
     const mindmaps = await listMindmaps();
     const selected =
       mindmaps.find((entry) => entry.id === currentMindmapId) ?? mindmaps[0];
 
-    surfaces.toolbar.textContent = "";
+    surfaces.sidebar.textContent = "";
+    surfaces.sidebar.style.width = sidebarCollapsed
+      ? SIDEBAR_COLLAPSED_WIDTH
+      : SIDEBAR_WIDTH;
     if (formMode !== "none") {
-      renderForm(formMode === "edit" ? selected : undefined);
+      renderForm(formMode === "edit" ? formTarget : undefined);
       return;
     }
-    renderToolbar(mindmaps, selected);
+    renderSidebar(mindmaps, selected);
 
     if (!selected) {
       renderEmptyState();
@@ -167,69 +196,156 @@ export function createMindmapTabController(
     }
   }
 
-  function renderToolbar(
-    mindmaps: MindmapSummary[],
-    selected: MindmapSummary | undefined,
-  ): void {
-    const doc = surfaces.toolbar.ownerDocument!;
+  /**
+   * Collapsed, the sidebar keeps its toggle and drops everything else, so the
+   * graph gets the width back without losing the way to bring the list back.
+   */
+  function renderSidebarHeader(doc: Document): void {
+    const header = el(doc, "div");
+    header.style.cssText = "display: flex; align-items: center; gap: 4px;";
 
-    const label = el(doc, "span");
-    label.textContent = `${getString("mindmap-picker-label")} `;
-    surfaces.toolbar.appendChild(label as unknown as Node);
-
-    const picker = el(doc, "select");
-    picker.id = "zoterolinkedmindmaps-mindmap-picker";
-    picker.disabled = mindmaps.length === 0;
-    appendMindmapOptions(picker, mindmaps);
-    if (selected) {
-      picker.value = selected.id;
+    if (!sidebarCollapsed) {
+      const heading = el(doc, "span");
+      heading.textContent = getString("mindmap-sidebar-heading");
+      heading.style.cssText = "flex: 1; font-weight: bold;";
+      header.appendChild(heading as unknown as Node);
     }
-    picker.addEventListener("change", () => {
+
+    const toggle = el(doc, "button");
+    toggle.id = SIDEBAR_TOGGLE_ID;
+    toggle.textContent = sidebarCollapsed ? "›" : "‹";
+    toggle.title = getString(
+      sidebarCollapsed ? "mindmap-sidebar-expand" : "mindmap-sidebar-collapse",
+    );
+    toggle.addEventListener("click", () => {
+      sidebarCollapsed = !sidebarCollapsed;
+      writeSidebarCollapsed(sidebarCollapsed);
+      void refresh();
+    });
+    header.appendChild(toggle as unknown as Node);
+
+    surfaces.sidebar.appendChild(header as unknown as Node);
+  }
+
+  function renderSidebarRow(
+    doc: Document,
+    mindmap: MindmapSummary,
+    isSelected: boolean,
+  ): HTMLElement {
+    const row = el(doc, "div");
+    row.classList.add(SIDEBAR_ROW_CLASS);
+    if (isSelected) {
+      row.classList.add(SIDEBAR_ROW_SELECTED_CLASS);
+    }
+    row.setAttribute("data-mindmap-id", mindmap.id);
+    row.style.cssText = `padding: 4px; cursor: pointer; ${
+      isSelected ? "background: Highlight; color: HighlightText;" : ""
+    }`;
+    row.addEventListener("click", () => {
       void (async () => {
-        await load(picker.value);
+        await load(mindmap.id);
         await refresh();
       })();
     });
-    surfaces.toolbar.appendChild(picker as unknown as Node);
+
+    const title = el(doc, "div");
+    title.textContent = mindmap.title;
+    row.appendChild(title as unknown as Node);
+
+    if (mindmap.description) {
+      const description = el(doc, "div");
+      description.textContent = mindmap.description;
+      description.style.cssText = "font-size: 0.85em; opacity: 0.75;";
+      row.appendChild(description as unknown as Node);
+    }
+
+    const actions = el(doc, "div");
+    actions.style.cssText = "display: flex; gap: 4px;";
+    appendRowAction(
+      doc,
+      actions,
+      SIDEBAR_EDIT_CLASS,
+      "mindmap-edit-button",
+      () => {
+        formMode = "edit";
+        formTarget = mindmap;
+        void refresh();
+      },
+    );
+    appendRowAction(
+      doc,
+      actions,
+      SIDEBAR_DELETE_CLASS,
+      "mindmap-delete-button",
+      () => {
+        void handleDelete(mindmap);
+      },
+    );
+    row.appendChild(actions as unknown as Node);
+
+    return row;
+  }
+
+  /**
+   * A row action stops its click at the button: the row itself loads the
+   * mindmap on click, and editing a row should not also switch the graph to
+   * it.
+   */
+  function appendRowAction(
+    doc: Document,
+    parent: HTMLElement,
+    className: string,
+    label: "mindmap-edit-button" | "mindmap-delete-button",
+    onClick: () => void,
+  ): void {
+    const button = el(doc, "button");
+    button.classList.add(className);
+    button.textContent = getString(label);
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+    parent.appendChild(button as unknown as Node);
+  }
+
+  function renderSidebar(
+    mindmaps: MindmapSummary[],
+    selected: MindmapSummary | undefined,
+  ): void {
+    const doc = surfaces.sidebar.ownerDocument!;
+    renderSidebarHeader(doc);
+    if (sidebarCollapsed) {
+      return;
+    }
+
+    for (const mindmap of mindmaps) {
+      surfaces.sidebar.appendChild(
+        renderSidebarRow(
+          doc,
+          mindmap,
+          selected?.id === mindmap.id,
+        ) as unknown as Node,
+      );
+    }
 
     const newButton = el(doc, "button");
     newButton.id = "zoterolinkedmindmaps-mindmap-new";
     newButton.textContent = getString("mindmap-new-button");
     newButton.addEventListener("click", () => {
       formMode = "new";
+      formTarget = undefined;
       void refresh();
     });
-    surfaces.toolbar.appendChild(newButton as unknown as Node);
-
-    const editButton = el(doc, "button");
-    editButton.id = "zoterolinkedmindmaps-mindmap-edit";
-    editButton.textContent = getString("mindmap-edit-button");
-    editButton.disabled = !selected;
-    editButton.addEventListener("click", () => {
-      formMode = "edit";
-      void refresh();
-    });
-    surfaces.toolbar.appendChild(editButton as unknown as Node);
-
-    const deleteButton = el(doc, "button");
-    deleteButton.id = "zoterolinkedmindmaps-mindmap-delete";
-    deleteButton.textContent = getString("mindmap-delete-button");
-    deleteButton.disabled = !selected;
-    deleteButton.addEventListener("click", () => {
-      if (selected) {
-        void handleDelete(selected);
-      }
-    });
-    surfaces.toolbar.appendChild(deleteButton as unknown as Node);
+    surfaces.sidebar.appendChild(newButton as unknown as Node);
   }
 
   /**
    * Title/description form, used for both creating and renaming. Renders in
-   * place of the toolbar rather than in a dialog window, matching the
+   * place of the mindmap list rather than in a dialog window, matching the
    * link-types settings pane.
    */
   function renderForm(existing: MindmapSummary | undefined): void {
-    const doc = surfaces.toolbar.ownerDocument!;
+    const doc = surfaces.sidebar.ownerDocument!;
 
     const titleField = el(doc, "label");
     titleField.textContent = `${getString("mindmap-form-title-label")} `;
@@ -238,7 +354,7 @@ export function createMindmapTabController(
     titleInput.type = "text";
     titleInput.value = existing?.title ?? "";
     titleField.appendChild(titleInput as unknown as Node);
-    surfaces.toolbar.appendChild(titleField as unknown as Node);
+    surfaces.sidebar.appendChild(titleField as unknown as Node);
 
     const descriptionField = el(doc, "label");
     descriptionField.textContent = `${getString(
@@ -249,7 +365,7 @@ export function createMindmapTabController(
     descriptionInput.type = "text";
     descriptionInput.value = existing?.description ?? "";
     descriptionField.appendChild(descriptionInput as unknown as Node);
-    surfaces.toolbar.appendChild(descriptionField as unknown as Node);
+    surfaces.sidebar.appendChild(descriptionField as unknown as Node);
 
     const saveButton = el(doc, "button");
     saveButton.id = "zoterolinkedmindmaps-mindmap-save";
@@ -261,7 +377,7 @@ export function createMindmapTabController(
       }
       void handleSave(existing, title, descriptionInput.value.trim());
     });
-    surfaces.toolbar.appendChild(saveButton as unknown as Node);
+    surfaces.sidebar.appendChild(saveButton as unknown as Node);
 
     const cancelButton = el(doc, "button");
     cancelButton.id = "zoterolinkedmindmaps-mindmap-cancel";
@@ -270,7 +386,7 @@ export function createMindmapTabController(
       formMode = "none";
       void refresh();
     });
-    surfaces.toolbar.appendChild(cancelButton as unknown as Node);
+    surfaces.sidebar.appendChild(cancelButton as unknown as Node);
   }
 
   async function handleSave(
@@ -299,7 +415,7 @@ export function createMindmapTabController(
   }
 
   async function handleDelete(target: MindmapSummary): Promise<void> {
-    const win = surfaces.toolbar.ownerDocument!
+    const win = surfaces.sidebar.ownerDocument!
       .defaultView as unknown as mozIDOMWindowProxy | null;
     const confirmed = win
       ? Services.prompt.confirm(
@@ -367,20 +483,19 @@ export async function openMindmapTab(): Promise<void> {
   mindmapTabID = id;
 
   const doc = container.ownerDocument!;
-  const wrapper = el(doc, "div");
-  wrapper.style.cssText =
-    "display: flex; flex-direction: column; width: 100%; height: 100%;";
-  container.appendChild(wrapper as unknown as Node);
-
-  const toolbar = el(doc, "div");
-  toolbar.id = "zoterolinkedmindmaps-mindmap-toolbar";
-  toolbar.style.cssText =
-    "display: flex; align-items: center; gap: 6px; padding: 4px 6px;";
-  wrapper.appendChild(toolbar as unknown as Node);
-
+  // One row: sidebar, graph, dock, left to right. The graph is the only one
+  // that flexes, so it absorbs whatever width the other two leave.
   const body = el(doc, "div");
-  body.style.cssText = "display: flex; flex: 1; min-height: 0;";
-  wrapper.appendChild(body as unknown as Node);
+  body.style.cssText =
+    "display: flex; width: 100%; height: 100%; min-height: 0;";
+  container.appendChild(body as unknown as Node);
+
+  const sidebar = el(doc, "div");
+  sidebar.id = "zoterolinkedmindmaps-mindmap-sidebar";
+  // Width is the controller's, since it is what the collapse toggle changes.
+  sidebar.style.cssText =
+    "height: 100%; overflow: auto; border-right: 1px solid; padding: 4px; box-sizing: border-box;";
+  body.appendChild(sidebar as unknown as Node);
 
   const graph = el(doc, "div");
   graph.id = "zoterolinkedmindmaps-mindmap-container";
@@ -393,7 +508,7 @@ export async function openMindmapTab(): Promise<void> {
     "display: none; width: 320px; height: 100%; overflow: auto; border-left: 1px solid; padding: 8px;";
   body.appendChild(dock as unknown as Node);
 
-  controller = createMindmapTabController({ toolbar, graph, dock });
+  controller = createMindmapTabController({ sidebar, graph, dock });
   // A library with no mindmap yet gets one on first open, so the tab lands on
   // a usable graph rather than an empty state nobody asked for.
   if ((await findAllMindmapNotes()).length === 0) {
