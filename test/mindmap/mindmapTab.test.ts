@@ -3,6 +3,11 @@ import { config } from "../../package.json";
 import { getString } from "../../src/utils/locale";
 import {
   createMindmapTabController,
+  SIDEBAR_DELETE_CLASS,
+  SIDEBAR_EDIT_CLASS,
+  SIDEBAR_ROW_CLASS,
+  SIDEBAR_ROW_SELECTED_CLASS,
+  SIDEBAR_TOGGLE_ID,
   type MindmapTabController,
   type TabSurfaces,
 } from "../../src/modules/mindmap/mindmapTab";
@@ -13,14 +18,12 @@ import {
 } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
 
-const PICKER = "#zoterolinkedmindmaps-mindmap-picker";
 const NEW = "#zoterolinkedmindmaps-mindmap-new";
-const EDIT = "#zoterolinkedmindmaps-mindmap-edit";
-const DELETE = "#zoterolinkedmindmaps-mindmap-delete";
 const SAVE = "#zoterolinkedmindmaps-mindmap-save";
 const TITLE_INPUT = "#zoterolinkedmindmaps-mindmap-title-input";
 const DESCRIPTION_INPUT = "#zoterolinkedmindmaps-mindmap-description-input";
 const EMPTY_STATE = "#zoterolinkedmindmaps-mindmap-empty-state";
+const ROW = `.${SIDEBAR_ROW_CLASS}`;
 
 describe("mindmap/mindmapTab", function () {
   let surfaces: TabSurfaces;
@@ -28,9 +31,28 @@ describe("mindmap/mindmapTab", function () {
   let root: HTMLDivElement;
 
   function pick<T extends Element>(selector: string): T {
-    const found = surfaces.toolbar.querySelector(selector);
-    assert.isNotNull(found, `expected ${selector} in the toolbar`);
+    const found = surfaces.sidebar.querySelector(selector);
+    assert.isNotNull(found, `expected ${selector} in the sidebar`);
     return found as T;
+  }
+
+  function rows(): HTMLElement[] {
+    return [...surfaces.sidebar.querySelectorAll(ROW)] as HTMLElement[];
+  }
+
+  function rowFor(id: string): HTMLElement {
+    const row = surfaces.sidebar.querySelector(
+      `${ROW}[data-mindmap-id="${id}"]`,
+    );
+    assert.isNotNull(row, `expected a sidebar row for ${id}`);
+    return row as HTMLElement;
+  }
+
+  function selectedRowId(): string | null {
+    const row = surfaces.sidebar.querySelector(
+      `.${SIDEBAR_ROW_SELECTED_CLASS}`,
+    );
+    return row ? row.getAttribute("data-mindmap-id") : null;
   }
 
   before(function () {
@@ -48,15 +70,15 @@ describe("mindmap/mindmapTab", function () {
     root = doc.createElement("div");
     doc.documentElement.appendChild(root);
 
-    const toolbar = doc.createElement("div");
+    const sidebar = doc.createElement("div");
     const graph = doc.createElement("div");
     // Cytoscape positions its canvases against the nearest positioned
     // ancestor, so the graph area has to establish one itself.
     graph.style.cssText = "position: relative; width: 200px; height: 200px;";
     const dock = doc.createElement("div");
-    root.append(toolbar, graph, dock);
+    root.append(sidebar, graph, dock);
 
-    surfaces = { toolbar, graph, dock };
+    surfaces = { sidebar, graph, dock };
     controller = createMindmapTabController(surfaces);
   });
 
@@ -64,35 +86,55 @@ describe("mindmap/mindmapTab", function () {
     this.timeout(30000);
     controller.teardown();
     root.remove();
+    // The collapse state is a pref, so a test that toggles it and fails would
+    // otherwise hand the next controller a collapsed sidebar.
+    Zotero.Prefs.clear(`${config.prefsPrefix}.sidebarCollapsed`, true);
     await clearStorageNotes();
   });
 
-  it("lists every mindmap in the picker and selects one", async function () {
+  it("lists every mindmap with its title and description, and marks the selected one (AC #1)", async function () {
     this.timeout(30000);
-    await createMindmap("Chapter one", "sources for ch. 1");
+    const first = await createMindmap("Chapter one", "sources for ch. 1");
     await createMindmap("Methods");
 
     await controller.refresh();
 
-    const picker = pick<HTMLSelectElement>(PICKER);
-    assert.deepEqual(
-      [...picker.options].map((option) => option.textContent),
-      ["Chapter one", "Methods"],
-    );
-    assert.isNotEmpty(picker.value);
-    assert.equal(picker.options[0].title, "sources for ch. 1");
+    const listed = rows();
+    assert.equal(listed.length, 2);
+    assert.include(listed[0].textContent ?? "", "Chapter one");
+    assert.include(listed[0].textContent ?? "", "sources for ch. 1");
+    assert.include(listed[1].textContent ?? "", "Methods");
+    assert.equal(selectedRowId(), first.id);
   });
 
-  it("shows an empty state with edit and delete unavailable when there are no mindmaps", async function () {
+  it("shows an empty state and lists no rows when there are no mindmaps", async function () {
     this.timeout(30000);
     await controller.refresh();
 
     const emptyState = surfaces.graph.querySelector(EMPTY_STATE);
     assert.isNotNull(emptyState);
-    assert.equal(emptyState!.textContent, getString("mindmap-empty-state"));
-    assert.isTrue(pick<HTMLButtonElement>(EDIT).disabled);
-    assert.isTrue(pick<HTMLButtonElement>(DELETE).disabled);
-    assert.isTrue(pick<HTMLSelectElement>(PICKER).disabled);
+    // Not compared against getString of the same key: with the locale bundle
+    // broken both sides return the same raw id and the assertion passes over
+    // an empty state reading "zoterolinkedmindmaps-mindmap-empty-state".
+    const emptyText = emptyState!.textContent ?? "";
+    assert.notInclude(emptyText, config.addonRef);
+    assert.equal(emptyText, getString("mindmap-empty-state"));
+    assert.isEmpty(rows());
+    // Creating one is still reachable with nothing in the list.
+    assert.isNotNull(surfaces.sidebar.querySelector(NEW));
+  });
+
+  it("offers edit and delete on each row rather than on one shared selection (AC #3)", async function () {
+    this.timeout(30000);
+    await createMindmap("Chapter one");
+    await createMindmap("Methods");
+
+    await controller.refresh();
+
+    for (const row of rows()) {
+      assert.isNotNull(row.querySelector(`.${SIDEBAR_EDIT_CLASS}`));
+      assert.isNotNull(row.querySelector(`.${SIDEBAR_DELETE_CLASS}`));
+    }
   });
 
   it("creates a mindmap with a title and description, and selects it (AC #1)", async function () {
@@ -111,15 +153,19 @@ describe("mindmap/mindmapTab", function () {
     assert.equal(listed.length, 1);
     assert.equal(listed[0].title, "Fieldwork");
     assert.equal(listed[0].description, "interviews and notes");
-    assert.equal(pick<HTMLSelectElement>(PICKER).value, listed[0].id);
+    assert.equal(selectedRowId(), listed[0].id);
   });
 
-  it("renames a mindmap and updates its description from the toolbar (AC #2)", async function () {
+  it("renames a mindmap and updates its description from its row (AC #3)", async function () {
     this.timeout(30000);
     const created = await createMindmap("Working title", "first pass");
     await controller.refresh();
 
-    pick<HTMLButtonElement>(EDIT).click();
+    (
+      rowFor(created.id).querySelector(
+        `.${SIDEBAR_EDIT_CLASS}`,
+      ) as HTMLButtonElement
+    ).click();
     await Zotero.Promise.delay(100);
 
     const titleInput = pick<HTMLInputElement>(TITLE_INPUT);
@@ -134,10 +180,7 @@ describe("mindmap/mindmapTab", function () {
     const doc = await readMindmapDocument(created.id);
     assert.equal(doc.title, "Final title");
     assert.equal(doc.description, "second pass");
-    assert.equal(
-      pick<HTMLSelectElement>(PICKER).options[0].textContent,
-      "Final title",
-    );
+    assert.include(rowFor(created.id).textContent ?? "", "Final title");
   });
 
   it("keeps the form open on a blank title rather than saving one", async function () {
@@ -151,23 +194,52 @@ describe("mindmap/mindmapTab", function () {
     await Zotero.Promise.delay(300);
 
     assert.isEmpty(await listMindmaps());
-    assert.isNotNull(surfaces.toolbar.querySelector(TITLE_INPUT));
+    assert.isNotNull(surfaces.sidebar.querySelector(TITLE_INPUT));
   });
 
-  it("loads the picked mindmap when the picker changes", async function () {
+  it("loads a mindmap into the graph when its row is clicked (AC #2)", async function () {
     this.timeout(30000);
     await createMindmap("First");
     const second = await createMindmap("Second");
     await controller.refresh();
 
-    const picker = pick<HTMLSelectElement>(PICKER);
-    picker.value = second.id;
-    picker.dispatchEvent(
-      new (Zotero.getMainWindow() as any).Event("change", { bubbles: true }),
-    );
+    rowFor(second.id).click();
     await Zotero.Promise.delay(800);
 
-    assert.equal(pick<HTMLSelectElement>(PICKER).value, second.id);
+    assert.equal(selectedRowId(), second.id);
     assert.equal((await readMindmapDocument(second.id)).title, "Second");
+  });
+
+  // Deleting is not driven from here: handleDelete blocks on
+  // Services.prompt.confirm, a real modal dialog, and stubbing an XPCOM
+  // service to get past it tests the stub more than the code. The row's
+  // delete control is asserted above; the confirmation itself is on the
+  // manual verification pass.
+
+  it("collapses the sidebar and restores that state on the next tab (AC #6)", async function () {
+    this.timeout(30000);
+    await createMindmap("Chapter one");
+    await controller.refresh();
+    assert.isNotEmpty(rows());
+
+    pick<HTMLButtonElement>(`#${SIDEBAR_TOGGLE_ID}`).click();
+    await Zotero.Promise.delay(300);
+
+    assert.isEmpty(rows());
+    assert.isNull(surfaces.sidebar.querySelector(NEW));
+
+    // A second controller stands in for reopening the tab: collapsed is read
+    // from prefs at construction, so it has to come back collapsed.
+    const reopened = createMindmapTabController(surfaces);
+    try {
+      await reopened.refresh();
+      assert.isEmpty(rows());
+
+      pick<HTMLButtonElement>(`#${SIDEBAR_TOGGLE_ID}`).click();
+      await Zotero.Promise.delay(300);
+      assert.isNotEmpty(rows());
+    } finally {
+      reopened.teardown();
+    }
   });
 });

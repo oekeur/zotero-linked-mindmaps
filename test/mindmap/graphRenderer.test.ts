@@ -20,6 +20,10 @@ import {
   MISSING_ITEM_LABEL,
   resolveNodeLabel,
 } from "../../src/modules/mindmap/nodeLabels";
+import {
+  OVERVIEW_CLASS,
+  SHOW_IN_LIBRARY_CLASS,
+} from "../../src/modules/mindmap/nodeOverview";
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
   findMindmapNote,
@@ -42,23 +46,10 @@ import type {
 import { clearStorageNotes } from "./storageNotes";
 
 describe("mindmap/graphRenderer", function () {
-  /**
-   * ZoteroPane.selectItem resolves before the pane has finished settling on
-   * the selection, so a single read right after it can still see the previous
-   * one. Polls instead of guessing a delay.
-   */
-  async function waitForSelection(itemID: number): Promise<number[]> {
-    let selected: number[] = [];
-    for (let attempt = 0; attempt < 30; attempt++) {
-      selected = Zotero.getActiveZoteroPane()
-        .getSelectedItems()
-        .map((item) => item.id);
-      if (selected.includes(itemID)) {
-        return selected;
-      }
-      await Zotero.Promise.delay(100);
-    }
-    return selected;
+  // Which tab Zotero is showing. The test bundle has no `ztoolkit` of its
+  // own, so Zotero_Tabs is read off the main window directly.
+  function selectedTabIndex(): number {
+    return (Zotero.getMainWindow() as any).Zotero_Tabs.selectedIndex;
   }
 
   describe("resolveNodeLabel", function () {
@@ -288,16 +279,34 @@ describe("mindmap/graphRenderer", function () {
 
   describe("attachNodeClickHandler", function () {
     let article: Zotero.Item;
-    let tapHandler: (evt: { target: { id(): string } }) => void | Promise<void>;
+    let dockContainer: HTMLDivElement;
+    let tapHandler: (evt: {
+      target: { id(): string; data(key: string): unknown };
+    }) => void | Promise<void>;
+
+    function nodeEvent(id: string, isGroup = false) {
+      return { target: { id: () => id, data: () => isGroup || undefined } };
+    }
+
+    function refTo(item: Zotero.Item): ZoteroObjectRef {
+      return { kind: "item", libraryID: item.libraryID, key: item.key };
+    }
 
     beforeEach(async function () {
       article = new Zotero.Item("journalArticle");
       article.libraryID = Zotero.Libraries.userLibraryID;
       article.setField("title", "Node Click Test Article");
+      article.setField("date", "2019");
       await article.saveTx();
+
+      const doc = Zotero.getMainWindow().document;
+      dockContainer = doc.createElement("div");
+      dockContainer.style.display = "none";
+      doc.documentElement.appendChild(dockContainer);
     });
 
     afterEach(async function () {
+      dockContainer.remove();
       await article.eraseTx();
     });
 
@@ -306,47 +315,93 @@ describe("mindmap/graphRenderer", function () {
         on(
           _events: string,
           _selector: string,
-          handler: (evt: { target: { id(): string } }) => void | Promise<void>,
+          handler: (evt: {
+            target: { id(): string; data(key: string): unknown };
+          }) => void | Promise<void>,
         ) {
           tapHandler = handler;
         },
       } as unknown as cytoscape.Core;
     }
 
-    it("selects the underlying item when its node is tapped", async function () {
-      const nodeRefsById = new Map<string, ZoteroObjectRef>([
-        [
-          "n1",
-          { kind: "item", libraryID: article.libraryID, key: article.key },
-        ],
-      ]);
-      attachNodeClickHandler(fakeCy(), nodeRefsById);
+    it("fills the dock with the tapped node's item and keeps the mindmap tab active", async function () {
+      const before = selectedTabIndex();
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
 
-      await tapHandler({ target: { id: () => "n1" } });
+      await tapHandler(nodeEvent("n1"));
 
-      assert.deepEqual(await waitForSelection(article.id), [article.id]);
+      assert.notEqual(dockContainer.style.display, "none");
+      assert.include(
+        dockContainer.textContent ?? "",
+        "Node Click Test Article",
+      );
+      // The regression this replaced: selecting the item switched Zotero back
+      // to the library tab and threw the graph away.
+      assert.equal(selectedTabIndex(), before);
     });
 
-    it("does not throw when the tapped node's ref points at a deleted item", async function () {
-      const nodeRefsById = new Map<string, ZoteroObjectRef>([
-        [
-          "n1",
-          {
-            kind: "item",
-            libraryID: Zotero.Libraries.userLibraryID,
-            key: "NOSUCHKEY",
-          },
-        ],
-      ]);
-      attachNodeClickHandler(fakeCy(), nodeRefsById);
+    it("shows the item type, creator and date in the overview", async function () {
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
 
-      await tapHandler({ target: { id: () => "n1" } });
+      await tapHandler(nodeEvent("n1"));
+
+      const overview = dockContainer.querySelector(`.${OVERVIEW_CLASS}`);
+      assert.isNotNull(overview);
+      const text = overview!.textContent ?? "";
+      assert.include(
+        text,
+        Zotero.ItemTypes.getLocalizedString(article.itemTypeID),
+      );
+      assert.include(text, "2019");
+      assert.isNotNull(overview!.querySelector(`.${SHOW_IN_LIBRARY_CLASS}`));
+    });
+
+    it("shows a missing-item state when the tapped node's ref points at a deleted item", async function () {
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map<string, ZoteroObjectRef>([
+          [
+            "n1",
+            {
+              kind: "item",
+              libraryID: Zotero.Libraries.userLibraryID,
+              key: "NOSUCHKEY",
+            },
+          ],
+        ]),
+        dockContainer,
+      );
+
+      await tapHandler(nodeEvent("n1"));
+
+      assert.equal(dockContainer.textContent, MISSING_ITEM_LABEL);
+    });
+
+    it("ignores a tap on a group container", async function () {
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map([["g1", refTo(article)]]),
+        dockContainer,
+      );
+
+      await tapHandler(nodeEvent("g1", true));
+
+      assert.equal(dockContainer.style.display, "none");
     });
 
     it("no-ops when the tapped node id has no matching ref", function () {
-      attachNodeClickHandler(fakeCy(), new Map());
+      attachNodeClickHandler(fakeCy(), new Map(), dockContainer);
 
-      assert.doesNotThrow(() => tapHandler({ target: { id: () => "n1" } }));
+      assert.doesNotThrow(() => tapHandler(nodeEvent("n1")));
+      assert.equal(dockContainer.style.display, "none");
     });
   });
 
@@ -633,13 +688,22 @@ describe("mindmap/graphRenderer", function () {
       assert.equal(cy.getElementById("l-1").data("target"), "n-external");
     });
 
-    it("opens the underlying item when a borrowed node is tapped (AC #3)", async function () {
+    it("docks the underlying item when a borrowed node is tapped (AC #3)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, docWithExternal(), []);
+      const doc = Zotero.getMainWindow().document;
+      const dock = doc.createElement("div");
+      dock.style.display = "none";
+      doc.documentElement.appendChild(dock);
+      try {
+        cy = await renderMindmap(container, docWithExternal(), [], dock);
 
-      cy.getElementById("n-external").emit("tap");
+        cy.getElementById("n-external").emit("tap");
 
-      assert.include(await waitForSelection(article.id), article.id);
+        assert.notEqual(dock.style.display, "none");
+        assert.include(dock.textContent ?? "", "Borrowed From Another Mindmap");
+      } finally {
+        dock.remove();
+      }
     });
   });
 
