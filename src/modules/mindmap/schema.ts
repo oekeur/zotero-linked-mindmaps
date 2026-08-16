@@ -45,29 +45,35 @@ export function isCoincident(a: Position, b: Position): boolean {
   );
 }
 
+const ORIGIN: Position = { x: 0, y: 0 };
+
 /**
- * Ids of nodes sitting on top of another node. A document that persisted a
- * whole pile of them counts as fully placed under isUnplaced alone - every
- * node has a position, so no layout ever runs again and the pile is
- * permanent. Treating the colliding nodes as unplaced hands them back to the
+ * Ids of every placed node when the whole document is stacked on the origin,
+ * and nothing otherwise. Such a document counts as fully placed under
+ * isUnplaced alone - every node has a position, so no layout ever runs again
+ * and the pile is permanent. Reporting those nodes hands them back to the
  * layout on the next open. Nodes with no position yet are left out: they are
  * already unplaced, and comparing a null position would throw.
  *
- * A lone node cannot collide with anything, so a single-node mindmap keeps
+ * The rule is this narrow because dragging a node persists where it lands, so
+ * any overlap a document carries can be one the user made on purpose, and
+ * re-placing it would undo their work. Every node on (0,0) is the one case
+ * that isn't ambiguous: it is what a layout with no room to spread writes, and
+ * it is the damage this exists to recover from. An overlap anywhere else is
+ * left alone.
+ *
+ * A lone node cannot be piled on anything, so a single-node mindmap keeps
  * whatever position it was given.
  */
-export function coincidentNodeIds(nodes: MindmapNode[]): Set<string> {
+export function piledNodeIds(nodes: MindmapNode[]): Set<string> {
   const placed = nodes.filter((node) => !isUnplaced(node.position));
-  const collided = new Set<string>();
-  for (let i = 0; i < placed.length; i++) {
-    for (let j = i + 1; j < placed.length; j++) {
-      if (isCoincident(placed[i].position!, placed[j].position!)) {
-        collided.add(placed[i].id);
-        collided.add(placed[j].id);
-      }
-    }
+  if (placed.length < 2) {
+    return new Set();
   }
-  return collided;
+  if (!placed.every((node) => isCoincident(node.position!, ORIGIN))) {
+    return new Set();
+  }
+  return new Set(placed.map((node) => node.id));
 }
 
 export type MindmapNode =

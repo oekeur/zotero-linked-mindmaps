@@ -13,9 +13,13 @@
  */
 import cytoscape from "cytoscape";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
-import { readMindmapDocument } from "./storage";
+import {
+  readMindmapDocument,
+  serializeDocument,
+  updateMindmapDocument,
+} from "./storage";
 import { layoutUnplacedNodes } from "./layout";
-import { coincidentNodeIds, isUnplaced } from "./schema";
+import { piledNodeIds, isUnplaced } from "./schema";
 import { renderConnectionsContent } from "./connectionsPanel";
 import type { LinkType } from "./linkTypes";
 import type {
@@ -54,6 +58,9 @@ export function resolveNodeLabel(ref: ZoteroObjectRef): string {
   return target ? target.getDisplayTitle() : MISSING_ITEM_LABEL;
 }
 
+// Returns a copy: Cytoscape takes ownership of the position object it is
+// handed and moves the node by writing to it, which would otherwise rewrite
+// the document's own coordinates in place.
 function toElementPosition(position: Position | null): Position {
   if (
     position === null ||
@@ -62,21 +69,21 @@ function toElementPosition(position: Position | null): Position {
   ) {
     return { x: 0, y: 0 };
   }
-  return position;
+  return { x: position.x, y: position.y };
 }
 
 function buildNodeElement(
   node: MindmapNode,
-  collided: Set<string>,
+  piled: Set<string>,
 ): cytoscape.NodeDefinition {
   return {
     data: {
       id: node.id,
       label: resolveNodeLabel(node.ref),
-      // A node stacked on another one is handed back to the layout even
-      // though it has a stored position, so a document that persisted a pile
-      // recovers on open instead of staying piled forever.
-      unplaced: isUnplaced(node.position) || collided.has(node.id),
+      // A node from a document piled entirely on one point is handed back to
+      // the layout even though it has a stored position, so a mindmap that
+      // persisted a pile recovers on open instead of staying piled forever.
+      unplaced: isUnplaced(node.position) || piled.has(node.id),
     },
     position: toElementPosition(node.position),
   };
@@ -264,6 +271,94 @@ export function attachNodeClickHandler(
 }
 
 /**
+ * The document the graph last wrote itself, serialized. A drag write modifies
+ * the storage note, which fires the same "modify" notification
+ * attachLiveRefresh answers with a full destroy-and-rebuild - so without this
+ * the graph would tear itself down and rebuild after every drag, flashing and
+ * discarding the Cytoscape instance the gesture was using.
+ *
+ * Identity rather than a "currently writing" flag, because Zotero fires two
+ * modify notifications per save: one inside the transaction and a second one a
+ * task later, after any such flag would have been cleared. Comparing what is
+ * stored against what the graph wrote catches both, and needs no assumption
+ * about when a notification arrives.
+ */
+let selfWrittenDocument: string | null = null;
+
+/**
+ * Applies dropped coordinates to the stored document. Goes through
+ * updateMindmapDocument rather than a read/write pair because deletionCleanup
+ * and the layout write to the same document; a bare pair can drop whichever
+ * change landed in between.
+ */
+async function persistNodePositions(
+  moved: Map<string, Position>,
+): Promise<void> {
+  try {
+    await updateMindmapDocument((doc) => {
+      let changed = false;
+      const nodes = doc.nodes.map((node): MindmapNode => {
+        const position = moved.get(node.id);
+        if (
+          !position ||
+          (node.position?.x === position.x && node.position?.y === position.y)
+        ) {
+          return node;
+        }
+        changed = true;
+        return { ...node, position };
+      });
+      // A gesture that ended where it started, or on a node no longer in the
+      // document, writes nothing at all.
+      if (!changed) {
+        return null;
+      }
+      // Recorded here rather than after the write: the first notification for
+      // this save arrives before the write resolves.
+      const next = { ...doc, nodes };
+      selfWrittenDocument = serializeDocument(next);
+      return next;
+    });
+  } catch (err) {
+    Zotero.debug(
+      `[zoteroLinkedMindmaps] persisting dragged node positions failed: ${(err as Error).message}`,
+    );
+  }
+}
+
+/**
+ * Persists where a dragged node lands. Cytoscape emits "dragfree" once per
+ * node, so a gesture that moves a multi-node selection arrives as N events in
+ * the same tick; they accumulate into `pending` and flush on a microtask, so
+ * one gesture produces one write instead of one per node.
+ */
+export function attachNodeDragHandler(cy: cytoscape.Core): void {
+  const pending = new Map<string, Position>();
+  let flushScheduled = false;
+
+  function flush(): void {
+    flushScheduled = false;
+    const moved = new Map(pending);
+    pending.clear();
+    if (moved.size === 0) {
+      return;
+    }
+    void persistNodePositions(moved);
+  }
+
+  cy.on("dragfree", "node", (evt) => {
+    const node = evt.target;
+    const { x, y } = node.position();
+    pending.set(node.id(), { x, y });
+    if (flushScheduled) {
+      return;
+    }
+    flushScheduled = true;
+    void Promise.resolve().then(flush);
+  });
+}
+
+/**
  * Wires right-click (Cytoscape's "cxttap" event) on a node to dock the same
  * Connections panel content the item-pane mount renders (renderConnections
  * Content), scoped to that node's item/note, into `dockContainer` next to
@@ -324,12 +419,12 @@ export async function renderMindmap(
   const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
   const parallelOffsets = computeParallelOffsets(doc.links);
   const nodeRefsById = new Map(doc.nodes.map((node) => [node.id, node.ref]));
-  const collided = coincidentNodeIds(doc.nodes);
+  const piled = piledNodeIds(doc.nodes);
 
   const cy = cytoscape({
     container,
     elements: {
-      nodes: doc.nodes.map((node) => buildNodeElement(node, collided)),
+      nodes: doc.nodes.map((node) => buildNodeElement(node, piled)),
       edges: doc.links.map((link) =>
         buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
       ),
@@ -338,6 +433,7 @@ export async function renderMindmap(
     layout: { name: "preset" },
   });
   attachNodeClickHandler(cy, nodeRefsById);
+  attachNodeDragHandler(cy);
   if (dockContainer) {
     attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer);
   }
@@ -367,6 +463,11 @@ export function attachLiveRefresh(
   async function rebuild(): Promise<void> {
     try {
       const doc = await readMindmapDocument();
+      // The graph's own drag write already left the rendered nodes where the
+      // user dropped them, so rebuilding for it would only flash.
+      if (serializeDocument(doc) === selfWrittenDocument) {
+        return;
+      }
       current.destroy();
       current = await renderMindmap(container, doc, linkTypes, dockContainer);
       await layoutUnplacedNodes(current, doc);
