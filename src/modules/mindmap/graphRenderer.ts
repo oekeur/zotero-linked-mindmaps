@@ -384,6 +384,7 @@ export function showNodeInDock(
   dockContainer: HTMLElement,
   ref: ZoteroObjectRef,
   mindmapId?: string,
+  openAddLink = false,
 ): void {
   dockContainer.style.display = "";
   const item = resolveZoteroItem(ref);
@@ -394,12 +395,22 @@ export function showNodeInDock(
   }
 
   dockContainer.textContent = "";
-  renderNodeOverview(dockContainer, item, () => {
-    void showItemInLibrary(item);
-  });
+  renderNodeOverview(
+    dockContainer,
+    item,
+    () => {
+      void showItemInLibrary(item);
+    },
+    () => hideDock(dockContainer),
+  );
   const connections = dockContainer.ownerDocument!.createElement("div");
   dockContainer.appendChild(connections);
-  void renderConnectionsContent(connections, item, mindmapId);
+  void renderConnectionsContent(connections, item, mindmapId, openAddLink);
+}
+
+function hideDock(dockContainer: HTMLElement): void {
+  dockContainer.style.display = "none";
+  dockContainer.textContent = "";
 }
 
 /**
@@ -528,25 +539,28 @@ export function attachNodeDragHandler(
   });
 }
 
+export const NODE_MENU_ADD_LINK_CLASS = "mindmap-node-menu-add-link";
+
 /**
- * Wires right-click (Cytoscape's "cxttap" event) on a node to close the dock
- * a click opened, and to dock a node the user right-clicks straight away.
- * Left-click owns filling the dock; this is the way back out of it.
+ * Right-click on a node opens the link-creation menu: one "Add link" action,
+ * per PRODUCT.md, which is what makes the mindmap tab a place links can be
+ * authored rather than only read. The action docks the node and opens the
+ * add-link form in one step, reusing the Connections component instead of a
+ * second implementation of the same form.
+ *
+ * Left-click docks the node without opening the form, so inspecting a node
+ * and linking it stay separate gestures. Closing the dock is the dock's own
+ * button, not a second right-click, so this gesture means one thing.
  *
  * The dock is told which mindmap the graph is showing, so a node that also
- * appears in another mindmap docks the links this graph draws rather than
- * some other mindmap's.
+ * appears in another mindmap gets the links this graph draws rather than some
+ * other mindmap's.
  *
  * The native context menu needs no suppressing here: Cytoscape registers its
  * own preventDefault on the container's contextmenu event, and unregisters it
  * on destroy. A second listener added per render would outlive every rebuild,
  * since the container is reused and cy.destroy() only removes bindings
  * Cytoscape made itself.
- *
- * Right-clicking the node that's already docked hides the dock again;
- * right-clicking a different node re-renders in place. This toggle state
- * is local to the handler and never synced with the item-pane mount's own
- * open/closed state.
  */
 export function attachNodeContextMenuHandler(
   cy: cytoscape.Core,
@@ -554,38 +568,25 @@ export function attachNodeContextMenuHandler(
   dockContainer: HTMLElement,
   mindmapId?: string,
 ): void {
-  let dockedNodeId: string | undefined;
-
-  // A tap on the same node is what filled the dock, so the toggle has to know
-  // about it - otherwise the first right-click after a click re-renders what
-  // is already there instead of closing it.
-  cy.on("tap", "node", (evt) => {
-    if (!evt.target.data("isGroup")) {
-      dockedNodeId = evt.target.id();
-    }
-  });
-
   cy.on("cxttap", "node", (evt) => {
     // A group container is a node to Cytoscape but has no item behind it;
     // right-clicking one is the grouping menu's business, not this one's.
     if (evt.target.data("isGroup")) {
       return;
     }
-    const nodeId = evt.target.id();
-    if (dockedNodeId === nodeId) {
-      dockContainer.style.display = "none";
-      dockContainer.textContent = "";
-      dockedNodeId = undefined;
-      return;
-    }
-
-    const ref = nodeRefsById.get(nodeId);
+    const ref = nodeRefsById.get(evt.target.id());
     if (!ref) {
       return;
     }
-
-    dockedNodeId = nodeId;
-    showNodeInDock(dockContainer, ref, mindmapId);
+    const menu = openMenu(cy, evt.renderedPosition);
+    if (!menu) {
+      return;
+    }
+    const addLink = appendL10nButton(menu, "add-link-button", () => {
+      closeMenu(cy);
+      showNodeInDock(dockContainer, ref, mindmapId, true);
+    });
+    addLink.classList.add(NODE_MENU_ADD_LINK_CLASS);
   });
 }
 

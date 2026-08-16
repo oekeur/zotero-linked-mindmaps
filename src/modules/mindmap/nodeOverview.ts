@@ -14,6 +14,7 @@ import { buildNoteLabel, MISSING_ITEM_LABEL } from "./nodeLabels";
 
 export const OVERVIEW_CLASS = "mindmap-node-overview";
 export const SHOW_IN_LIBRARY_CLASS = "mindmap-show-in-library";
+export const CLOSE_CLASS = "mindmap-dock-close";
 
 function appendLine(
   container: HTMLElement,
@@ -35,15 +36,25 @@ function appendLine(
  * `onShowInLibrary` is wired to a button rather than to the node click that
  * used to do it: switching to the library tab throws away the graph the user
  * was reading, which should be something they ask for.
+ *
+ * `onClose` hides the dock. It lives here because right-click on a node is
+ * the link-creation menu, so closing needs a control of its own rather than
+ * a second meaning for that gesture.
  */
 export function renderNodeOverview(
   container: HTMLElement,
   item: Zotero.Item,
   onShowInLibrary: () => void,
+  onClose?: () => void,
 ): HTMLElement {
   const doc = container.ownerDocument!;
   const overview = doc.createElement("div");
   overview.classList.add(OVERVIEW_CLASS);
+
+  if (onClose) {
+    const close = appendL10nButton(overview, "mindmap-dock-close", onClose);
+    close.classList.add(CLOSE_CLASS);
+  }
 
   const title = doc.createElement("div");
   title.textContent = item.isNote()

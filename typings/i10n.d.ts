@@ -34,6 +34,7 @@ export type FluentMessageId =
   | 'mindmap-delete-button'
   | 'mindmap-delete-confirm-message'
   | 'mindmap-delete-confirm-title'
+  | 'mindmap-dock-close'
   | 'mindmap-edit-button'
   | 'mindmap-empty-state'
   | 'mindmap-form-cancel-button'

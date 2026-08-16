@@ -316,8 +316,26 @@ async function findMindmapForItem(
  * `mindmapId` pins the panel to one mindmap - the graph the dock hangs off,
  * or the one the add-link form just wrote to. Left out, the panel picks the
  * first mindmap the item is a node in.
+ *
+ * `openAddLink` reveals the add-link form as part of the same render, which is
+ * what the graph's right-click menu wants: the menu's one action should land
+ * on the form, not on a panel with a button that opens it.
  */
 export async function renderConnectionsContent(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapId?: string,
+  openAddLink = false,
+): Promise<void> {
+  await renderPanelBody(container, item, mindmapId);
+  // After the body, because the form container it reveals is part of what the
+  // body draws. A no-op on the error state, which has no form to open.
+  if (openAddLink) {
+    openAddLinkForm(container, item);
+  }
+}
+
+async function renderPanelBody(
   container: HTMLElement,
   item: Zotero.Item,
   mindmapId?: string,
