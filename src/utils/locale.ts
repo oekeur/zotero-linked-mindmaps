@@ -1,7 +1,19 @@
 import { config } from "../../package.json";
 import { FluentMessageId } from "../../typings/i10n";
 
-export { initLocale, getString, getLocaleID };
+export { initLocale, getString, getLocaleID, LOCALE_FILES };
+
+/**
+ * Every .ftl file the plugin ships, without the addonRef prefix the build
+ * adds. getString formats against this bundle and nothing else, so a file
+ * left out here makes each of its keys render as its own raw id: no error,
+ * no warning, just `zoterolinkedmindmaps-mindmap-new-button` on a button.
+ * Keys read through data-l10n-id are unaffected, since Zotero registers the
+ * files into the window's own l10n context separately - which is what makes
+ * the gap easy to miss. test/mindmap/locale.test.ts fails when a shipped
+ * file is missing from this list.
+ */
+const LOCALE_FILES = ["addon", "mainWindow"];
 
 /**
  * Initialize locale data
@@ -11,7 +23,10 @@ function initLocale() {
     typeof Localization === "undefined"
       ? ztoolkit.getGlobal("Localization")
       : Localization
-  )([`${config.addonRef}-addon.ftl`], true);
+  )(
+    LOCALE_FILES.map((name) => `${config.addonRef}-${name}.ftl`),
+    true,
+  );
   addon.data.locale = {
     current: l10n,
   };

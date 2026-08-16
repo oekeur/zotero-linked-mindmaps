@@ -1,5 +1,7 @@
 import { assert } from "chai";
 import { config } from "../../package.json";
+import { getString, LOCALE_FILES } from "../../src/utils/locale";
+import type { FluentMessageId } from "../../typings/i10n";
 
 /**
  * Compares message ids, not translations. A key added to en-US and forgotten
@@ -24,6 +26,52 @@ function messageIds(source: string): string[] {
     .filter(Boolean) as string[];
 }
 
+/**
+ * A message plus the attribute getString has to ask for to reach its text.
+ * A few messages carry no value of their own, only `.label`/`.tooltiptext`,
+ * and getString falls back to the raw id for those unless given the branch -
+ * so asking for the value alone would report them as unresolved.
+ */
+interface Message {
+  id: string;
+  hasValue: boolean;
+  branch?: string;
+}
+
+function messages(source: string): Message[] {
+  const parsed: Message[] = [];
+  for (const line of source.split("\n")) {
+    const head = /^([a-z0-9-]+)\s*=(.*)$/i.exec(line);
+    if (head) {
+      parsed.push({ id: head[1], hasValue: head[2].trim() !== "" });
+      continue;
+    }
+    // Indented lines starting with a dot are attributes; other indented
+    // lines continue a multi-line value and are not of interest here.
+    const attribute = /^\s+\.([a-z0-9-]+)\s*=/i.exec(line);
+    const last = parsed[parsed.length - 1];
+    if (attribute && last && !last.branch) {
+      last.branch = attribute[1];
+    }
+  }
+  return parsed;
+}
+
+/**
+ * The scaffold prefixes the message ids inside each built .ftl with the
+ * addonRef, and getString prepends that same prefix itself - so the id has to
+ * go back to its source-tree form before being asked for.
+ */
+function resolve(message: Message): string {
+  const id = message.id.replace(
+    new RegExp(`^${config.addonRef}-`),
+    "",
+  ) as FluentMessageId;
+  return !message.hasValue && message.branch
+    ? getString(id, message.branch)
+    : getString(id);
+}
+
 describe("locales", function () {
   before(async function () {
     this.timeout(30000);
@@ -36,6 +84,18 @@ describe("locales", function () {
     (globalThis as any).rootURI = installed
       .getResourceURI()
       .spec.replace(/\/?$/, "/");
+    // getString reads the plugin singleton through the bare `addon` global,
+    // which the plugin sets on its own scope at startup. The test bundle is a
+    // separate scope, so point its `addon` at the running instance.
+    (globalThis as any).addon = (Zotero as any)[config.addonInstance];
+  });
+
+  it("registers every shipped .ftl file with getString's bundle", function () {
+    assert.deepEqual(
+      FILES.filter((file) => !LOCALE_FILES.includes(file)),
+      [],
+      "shipped .ftl files that initLocale does not load, whose keys getString renders as raw ids",
+    );
   });
 
   for (const file of FILES) {
@@ -63,6 +123,20 @@ describe("locales", function () {
         dutch.filter((id) => !english.includes(id)),
         [],
         "message ids in nl-NL that en-US no longer has",
+      );
+    });
+
+    it(`getString resolves every message id in ${file}.ftl`, async function () {
+      this.timeout(30000);
+      const parsed = messages(await localeSource("en-US", file));
+      assert.isNotEmpty(parsed);
+      const unresolved = parsed
+        .filter((message) => resolve(message) === message.id)
+        .map((message) => message.id);
+      assert.deepEqual(
+        unresolved,
+        [],
+        `keys getString renders as raw ids; check that "${file}" is in LOCALE_FILES`,
       );
     });
   }
