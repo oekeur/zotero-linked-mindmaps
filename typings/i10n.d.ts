@@ -11,6 +11,7 @@ export type FluentMessageId =
   | 'add-link-name-label'
   | 'add-link-save-button'
   | 'add-link-self-link-error'
+  | 'add-link-target-not-linkable'
   | 'add-link-type-label'
   | 'add-to-mindmap-progress'
   | 'connections-add-link-header-button'

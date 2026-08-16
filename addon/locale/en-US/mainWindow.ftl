@@ -22,6 +22,7 @@ add-link-direction-forward = Forward
 add-link-direction-backward = Backward
 add-link-choose-target-button = Choose target
 add-link-self-link-error = An item can't be linked to itself.
+add-link-target-not-linkable = Only items and notes can be linked. Attachments can't.
 add-link-save-button = Save
 mindmap-picker-label = Mindmap
 mindmap-new-button = New
