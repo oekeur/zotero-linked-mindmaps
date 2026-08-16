@@ -20,6 +20,7 @@ import {
   refFor,
 } from "./mutations";
 import { resolveNodeLabel } from "./nodeLabels";
+import { appendL10nButton, appendMindmapOptions } from "./uiElements";
 import {
   refsMatch,
   type MindmapDocument,
@@ -254,20 +255,16 @@ export function renderAddLinkForm(
   updateDirectionVisibility();
 
   const targetWrapper = ownerDoc.createElement("div");
-  const chooseTargetButton = ownerDoc.createElement("button");
-  chooseTargetButton.setAttribute(
-    "data-l10n-id",
-    getLocaleID("add-link-choose-target-button"),
+  const chooseTargetButton = appendL10nButton(
+    targetWrapper,
+    "add-link-choose-target-button",
   );
-  targetWrapper.appendChild(chooseTargetButton);
 
-  const chooseExternalButton = ownerDoc.createElement("button");
-  chooseExternalButton.classList.add(EXTERNAL_TARGET_BUTTON_CLASS);
-  chooseExternalButton.setAttribute(
-    "data-l10n-id",
-    getLocaleID("add-link-choose-external-button"),
+  const chooseExternalButton = appendL10nButton(
+    targetWrapper,
+    "add-link-choose-external-button",
   );
-  targetWrapper.appendChild(chooseExternalButton);
+  chooseExternalButton.classList.add(EXTERNAL_TARGET_BUTTON_CLASS);
 
   const targetLabel = ownerDoc.createElement("span");
   targetLabel.style.display = "none";
@@ -287,10 +284,8 @@ export function renderAddLinkForm(
 
   container.appendChild(targetWrapper);
 
-  const saveButton = ownerDoc.createElement("button");
-  saveButton.setAttribute("data-l10n-id", getLocaleID("add-link-save-button"));
+  const saveButton = appendL10nButton(container, "add-link-save-button");
   saveButton.disabled = true;
-  container.appendChild(saveButton);
 
   chooseTargetButton.addEventListener("click", () => {
     void (async () => {
@@ -352,12 +347,7 @@ export function renderAddLinkForm(
       }
 
       const mindmapSelect = ownerDoc.createElement("select");
-      for (const summary of others) {
-        const option = ownerDoc.createElement("option");
-        option.value = summary.id;
-        option.textContent = summary.title;
-        mindmapSelect.appendChild(option);
-      }
+      appendMindmapOptions(mindmapSelect, others);
       externalWrapper.appendChild(mindmapSelect);
 
       const nodeSelect = ownerDoc.createElement("select");

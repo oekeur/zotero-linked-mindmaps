@@ -17,12 +17,7 @@ import {
   updateMindmapMetadata,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
-
-async function clearStorageNote() {
-  for (const item of await findAllMindmapNotes()) {
-    await item.eraseTx();
-  }
-}
+import { clearStorageNotes } from "./storageNotes";
 
 function docWithNodesAndLinks(): MindmapDocument {
   return {
@@ -44,11 +39,11 @@ function docWithNodesAndLinks(): MindmapDocument {
 
 describe("mindmap/storage", function () {
   beforeEach(async function () {
-    await clearStorageNote();
+    await clearStorageNotes();
   });
 
   after(async function () {
-    await clearStorageNote();
+    await clearStorageNotes();
   });
 
   it("creates a tagged storage note on first use", async function () {

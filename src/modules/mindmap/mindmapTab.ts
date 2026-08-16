@@ -20,6 +20,7 @@ import {
   type MindmapSummary,
 } from "./storage";
 import { getLinkTypes } from "./linkTypes";
+import { appendMindmapOptions } from "./uiElements";
 import { attachLiveRefresh, renderMindmap } from "./graphRenderer";
 import { layoutUnplacedNodes } from "./layout";
 import type { MindmapDocument } from "./schema";
@@ -166,15 +167,7 @@ export function createMindmapTabController(
     const picker = el(doc, "select");
     picker.id = "zoterolinkedmindmaps-mindmap-picker";
     picker.disabled = mindmaps.length === 0;
-    for (const entry of mindmaps) {
-      const option = el(doc, "option");
-      option.value = entry.id;
-      option.textContent = entry.title;
-      if (entry.description) {
-        option.title = entry.description;
-      }
-      picker.appendChild(option as unknown as Node);
-    }
+    appendMindmapOptions(picker, mindmaps);
     if (selected) {
       picker.value = selected.id;
     }

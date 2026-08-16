@@ -3,7 +3,6 @@ import { pruneDanglingExternalNodes } from "../../src/modules/mindmap/crossMindm
 import {
   createMindmap,
   deleteMindmap,
-  findAllMindmapNotes,
   listMindmaps,
   readMindmapDocument,
   whenStorageIdle,
@@ -15,6 +14,7 @@ import type {
   MindmapLink,
   MindmapNode,
 } from "../../src/modules/mindmap/schema";
+import { clearStorageNotes } from "./storageNotes";
 
 const REF = {
   kind: "item" as const,
@@ -55,12 +55,6 @@ function docWith(
 }
 
 describe("mindmap/crossMindmapCleanup", function () {
-  async function clearStorageNotes() {
-    for (const item of await findAllMindmapNotes()) {
-      await item.eraseTx();
-    }
-  }
-
   beforeEach(async function () {
     this.timeout(30000);
     await clearStorageNotes();
