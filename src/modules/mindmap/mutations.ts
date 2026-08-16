@@ -64,11 +64,28 @@ export function createExternalNode(
   };
 }
 
+/**
+ * The document without `nodeIds`, and without any link touching one. Dropping
+ * a node and leaving a link pointing at it is the one way this document can go
+ * incoherent, so the two filters belong together wherever nodes are removed -
+ * by the user, by a Zotero deletion, or by cross-mindmap reconciliation.
+ */
+export function withoutNodes(
+  doc: MindmapDocument,
+  nodeIds: Set<string>,
+): MindmapDocument {
+  return {
+    ...doc,
+    nodes: doc.nodes.filter((node) => !nodeIds.has(node.id)),
+    links: doc.links.filter(
+      (link) =>
+        !nodeIds.has(link.sourceNodeId) && !nodeIds.has(link.targetNodeId),
+    ),
+  };
+}
+
 export function removeNode(doc: MindmapDocument, nodeId: string): void {
-  doc.nodes = doc.nodes.filter((node) => node.id !== nodeId);
-  doc.links = doc.links.filter(
-    (link) => link.sourceNodeId !== nodeId && link.targetNodeId !== nodeId,
-  );
+  Object.assign(doc, withoutNodes(doc, new Set([nodeId])));
 }
 
 export function removeLink(doc: MindmapDocument, linkId: string): void {
@@ -107,8 +124,13 @@ export function renameGroup(
   groupId: string,
   name: string,
 ): void {
+  // Clearing the name is not offered, so a blank one means the user cancelled
+  // out of the field rather than asked for an unnamed group.
+  if (!name) {
+    return;
+  }
   doc.groups = (doc.groups ?? []).map((group) =>
-    group.id === groupId ? { ...group, ...(name ? { name } : {}) } : group,
+    group.id === groupId ? { ...group, name } : group,
   );
 }
 

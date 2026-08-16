@@ -15,6 +15,7 @@ import cytoscape from "cytoscape";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
 import {
   readDocumentFromNote,
+  refreshNote,
   serializeDocument,
   updateMindmapDocument,
 } from "./storage";
@@ -55,14 +56,10 @@ function ensureDocumentHead(doc: Document) {
 // handed and moves the node by writing to it, which would otherwise rewrite
 // the document's own coordinates in place.
 function toElementPosition(position: Position | null): Position {
-  if (
-    position === null ||
-    Number.isNaN(position.x) ||
-    Number.isNaN(position.y)
-  ) {
+  if (isUnplaced(position)) {
     return { x: 0, y: 0 };
   }
-  return { x: position.x, y: position.y };
+  return { x: position!.x, y: position!.y };
 }
 
 export const EXTERNAL_NODE_CLASS = "external-node";
@@ -395,19 +392,26 @@ export function attachNodeClickHandler(
 }
 
 /**
- * The document the graph last wrote itself, serialized. A drag write modifies
- * the storage note, which fires the same "modify" notification
- * attachLiveRefresh answers with a full destroy-and-rebuild - so without this
- * the graph would tear itself down and rebuild after every drag, flashing and
- * discarding the Cytoscape instance the gesture was using.
+ * What one rendered graph believes is stored, serialized.
+ *
+ * A drag write modifies the storage note, which fires the same "modify"
+ * notification attachLiveRefresh answers with a full destroy-and-rebuild - so
+ * without this the graph would tear itself down and rebuild after every drag,
+ * flashing and discarding the Cytoscape instance the gesture was using.
  *
  * Identity rather than a "currently writing" flag, because Zotero fires two
  * modify notifications per save: one inside the transaction and a second one a
  * task later, after any such flag would have been cleared. Comparing what is
- * stored against what the graph wrote catches both, and needs no assumption
- * about when a notification arrives.
+ * stored against what the graph already shows catches both, and needs no
+ * assumption about when a notification arrives.
+ *
+ * One box per rendered graph, not one per module: two tabs render two graphs
+ * over two different documents, and a shared box would let one graph's write
+ * suppress the other's refresh.
  */
-let selfWrittenDocument: string | null = null;
+export interface RenderedState {
+  document: string | null;
+}
 
 /**
  * Applies dropped coordinates to the stored document. Goes through
@@ -418,6 +422,7 @@ let selfWrittenDocument: string | null = null;
 async function persistNodePositions(
   mindmapId: string,
   moved: Map<string, Position>,
+  rendered: RenderedState,
 ): Promise<void> {
   try {
     await updateMindmapDocument((doc) => {
@@ -441,7 +446,7 @@ async function persistNodePositions(
       // Recorded here rather than after the write: the first notification for
       // this save arrives before the write resolves.
       const next = { ...doc, nodes };
-      selfWrittenDocument = serializeDocument(next);
+      rendered.document = serializeDocument(next);
       return next;
     }, mindmapId);
   } catch (err) {
@@ -460,18 +465,16 @@ async function persistNodePositions(
 export function attachNodeDragHandler(
   cy: cytoscape.Core,
   mindmapId: string,
+  rendered: RenderedState = { document: null },
 ): void {
-  const pending = new Map<string, Position>();
+  let pending = new Map<string, Position>();
   let flushScheduled = false;
 
   function flush(): void {
     flushScheduled = false;
-    const moved = new Map(pending);
-    pending.clear();
-    if (moved.size === 0) {
-      return;
-    }
-    void persistNodePositions(mindmapId, moved);
+    const moved = pending;
+    pending = new Map();
+    void persistNodePositions(mindmapId, moved, rendered);
   }
 
   cy.on("dragfree", "node", (evt) => {
@@ -577,8 +580,11 @@ function closeMenu(cy: cytoscape.Core): void {
 export function attachGroupingHandlers(
   cy: cytoscape.Core,
   mindmapId: string,
-  onChanged: () => void,
 ): void {
+  /**
+   * Nothing redraws here on purpose: the write fires a modify notification and
+   * the live-refresh observer rebuilds the graph from what was stored.
+   */
   async function apply(mutate: (doc: MindmapDocument) => void): Promise<void> {
     closeMenu(cy);
     try {
@@ -586,7 +592,6 @@ export function attachGroupingHandlers(
         mutate(doc);
         return doc;
       }, mindmapId);
-      onChanged();
     } catch (err) {
       Zotero.debug(
         `[zoteroLinkedMindmaps] grouping change failed: ${(err as Error).message}`,
@@ -649,6 +654,7 @@ export async function renderMindmap(
   doc: MindmapDocument,
   linkTypes: LinkType[],
   dockContainer?: HTMLElement,
+  rendered: RenderedState = { document: null },
 ): Promise<cytoscape.Core> {
   const win = container.ownerDocument!.defaultView!;
   ensureDocumentHead(container.ownerDocument!);
@@ -659,6 +665,7 @@ export async function renderMindmap(
   const nodeRefsById = new Map(doc.nodes.map((node) => [node.id, node.ref]));
   const piled = piledNodeIds(doc.nodes);
 
+  rendered.document = serializeDocument(doc);
   const cy = cytoscape({
     container,
     elements: {
@@ -681,10 +688,8 @@ export async function renderMindmap(
     layout: { name: "preset" },
   });
   attachNodeClickHandler(cy, nodeRefsById);
-  attachNodeDragHandler(cy, doc.id);
-  // The rebuild that shows the change is the live-refresh observer's job: the
-  // write fires a notification, and the graph is rebuilt from what was stored.
-  attachGroupingHandlers(cy, doc.id, () => {});
+  attachNodeDragHandler(cy, doc.id, rendered);
+  attachGroupingHandlers(cy, doc.id);
   if (dockContainer) {
     attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer);
   }
@@ -707,6 +712,7 @@ export function attachLiveRefresh(
   storageNoteItemID: number,
   linkTypes: LinkType[],
   dockContainer?: HTMLElement,
+  rendered: RenderedState = { document: null },
 ): () => void {
   let current = cy;
   let refreshing = false;
@@ -719,14 +725,23 @@ export function attachLiveRefresh(
       const item = (await Zotero.Items.getAsync(
         storageNoteItemID,
       )) as Zotero.Item;
-      const doc = await readDocumentFromNote(item);
-      // The graph's own drag write already left the rendered nodes where the
-      // user dropped them, so rebuilding for it would only flash.
-      if (serializeDocument(doc) === selfWrittenDocument) {
+      // Refreshed first: this runs on a notification about a write that may
+      // have landed a moment ago, which is exactly when the cache lags.
+      const doc = readDocumentFromNote(await refreshNote(item));
+      // Nothing to redraw when the stored document is already what the graph
+      // shows - the drag write is the common case, since it moved the nodes
+      // before it saved them, and rebuilding for it would only flash.
+      if (serializeDocument(doc) === rendered.document) {
         return;
       }
       current.destroy();
-      current = await renderMindmap(container, doc, linkTypes, dockContainer);
+      current = await renderMindmap(
+        container,
+        doc,
+        linkTypes,
+        dockContainer,
+        rendered,
+      );
       await layoutUnplacedNodes(current, doc);
     } catch (err) {
       Zotero.debug(

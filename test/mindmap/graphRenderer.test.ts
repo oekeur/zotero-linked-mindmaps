@@ -11,6 +11,7 @@ import {
   GROUP_NODE_CLASS,
   PARENT_CHILD_TIE_CLASS,
   renderMindmap,
+  type RenderedState,
   resolveLinkVisual,
   UNKNOWN_TYPE_LABEL,
 } from "../../src/modules/mindmap/graphRenderer";
@@ -1129,10 +1130,21 @@ describe("mindmap/graphRenderer", function () {
         const note = await findMindmapNote();
         await settleSetup();
         cy = headlessCy(SPREAD);
-        attachNodeDragHandler(cy, "doc-drag-test");
+        // The graph and its observer share one state box, the way the tab
+        // wires them: that is what lets the observer recognise a write the
+        // graph made itself.
+        const state: RenderedState = { document: null };
+        attachNodeDragHandler(cy, "doc-drag-test", state);
 
         const rendered = destroyCountingCy();
-        teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+        teardown = attachLiveRefresh(
+          rendered.cy,
+          container,
+          note!.id,
+          [],
+          undefined,
+          state,
+        );
         // Counted from just before the gesture: a notification still in flight
         // from the setup write is not what this test is about.
         await Zotero.Promise.delay(200);
@@ -1143,6 +1155,38 @@ describe("mindmap/graphRenderer", function () {
         await Zotero.Promise.delay(300);
 
         assert.equal(rendered.destroyed, before);
+      });
+
+      it("does not let one graph's write suppress another graph's refresh", async function () {
+        this.timeout(30000);
+        await writeMindmapDocument(docAt(SPREAD));
+        const note = await findMindmapNote();
+        await settleSetup();
+        cy = headlessCy(SPREAD);
+        // Two graphs, as two open tabs would be: the drag belongs to the
+        // first, so the second still has to redraw for it.
+        const dragging: RenderedState = { document: null };
+        attachNodeDragHandler(cy, "doc-drag-test", dragging);
+
+        const other = destroyCountingCy();
+        teardown = attachLiveRefresh(
+          other.cy,
+          container,
+          note!.id,
+          [],
+          undefined,
+          {
+            document: null,
+          },
+        );
+        await Zotero.Promise.delay(200);
+        const before = other.destroyed;
+
+        dragTo(cy, { "node-a": { x: 640, y: 480 } });
+        await settle();
+        await Zotero.Promise.delay(300);
+
+        assert.isAbove(other.destroyed, before);
       });
 
       it("still rebuilds for a write the graph did not make", async function () {

@@ -15,11 +15,8 @@
  * touching them. That covers a deleted mindmap and a removed node with one
  * mechanism, and cannot be left holding stale bookkeeping.
  */
-import {
-  listMindmaps,
-  readMindmapDocument,
-  updateMindmapDocument,
-} from "./storage";
+import { readAllMindmaps, updateMindmapDocument } from "./storage";
+import { withoutNodes } from "./mutations";
 import type { MindmapDocument, MindmapNode } from "./schema";
 
 function isDangling(
@@ -32,21 +29,6 @@ function isDangling(
   return !available.get(node.homeMindmapId)?.has(node.homeNodeId);
 }
 
-function withoutNodes(
-  doc: MindmapDocument,
-  removedIds: Set<string>,
-): MindmapDocument {
-  return {
-    ...doc,
-    nodes: doc.nodes.filter((node) => !removedIds.has(node.id)),
-    links: doc.links.filter(
-      (link) =>
-        !removedIds.has(link.sourceNodeId) &&
-        !removedIds.has(link.targetNodeId),
-    ),
-  };
-}
-
 /**
  * Drops every external stub whose target mindmap or target node is gone, and
  * every link touching one. Returns the ids of the mindmaps that changed, so a
@@ -56,11 +38,7 @@ function withoutNodes(
 export async function pruneDanglingExternalNodes(
   libraryID?: number,
 ): Promise<string[]> {
-  const summaries = await listMindmaps(libraryID);
-  const documents: MindmapDocument[] = [];
-  for (const summary of summaries) {
-    documents.push(await readMindmapDocument(summary.id, libraryID));
-  }
+  const documents = (await readAllMindmaps(libraryID)).map(({ doc }) => doc);
 
   // Only member nodes count as a target. An external stub pointing at another
   // stub would be a chain this deliberately doesn't follow: a mindmap reaches

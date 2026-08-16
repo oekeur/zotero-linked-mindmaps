@@ -205,7 +205,7 @@ export async function countLinksUsingType(id: string): Promise<number | null> {
     // skips a note it cannot parse. Here that would report a corrupt mindmap's
     // links as zero and let the type be deleted with no warning at all.
     for (const note of await findAllMindmapNotes()) {
-      const doc = await readDocumentFromNote(note);
+      const doc = readDocumentFromNote(note);
       count += doc.links.filter((link) => link.typeId === id).length;
     }
     return count;

@@ -130,19 +130,26 @@ export async function findMindmapNote(
 }
 
 /**
+ * Reloads a note's text from the database. A Zotero.Item's cached note text
+ * can lag its own committed write for a moment - Zotero reloads the object
+ * asynchronously after a save - so reading the cache right after writing can
+ * hand back the document as it was before. Only paths that can be reading
+ * their own recent write pay for this; enumerating the registry does not.
+ */
+export async function refreshNote(item: Zotero.Item): Promise<Zotero.Item> {
+  await item.reload(["note"], true);
+  return item;
+}
+
+/**
  * Reads and validates the document a storage note holds. Throws StorageError
  * rather than returning null so a corrupt note is distinguishable from an
  * empty one at every call site.
  *
- * Reloads the note text from the database first. A Zotero.Item's cached note
- * text can lag its own committed write for a moment - Zotero reloads the
- * object asynchronously after a save - so reading the cache can hand back the
- * document as it was before the write that just finished.
+ * Parses the note as it currently stands; see refreshNote for when that needs
+ * to be reconciled with the database first.
  */
-export async function readDocumentFromNote(
-  item: Zotero.Item,
-): Promise<MindmapDocument> {
-  await item.reload(["note"], true);
+export function readDocumentFromNote(item: Zotero.Item): MindmapDocument {
   const block = extractDataBlock(item.getNote());
   if (block === null) {
     throw new StorageError(
@@ -166,34 +173,55 @@ export async function readDocumentFromNote(
   return result.doc;
 }
 
-async function findMindmapNoteById(
+/** A storage note together with the document it holds. */
+export interface StoredMindmap {
+  item: Zotero.Item;
+  doc: MindmapDocument;
+}
+
+/**
+ * Finds the mindmap `id` names, returning the document it was identified by
+ * rather than making the caller parse the same note a second time - resolving
+ * an id means reading notes until one matches, so the answer is already in
+ * hand by the time it is found.
+ */
+async function findMindmapById(
   id: string,
   libraryID: number,
-): Promise<Zotero.Item | null> {
+): Promise<StoredMindmap | null> {
   for (const item of await findAllMindmapNotes(libraryID)) {
     let doc: MindmapDocument;
     try {
-      doc = await readDocumentFromNote(item);
+      doc = readDocumentFromNote(await refreshNote(item));
     } catch {
       // One unreadable note must not hide the mindmap being looked for.
       continue;
     }
     if (doc.id === id) {
-      return item;
+      return { item, doc };
     }
   }
   return null;
 }
 
-async function requireMindmapNoteById(
-  id: string,
-  libraryID: number,
-): Promise<Zotero.Item> {
-  const item = await findMindmapNoteById(id, libraryID);
-  if (!item) {
+/**
+ * The mindmap `id` names, or the library's default one when no id is given.
+ * Every read and write resolves through here, so "no id" means the same thing
+ * everywhere: the lowest-numbered storage note, created on demand.
+ */
+export async function resolveMindmap(
+  id?: string,
+  libraryID = defaultLibraryID(),
+): Promise<StoredMindmap> {
+  if (id === undefined) {
+    const item = await refreshNote(await findOrCreateMindmapNote(libraryID));
+    return { item, doc: readDocumentFromNote(item) };
+  }
+  const found = await findMindmapById(id, libraryID);
+  if (!found) {
     throw new StorageError("not-found", `no mindmap with id ${id}`);
   }
-  return item;
+  return found;
 }
 
 async function createNoteFor(
@@ -244,30 +272,31 @@ export interface MindmapSummary {
  * skipped with a warning rather than throwing: one corrupt mindmap must not
  * make the others unlistable.
  */
-export async function listMindmaps(
+export async function readAllMindmaps(
   libraryID = defaultLibraryID(),
-): Promise<MindmapSummary[]> {
-  const summaries: MindmapSummary[] = [];
+): Promise<StoredMindmap[]> {
+  const stored: StoredMindmap[] = [];
   for (const item of await findAllMindmapNotes(libraryID)) {
-    let doc: MindmapDocument;
     try {
-      doc = await readDocumentFromNote(item);
+      stored.push({ item, doc: readDocumentFromNote(item) });
     } catch (err) {
       Zotero.debug(
         `[zoteroLinkedMindmaps] skipping unreadable storage note ${item.id}: ${(err as Error).message}`,
       );
-      continue;
     }
-    summaries.push({
-      id: doc.id,
-      title: doc.title,
-      ...(doc.description === undefined
-        ? {}
-        : { description: doc.description }),
-      noteItemID: item.id,
-    });
   }
-  return summaries;
+  return stored;
+}
+
+export async function listMindmaps(
+  libraryID = defaultLibraryID(),
+): Promise<MindmapSummary[]> {
+  return (await readAllMindmaps(libraryID)).map(({ item, doc }) => ({
+    id: doc.id,
+    title: doc.title,
+    ...(doc.description === undefined ? {} : { description: doc.description }),
+    noteItemID: item.id,
+  }));
 }
 
 /**
@@ -291,11 +320,7 @@ export async function readMindmapDocument(
   id?: string,
   libraryID = defaultLibraryID(),
 ): Promise<MindmapDocument> {
-  const item =
-    id === undefined
-      ? await findOrCreateMindmapNote(libraryID)
-      : await requireMindmapNoteById(id, libraryID);
-  return readDocumentFromNote(item);
+  return (await resolveMindmap(id, libraryID)).doc;
 }
 
 /**
@@ -314,9 +339,8 @@ export async function writeMindmapDocument(
     throw new StorageError("invalid-schema", result.error);
   }
   await enqueue(async () => {
-    const item =
-      (await findMindmapNoteById(result.doc.id, libraryID)) ??
-      (await findOrCreateMindmapNote(libraryID));
+    const existing = await findMindmapById(result.doc.id, libraryID);
+    const item = existing?.item ?? (await findOrCreateMindmapNote(libraryID));
     await saveDocumentToNote(item, result.doc);
   });
 }
@@ -417,7 +441,7 @@ export async function deleteMindmap(
   libraryID = defaultLibraryID(),
 ): Promise<void> {
   await enqueue(async () => {
-    const item = await requireMindmapNoteById(id, libraryID);
+    const { item } = await resolveMindmap(id, libraryID);
     await item.eraseTx();
   });
 }
@@ -436,11 +460,8 @@ export async function updateMindmapDocument(
   libraryID = defaultLibraryID(),
 ): Promise<MindmapDocument | null> {
   return enqueue(async () => {
-    const item =
-      id === undefined
-        ? await findOrCreateMindmapNote(libraryID)
-        : await requireMindmapNoteById(id, libraryID);
-    const next = mutate(await readDocumentFromNote(item));
+    const { item, doc } = await resolveMindmap(id, libraryID);
+    const next = mutate(doc);
     if (next === null) {
       return null;
     }
