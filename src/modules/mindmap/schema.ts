@@ -34,6 +34,42 @@ export function isUnplaced(position: Position | null): boolean {
   );
 }
 
+// Two positions this close are one node hiding another on screen, so they
+// count as the same spot rather than as two distinct placements.
+export const COINCIDENT_TOLERANCE = 0.5;
+
+export function isCoincident(a: Position, b: Position): boolean {
+  return (
+    Math.abs(a.x - b.x) < COINCIDENT_TOLERANCE &&
+    Math.abs(a.y - b.y) < COINCIDENT_TOLERANCE
+  );
+}
+
+/**
+ * Ids of nodes sitting on top of another node. A document that persisted a
+ * whole pile of them counts as fully placed under isUnplaced alone - every
+ * node has a position, so no layout ever runs again and the pile is
+ * permanent. Treating the colliding nodes as unplaced hands them back to the
+ * layout on the next open. Nodes with no position yet are left out: they are
+ * already unplaced, and comparing a null position would throw.
+ *
+ * A lone node cannot collide with anything, so a single-node mindmap keeps
+ * whatever position it was given.
+ */
+export function coincidentNodeIds(nodes: MindmapNode[]): Set<string> {
+  const placed = nodes.filter((node) => !isUnplaced(node.position));
+  const collided = new Set<string>();
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      if (isCoincident(placed[i].position!, placed[j].position!)) {
+        collided.add(placed[i].id);
+        collided.add(placed[j].id);
+      }
+    }
+  }
+  return collided;
+}
+
 export type MindmapNode =
   | {
       membership: "member";

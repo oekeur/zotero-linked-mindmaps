@@ -1,6 +1,9 @@
 import { assert } from "chai";
 import cytoscape from "cytoscape";
-import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
+import {
+  gridPositions,
+  layoutUnplacedNodes,
+} from "../../src/modules/mindmap/layout";
 import {
   findMindmapNote,
   readMindmapDocument,
@@ -8,6 +11,8 @@ import {
 import {
   CURRENT_SCHEMA_VERSION,
   UNPLACED_POSITION,
+  coincidentNodeIds,
+  isCoincident,
   isUnplaced,
   type MindmapDocument,
   type MindmapNode,
@@ -34,20 +39,33 @@ function docWith(nodes: MindmapNode[]): MindmapDocument {
 
 // Bare headless cytoscape.Core mirroring buildNodeElement's shape, built
 // directly (no container) so this stays independent of Zotero item/label
-// resolution and the XUL document.head shim renderMindmap needs.
+// resolution and the XUL document.head shim renderMindmap needs. A headless
+// core has no measured viewport, which is also the state the real tab is in
+// when it lays out: whatever passes here has to work without one.
 function headlessCy(nodes: MindmapNode[]) {
+  const collided = coincidentNodeIds(nodes);
   return cytoscape({
     elements: {
       nodes: nodes.map((n) => ({
         data: {
           id: n.id,
           label: n.id,
-          unplaced: isUnplaced(n.position),
+          unplaced: isUnplaced(n.position) || collided.has(n.id),
         },
         position: isUnplaced(n.position) ? { x: 0, y: 0 } : n.position!,
       })),
     },
   });
+}
+
+function positionsOf(doc: MindmapDocument): Position[] {
+  return doc.nodes.map((n) => n.position!);
+}
+
+function anyPairCoincident(positions: Position[]): boolean {
+  return positions.some((a, i) =>
+    positions.slice(i + 1).some((b) => isCoincident(a, b)),
+  );
 }
 
 async function clearStorageNote() {
@@ -121,5 +139,104 @@ describe("mindmap/layout", function () {
     const nodeB = result!.nodes.find((n) => n.id === "node-b")!;
     assert.deepEqual(nodeA.position, placedPosition);
     assert.isFalse(isUnplaced(nodeB.position));
+  });
+
+  it("spreads nodes apart with no measured container to size the layout", async function () {
+    const doc = docWith(
+      ["node-a", "node-b", "node-c", "node-d"].map((id) =>
+        node(id, UNPLACED_POSITION),
+      ),
+    );
+    const cy = headlessCy(doc.nodes);
+
+    const result = await layoutUnplacedNodes(cy, doc);
+
+    assert.isNotNull(result);
+    assert.isFalse(anyPairCoincident(positionsOf(result!)));
+  });
+
+  it("re-lays out nodes stacked on each other despite having stored positions", async function () {
+    const doc = docWith([
+      node("node-a", { x: 0, y: 0 }),
+      node("node-b", { x: 0, y: 0 }),
+    ]);
+    const cy = headlessCy(doc.nodes);
+
+    const result = await layoutUnplacedNodes(cy, doc);
+
+    assert.isNotNull(result);
+    assert.isFalse(anyPairCoincident(positionsOf(result!)));
+  });
+
+  it("converges: a repaired layout is not laid out again on reopen", async function () {
+    const doc = docWith([
+      node("node-a", { x: 0, y: 0 }),
+      node("node-b", { x: 0, y: 0 }),
+    ]);
+
+    const repaired = await layoutUnplacedNodes(headlessCy(doc.nodes), doc);
+    assert.isNotNull(repaired);
+
+    const reopened = await layoutUnplacedNodes(
+      headlessCy(repaired!.nodes),
+      repaired!,
+    );
+    assert.isNull(reopened);
+  });
+
+  it("leaves a single node alone: one node cannot be stacked on anything", async function () {
+    const doc = docWith([node("node-a", { x: 0, y: 0 })]);
+    const cy = headlessCy(doc.nodes);
+
+    const result = await layoutUnplacedNodes(cy, doc);
+
+    assert.isNull(result);
+    assert.isNull(await findMindmapNote());
+  });
+
+  describe("gridPositions", function () {
+    const box = { x1: 100, y1: 200, w: 480, h: 480 };
+
+    it("places every node on its own coordinates", function () {
+      const positions = gridPositions(["c", "a", "b", "d"], box);
+
+      assert.equal(positions.size, 4);
+      assert.isFalse(anyPairCoincident([...positions.values()]));
+    });
+
+    it("starts at the box origin and orders by node id, so a rebuild reproduces it", function () {
+      const positions = gridPositions(["c", "a", "b", "d"], box);
+
+      assert.deepEqual(positions.get("a"), { x: 100, y: 200 });
+      assert.deepEqual(
+        gridPositions(["d", "b", "a", "c"], box).get("a"),
+        positions.get("a"),
+      );
+    });
+  });
+
+  describe("coincidentNodeIds", function () {
+    it("reports both nodes of a stacked pair", function () {
+      const ids = coincidentNodeIds([
+        node("node-a", { x: 0, y: 0 }),
+        node("node-b", { x: 0, y: 0 }),
+        node("node-c", { x: 300, y: 300 }),
+      ]);
+
+      assert.deepEqual([...ids].sort(), ["node-a", "node-b"]);
+    });
+
+    it("ignores nodes with no position yet", function () {
+      const ids = coincidentNodeIds([
+        node("node-a", UNPLACED_POSITION),
+        node("node-b", UNPLACED_POSITION),
+      ]);
+
+      assert.equal(ids.size, 0);
+    });
+
+    it("reports nothing for a lone node", function () {
+      assert.equal(coincidentNodeIds([node("node-a", { x: 0, y: 0 })]).size, 0);
+    });
   });
 });

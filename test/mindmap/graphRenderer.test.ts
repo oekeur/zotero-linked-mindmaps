@@ -6,17 +6,22 @@ import {
   attachNodeContextMenuHandler,
   computeParallelOffsets,
   MISSING_ITEM_LABEL,
+  renderMindmap,
   resolveLinkVisual,
   resolveNodeLabel,
   UNKNOWN_TYPE_LABEL,
 } from "../../src/modules/mindmap/graphRenderer";
+import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
   findMindmapNote,
   updateMindmapDocument,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import type { LinkType } from "../../src/modules/mindmap/linkTypes";
-import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
+import {
+  CURRENT_SCHEMA_VERSION,
+  isCoincident,
+} from "../../src/modules/mindmap/schema";
 import type {
   MindmapDocument,
   MindmapLink,
@@ -459,6 +464,61 @@ describe("mindmap/graphRenderer", function () {
         title: "refresh-2",
       }));
       assert.equal(second?.title, "refresh-2");
+    });
+  });
+
+  describe("renderMindmap layout", function () {
+    let container: HTMLDivElement;
+    let cy: cytoscape.Core | undefined;
+
+    function twoUnplacedNodes(): MindmapDocument {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-unmeasured-container",
+        title: "Unmeasured container",
+        nodes: ["node-a", "node-b"].map((id) => ({
+          membership: "member" as const,
+          id,
+          position: null,
+          ref: {
+            kind: "item" as const,
+            libraryID: Zotero.Libraries.userLibraryID,
+            key: "NOSUCHKEY",
+          },
+        })),
+        links: [],
+      };
+    }
+
+    beforeEach(function () {
+      const doc = Zotero.getMainWindow().document;
+      container = doc.createElement("div");
+      // The state the real mindmap tab is in when it renders: the tab was
+      // created a tick ago and the container has no measured size yet. Cose
+      // used to take its bounding box from the container, so a container this
+      // size left every node piled on the origin.
+      container.style.cssText =
+        "position: relative; width: 0px; height: 0px; overflow: hidden;";
+      doc.documentElement.appendChild(container);
+    });
+
+    afterEach(async function () {
+      cy?.destroy();
+      cy = undefined;
+      container.remove();
+      const note = await findMindmapNote();
+      await note?.eraseTx();
+    });
+
+    it("places nodes apart even when the container has no measured size", async function () {
+      const doc = twoUnplacedNodes();
+
+      cy = await renderMindmap(container, doc, []);
+      const laidOut = await layoutUnplacedNodes(cy, doc);
+
+      assert.isNotNull(laidOut);
+      const [a, b] = laidOut!.nodes.map((n) => n.position!);
+      assert.isFalse(isCoincident(a, b));
     });
   });
 });
