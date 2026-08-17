@@ -120,16 +120,19 @@ The pane's own label, the one Zotero shows in the preferences sidebar, goes thro
 
 `test/mindmap/preferencesPane.test.ts` guards this by asserting the rendered heading does not contain `zoterolinkedmindmaps-`, which is what a raw id would look like.
 
-A `ztoolkit.Dialog` window is neither one either. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id. The toolkit links whatever files `dialogData.l10nFiles` names into the window it opens, which is how the standalone "Add link" dialog gets its strings:
+A `ztoolkit.Dialog` window is neither one either. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id.
 
-```ts
-.setDialogData({
-  l10nFiles: [`${addon.data.config.addonRef}-mainWindow.ftl`],
-  loadCallback: () => { ... },
-})
+The standalone "Add link" window used to be one, and worked around that by naming the file in `dialogData.l10nFiles`. It no longer is: `addon/content/addLink.xhtml` is the plugin's own chrome document, opened through `openDialog` at `chrome://zoterolinkedmindmaps/content/addLink.xhtml`, and it registers the file the same declarative way Zotero's own dialogs do:
+
+```xml
+<linkset>
+  <html:link rel="localization" href="zoterolinkedmindmaps-mainWindow.ftl" />
+</linkset>
 ```
 
-`test/mindmap/addLinkDialog.test.ts` guards it by opening the real dialog and failing on an empty label or button. Driving `openAddLinkDialog` from a test needs `globalThis.addon` and `globalThis.ztoolkit` assigned from the plugin instance first, the same way `mindmapTabLive.test.ts` does it.
+Three separate defects drove that change, all of them properties of the blank window rather than of the form: no Fluent strings, a `sizeToContent` on a timer the form's async render outlasts, and an HTML `select` whose dropdown does not open at all. The item pane and the mindmap tab never had any of the three, because they render into the main window.
+
+`test/mindmap/addLinkDialog.test.ts` guards the first two by opening the real dialog and failing on an empty label or button, or on a Save button below the window's bottom edge. The third is not directly testable - whether a native dropdown opens can only be seen by clicking it - so the test checks the nearest observable thing, that the field is a real HTML `select` in the XHTML namespace carrying its options.
 
 ## Adding a string
 
