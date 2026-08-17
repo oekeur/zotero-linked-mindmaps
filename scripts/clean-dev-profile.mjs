@@ -64,10 +64,16 @@ const pkg = JSON.parse(
 );
 const env = parseEnvFile(path.join(rootDir, ".env"));
 
+// An already-set environment variable wins over .env, matching dotenv's own
+// precedence. scripts/serve.sh relies on this to point the cleanup at the
+// profile it is about to launch rather than the one .env names.
+const profilePath =
+  process.env.ZOTERO_PLUGIN_PROFILE_PATH || env.ZOTERO_PLUGIN_PROFILE_PATH;
+
 killStaleZotero();
 
-if (env.ZOTERO_PLUGIN_PROFILE_PATH) {
-  cleanSessionTabs(env.ZOTERO_PLUGIN_PROFILE_PATH, pkg.config.addonRef);
+if (profilePath) {
+  cleanSessionTabs(profilePath, pkg.config.addonRef);
 } else {
   console.warn(
     "clean-dev-profile: ZOTERO_PLUGIN_PROFILE_PATH not set in .env, skipping session.json cleanup",

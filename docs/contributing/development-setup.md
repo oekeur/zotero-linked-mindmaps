@@ -75,6 +75,46 @@ The scaffold initializes both on first launch, and `.scaffold/` is gitignored, s
 
 `npm test` needs none of this. The test runner hardcodes its profile and data directories to `.scaffold/test/profile` and `.scaffold/test/data` relative to the current working directory, empties them at the start of every run, and picks a free TCP port for the debugger server at launch. Concurrent test runs across checkouts are already isolated from each other. See [testing-howto.md](./testing-howto.md).
 
+### The Browser Toolbox needs a binary path on Zotero 9
+
+Official Zotero release builds do ship the Firefox DevTools. Zotero 9.0.6's `app/omni.ja` carries the same 2345 `chrome/devtools/**` entries as the 10.x beta, registered as chrome, so the build page's claim that `-jsdebugger` is "not available in release builds" does not describe 9.x. What is true is that the bare flag does nothing on 9.
+
+The launcher starts the toolbox as a second process, using `XREExeF` (the executable, `zotero-bin`) with no `-app` argument. That child boots as generic Firefox, dies on `Failed to load resource:///modules/DevToolsStartup.sys.mjs`, and the parent then tears down the DevTools server it had just started. None of it is printed unless `browser.dom.window.dump.enabled` is on, so it reads as a build without devtools. The 10.x beta patches the one line responsible in `Launcher.sys.mjs`:
+
+```js
+let command = Services.dirsvc.get("XREExeF", Ci.nsIFile).path;
+command = command.replace("zotero-bin", "zotero");
+```
+
+9.0.6 ships it unpatched.
+
+`--jsdebugger` also takes a binary path, which sets `MOZ_BROWSER_TOOLBOX_BINARY`. Point it at Zotero's own `zotero` launcher script, which adds `-app` itself. `zotero-plugin.config.ts` does this for `npm start`, deriving the path from `ZOTERO_PLUGIN_ZOTERO_BIN_PATH`; the path form works on 10 as well, so it is not version-gated. For a Zotero you launch by hand:
+
+```sh
+/path/to/zotero -jsconsole -jsdebugger /path/to/zotero
+```
+
+A hand-launched Zotero needs one more thing: `devtools.debugger.remote-enabled` set to true in its profile. Zotero's defaults set `devtools.chrome.enabled` only, Gecko defaults the other to false, and `-jsdebugger` is a no-op without both. The scaffold writes the pref into the profile itself, so `npm start` and `npm test` never hit this.
+
+## Running against Zotero 9 or 10
+
+`.env` names one Zotero binary, and `npm start` and `npm test` use it. That default is the 10.x beta, because the dev library `ZOTERO_PLUGIN_DATA_DIR` points at has been upgraded to userdata schema 129 and Zotero 9 will not open it.
+
+To run the dev server against either version:
+
+```sh
+scripts/serve.sh 9
+scripts/serve.sh 10
+```
+
+Both read their binary from `.env`, so set `ZOTERO9_BIN` and `ZOTERO10_BIN` to the two `zotero` launcher scripts (the shell script, not `zotero-bin`).
+
+Target 9 does not reuse the profile and data directory named in `.env`. It appends `-zotero9` to both and lets the scaffold create them, so the first run comes up with an empty library. That split is forced, not a preference: Zotero 10 stamps the database's `compatibility` value at 9, Zotero 9's `_maxCompatibility` is 7, and 9 aborts with "Database is incompatible with this Zotero version" instead of downgrading. Nothing migrates a library back, so the two versions keep separate ones.
+
+Because the suffix is derived from whatever `.env` currently holds, a worktree whose `.env` the worktree hook has repointed gets a worktree-local Zotero 9 profile as well, with no extra setup.
+
+Only one Zotero runs at a time. `prestart` runs `pkill -9 -f zotero-bin` before the server starts, so launching either target kills whatever Zotero was already up.
+
 ## Next
 
 [npm-scripts-reference.md](./npm-scripts-reference.md) lists every script and what it produces, and [testing-howto.md](./testing-howto.md) covers running the suite. If you want to see what the plugin does from a user's side, start at [getting-started.md](../user-guide/getting-started.md). For how startup and shutdown are wired, [lifecycle-reference.md](../internals/lifecycle-reference.md).

@@ -24,6 +24,7 @@ Plugin name: **Zotero Linked Mindmaps** (`config.addonName`/`addonRef` in `packa
 ## Scripts
 
 - `scripts/verify.sh` — the verification gate: build, lint, then the live-Zotero startup check, cheapest stage first. Runs every stage even after one fails and exits non-zero naming which. `--no-test` stops before Zotero is launched; `--test-only` runs the live stage alone. It refuses the live stage when a Zotero is running that is not a test profile, because `test:fast` force-kills by `pkill -9 -f zotero-bin` and would take a dev instance (or your own library) down with it.
+- `scripts/serve.sh <9|10>` — runs `npm start` against a chosen Zotero major version. Zotero 9 and 10 cannot share a data directory: 10 upgrades the library to userdata schema 129 and stamps DB compatibility 9, while 9 caps at `_maxCompatibility` 7 and refuses to open it. Target 9 therefore gets its own profile and data dir, derived from the `.env` paths with a `-zotero9` suffix, so worktree isolation still applies; target 10 uses the `.env` paths as they are. One at a time only: `prestart` force-kills every `zotero-bin`.
 - `scripts/backlog.sh` — the Backlog.md CLI, pointed at the tracker in `project/`. Resolves the package name (`backlog.md`, not `backlog`) and the tracker path from the main checkout, so it works from a worktree too.
 - `scripts/run-tests.mjs` (`npm run test:fast`) and `scripts/clean-dev-profile.mjs` (`npm run clean:profile`, and automatically via `prestart`) — see `docs/contributing/npm-scripts-reference.md`.
 
