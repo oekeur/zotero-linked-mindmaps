@@ -1,0 +1,152 @@
+import { assert } from "chai";
+import { config } from "../../package.json";
+import { openAddLinkDialog } from "../../src/modules/mindmap/addLinkForm";
+import { clearStorageNotes } from "./storageNotes";
+
+/**
+ * The standalone "Add link" window, opened the way the library context menu
+ * opens it. Its own window means its own Fluent context and its own sizing,
+ * neither of which the item-pane surfaces exercise.
+ *
+ * Each check is its own test: the scaffold's mocha reporter prints neither the
+ * assertion message nor its values, so the test name is the only thing that
+ * says what broke.
+ */
+describe("mindmap/addLinkForm standalone dialog", function () {
+  const CONTENT_ID = "zoterolinkedmindmaps-add-link-dialog-content";
+
+  let item: Zotero.Item;
+
+  /**
+   * nsIWindowWatcher, not nsIWindowMediator: the mediator only tracks windows
+   * carrying a windowtype, and the dialog's about:blank root has none.
+   */
+  function dialogWindows(): Window[] {
+    const found: Window[] = [];
+    const enumerator = Services.ww.getWindowEnumerator();
+    while (enumerator.hasMoreElements()) {
+      const win = enumerator.getNext() as unknown as Window;
+      try {
+        if (win.document?.getElementById(CONTENT_ID)) {
+          found.push(win);
+        }
+      } catch {
+        // A window whose document can't be read from here isn't ours.
+      }
+    }
+    return found;
+  }
+
+  async function closeOpenDialogs(): Promise<void> {
+    for (const win of dialogWindows()) {
+      win.close();
+    }
+    await Zotero.Promise.delay(300);
+  }
+
+  interface OpenDialog {
+    content: HTMLElement;
+    win: Window;
+    closed: Promise<void>;
+  }
+
+  /** Opens the dialog and waits until the form inside it has been filled in. */
+  async function openDialog(): Promise<OpenDialog> {
+    const closed = openAddLinkDialog(Zotero.getMainWindow(), item);
+    for (let i = 0; i < 150; i++) {
+      await Zotero.Promise.delay(100);
+      const win = dialogWindows()[0];
+      const content = win?.document.getElementById(CONTENT_ID);
+      if (content?.querySelector("button")) {
+        // Past the resize and Fluent's fill-in, so what is measured here is
+        // where the dialog settles rather than a frame on the way there.
+        await Zotero.Promise.delay(1000);
+        return { content: content as HTMLElement, win, closed };
+      }
+    }
+    throw new Error("the Add link dialog never opened");
+  }
+
+  before(function () {
+    const instance = (Zotero as any)[config.addonInstance];
+    // openAddLinkDialog builds its window through the plugin's own toolkit and
+    // reads addonRef off the addon singleton; the test bundle has neither.
+    (globalThis as any).addon = instance;
+    (globalThis as any).ztoolkit = instance.data.ztoolkit;
+  });
+
+  beforeEach(async function () {
+    this.timeout(30000);
+    // A dialog left open by an interrupted run would be found before this
+    // one's, and it was built by whatever code was loaded then.
+    await closeOpenDialogs();
+    await clearStorageNotes();
+    item = new Zotero.Item("journalArticle");
+    item.libraryID = Zotero.Libraries.userLibraryID;
+    item.setField("title", "Add Link Dialog Test Item");
+    await item.saveTx();
+  });
+
+  afterEach(async function () {
+    this.timeout(30000);
+    await closeOpenDialogs();
+    await item.eraseTx();
+    await clearStorageNotes();
+  });
+
+  // The bug these guard: the form's data-l10n-id attributes resolved against a
+  // window with no plugin strings registered, so every label and every button
+  // came out empty and the dialog read as broken.
+  it("fills in every field label", async function () {
+    this.timeout(45000);
+    const { content, win, closed } = await openDialog();
+    const labels = Array.from(content.querySelectorAll("label"));
+
+    assert.isNotEmpty(labels);
+    for (const label of labels) {
+      assert.isNotEmpty(label.textContent?.trim() ?? "");
+    }
+
+    win.close();
+    await closed;
+  });
+
+  it("fills in every button", async function () {
+    this.timeout(45000);
+    const { content, win, closed } = await openDialog();
+    const buttons = Array.from(content.querySelectorAll("button"));
+
+    assert.isNotEmpty(buttons);
+    for (const button of buttons) {
+      assert.isNotEmpty(button.textContent?.trim() ?? "");
+    }
+
+    win.close();
+    await closed;
+  });
+
+  it("shows translated text rather than raw Fluent ids", async function () {
+    this.timeout(45000);
+    const { content, win, closed } = await openDialog();
+
+    assert.notInclude(content.textContent ?? "", `${config.addonRef}-`);
+
+    win.close();
+    await closed;
+  });
+
+  it("sizes the window so the whole form is on screen", async function () {
+    this.timeout(45000);
+    const { content, win, closed } = await openDialog();
+    const buttons = Array.from(content.querySelectorAll("button"));
+    const save = buttons[buttons.length - 1];
+
+    assert.isAtMost(
+      Math.round(save.getBoundingClientRect().bottom),
+      win.innerHeight,
+    );
+
+    win.close();
+    await closed;
+  });
+});

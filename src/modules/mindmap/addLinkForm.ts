@@ -492,6 +492,39 @@ export function renderAddLinkForm(
   });
 }
 
+/** What the dialog opens at, before the form it holds has been measured. */
+const DIALOG_INITIAL_WIDTH = 480;
+const DIALOG_INITIAL_HEIGHT = 320;
+
+/**
+ * Resizes `win` around the form it now holds. The toolkit's own fitContent is
+ * turned off in favour of this: it fires on a fixed 300ms timer, which the
+ * mindmap read and Fluent's fill-in can both finish after, leaving the window
+ * sized for content that wasn't there yet and the Save button off the bottom.
+ */
+async function fitDialogToContent(win: Window): Promise<void> {
+  const doc = win.document as Document & { l10n?: { ready: Promise<void> } };
+  await doc.l10n?.ready;
+  // One frame, so the strings Fluent just filled in are laid out before the
+  // measurement rather than after it.
+  await new Promise<void>((resolve) =>
+    win.requestAnimationFrame(() => resolve()),
+  );
+
+  const root = doc.documentElement;
+  if (!root) {
+    return;
+  }
+  const height = root.scrollHeight + (win.outerHeight - win.innerHeight);
+  const width = Math.max(
+    win.outerWidth,
+    root.scrollWidth + (win.outerWidth - win.innerWidth),
+  );
+  if (height > 0 && width > 0) {
+    win.resizeTo(width, height);
+  }
+}
+
 /**
  * Standalone entry point for opening the "Add link" form outside the item
  * pane (e.g. from a library right-click menu). Resolves once the dialog
@@ -518,6 +551,12 @@ export function openAddLinkDialog(
         styles: { width: "100%" },
       })
       .setDialogData({
+        // The form's fields carry data-l10n-id, which Fluent resolves against
+        // the window the element lives in. This is a window of its own, so it
+        // starts with no plugin strings registered: without this every label
+        // and button in the form renders blank. The main window gets the same
+        // file at startup, which is why the item-pane surfaces don't need it.
+        l10nFiles: [`${addon.data.config.addonRef}-mainWindow.ftl`],
         loadCallback: () => {
           void (async () => {
             const contentEl = dialog.window.document.getElementById(
@@ -536,6 +575,7 @@ export function openAddLinkDialog(
                 (err as Error).message
               }`;
             }
+            await fitDialogToContent(dialog.window);
           })();
         },
         unloadCallback: () => resolve(),
@@ -543,7 +583,9 @@ export function openAddLinkDialog(
       .open("Add link", {
         centerscreen: true,
         resizable: true,
-        fitContent: true,
+        width: DIALOG_INITIAL_WIDTH,
+        height: DIALOG_INITIAL_HEIGHT,
+        fitContent: false,
       });
   });
 }

@@ -34,7 +34,7 @@ Zotero discovers `.ftl` files by scanning the built add-on's `locale/<lang>/` di
 
 Two separate consumers resolve those files, and they do not share a registry:
 
-**Window l10n contexts**, which `data-l10n-id` attributes resolve against. `onMainWindowLoad` calls `win.MozXULElement.insertFTLIfNeeded("zoterolinkedmindmaps-mainWindow.ftl")` for each main window. The item-pane section registered through `Zotero.ItemPaneManager.registerSection` takes `l10nID` values (built with `getLocaleID`) and Zotero resolves them itself.
+**Window l10n contexts**, which `data-l10n-id` attributes resolve against. `onMainWindowLoad` calls `win.MozXULElement.insertFTLIfNeeded("zoterolinkedmindmaps-mainWindow.ftl")` for each main window. The item-pane section registered through `Zotero.ItemPaneManager.registerSection` takes `l10nID` values (built with `getLocaleID`) and Zotero resolves them itself. A window the plugin opens for itself gets neither; see [the bundle-scope limit](#the-bundle-scope-limit).
 
 **The plugin's own bundle**, which `getString` formats against. That bundle is built by `initLocale()` from `LOCALE_FILES` and nothing else.
 
@@ -119,6 +119,17 @@ The link-types pane in the same file is built entirely from code for the same re
 The pane's own label, the one Zotero shows in the preferences sidebar, goes through `getString("preferences-pane-label")` at `Zotero.PreferencePanes.register` time.
 
 `test/mindmap/preferencesPane.test.ts` guards this by asserting the rendered heading does not contain `zoterolinkedmindmaps-`, which is what a raw id would look like.
+
+A `ztoolkit.Dialog` window is neither one either. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id. The toolkit links whatever files `dialogData.l10nFiles` names into the window it opens, which is how the standalone "Add link" dialog gets its strings:
+
+```ts
+.setDialogData({
+  l10nFiles: [`${addon.data.config.addonRef}-mainWindow.ftl`],
+  loadCallback: () => { ... },
+})
+```
+
+`test/mindmap/addLinkDialog.test.ts` guards it by opening the real dialog and failing on an empty label or button. Driving `openAddLinkDialog` from a test needs `globalThis.addon` and `globalThis.ztoolkit` assigned from the plugin instance first, the same way `mindmapTabLive.test.ts` does it.
 
 ## Adding a string
 
