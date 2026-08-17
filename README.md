@@ -30,7 +30,15 @@ See [ROADMAP.md](./ROADMAP.md) for what came in which phase and what's still ope
 
 ## Documentation
 
-Full docs live in [`docs/`](./docs/).
+Published at **https://oekeur.github.io/zotero-linked-mindmaps/** (built from [`docs/`](./docs/) by VitePress on every push to `main`). The same pages render in-repo if you'd rather browse the source tree.
+
+Working on the docs locally:
+
+```sh
+npm run docs:dev      # local server with hot reload
+npm run docs:build    # production build, fails on any dead link
+npm run docs:preview  # serve the built site
+```
 
 - [Getting started](./docs/user-guide/getting-started.md) walks from an empty install to a first linked mindmap.
 - [User guide](./docs/user-guide/) covers the mindmap tab, the Connections panel, link types, grouping, cross-mindmap links, and recovering plugin data from the trash.

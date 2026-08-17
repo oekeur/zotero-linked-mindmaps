@@ -28,6 +28,10 @@ build
 logs
 tsconfig.tsbuildinfo
 
+# VitePress build output and dev cache; the site is rebuilt in CI on every deploy
+/docs/.vitepress/dist
+/docs/.vitepress/cache
+
 # JetBrains personal IDE state, not shared project config
 /.idea
 

@@ -14,7 +14,7 @@ A link's freeform `name` is appended to the type label as `"cites: see p.12"` ra
 
 The third style, dotted grey, is the fallback for a link whose `typeId` matches nothing in the current vocabulary. A user can delete a type from settings while links still reference it, and there are three things the renderer could do: drop the link, throw, or draw it as something. Dropping loses data the user still has; throwing takes the whole graph down over one edge. So the link renders with the label `(unknown type)` and the dotted style. The link is visibly wrong, and it is still there to be repaired.
 
-Color is left free by all of this, which is on purpose. It is available later for something else, and shape is deliberately unspent too: shape is how a future item-versus-note distinction would read, which is why an external node borrowed from another mindmap gets a dashed border and a paler fill at the same shape and size rather than a different outline shape. See [cross-mindmap-links-explanation.md](cross-mindmap-links-explanation.md).
+Color is left free by all of this, which is on purpose. It is available later for something else, and shape is deliberately unspent too: shape is how a future item-versus-note distinction would read, which is why an external node borrowed from another mindmap gets a dashed border and a paler fill at the same shape and size rather than a different outline shape. See [why external nodes exist](../user-guide/cross-mindmap-links-explanation.md).
 
 ## Parallel links are offset so each stays readable
 

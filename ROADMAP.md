@@ -30,11 +30,13 @@ Standalone notes and child notes are linkable nodes, same as regular items. Atta
 
 Links reaching from one mindmap into a node whose membership lives in another, styled to flag it as external. Stale external nodes get pruned.
 
-## Phase 5: Library integration polish (in progress)
+## Phase 5: Library integration polish (mostly done)
 
-Filter mindmap storage items out of the default item tree, behind a settings toggle. The `hideMindmapNotes` preference and the item-tree patch are written but not yet committed.
+Keep the plugin's storage out of the user's way in the library and in the link-target picker.
 
-Zotero exposes no API for filtering item-tree rows, so this monkey-patches shared state and carries a real upgrade-breakage risk. See [the library filter notes](./docs/internals/library-filter-explanation.md).
+The main part is done, and it needs no patched internals. Every storage note is parented to one container item per library, and Zotero's library and collection views add `noChildren` to the search that builds their rows, so a child note never renders as a top-level row. N mindmaps collapse to one visible row through Zotero's own view behavior. This replaced an earlier plan to patch `Zotero.CollectionTreeRow.prototype.getSearchObject` for the same job. See [container guard design](./docs/internals/container-guard-explanation.md).
+
+What remains is hiding that last container row, behind the `hideMindmapNotes` toggle. That part does patch `getSearchObject`, and it is written but not yet committed. It is deliberately optional and fails open: if the method is missing it logs and skips, and if the wrap throws it returns the original search, so a Zotero upgrade costs one visible row rather than an item tree that renders nothing. The honest cost is that it degrades with no signal. See [the library filter notes](./docs/internals/library-filter-explanation.md).
 
 ## Phase 6: Node grouping (done)
 

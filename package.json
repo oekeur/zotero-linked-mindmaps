@@ -28,6 +28,9 @@
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
     "test:fast": "node scripts/run-tests.mjs",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "update-deps": "npm update --save"
   },
   "dependencies": {
@@ -50,6 +53,7 @@
     "mocha": "^11.7.5",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
+    "vitepress": "^1.6.4",
     "zotero-plugin-scaffold": "^0.8.2",
     "zotero-types": "4.1.0-beta.4"
   },
