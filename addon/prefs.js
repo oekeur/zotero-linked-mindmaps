@@ -1,0 +1,1 @@
+pref("hideMindmapNotes", true);

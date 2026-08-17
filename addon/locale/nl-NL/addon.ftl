@@ -20,6 +20,9 @@ preferences-delete-confirm-used =
        *[other] Dit koppelingstype verwijderen? { $count } koppelingen gebruiken het en tonen daar "(onbekend type)".
     }
 preferences-delete-confirm-unknown = Kon niet nagaan hoeveel koppelingen dit type gebruiken; de mindmapgegevens waren niet te lezen. Toch verwijderen?
+preferences-hide-mindmap-notes = Het item "Zotero Linked Mindmaps (plugin data)" verbergen in de bibliotheek
+container-trashed-now = "Zotero Linked Mindmaps (plugin data)" is naar de prullenbak verplaatst. Alle mindmaps in die bibliotheek blijven verborgen totdat je het item terugzet.
+container-trashed-startup = "Zotero Linked Mindmaps (plugin data)" staat in de prullenbak. Alle mindmaps in die bibliotheek blijven verborgen totdat je het item terugzet.
 itemmenu-add-to-mindmap = Aan mindmap toevoegen
 itemmenu-add-link = Koppeling toevoegen…
 add-to-mindmap-progress = { $count } item(s) aan de mindmap toegevoegd

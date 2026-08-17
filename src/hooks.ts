@@ -12,8 +12,18 @@ import {
   unregisterDeletionObserver,
 } from "./modules/mindmap/deletionCleanup";
 import { renderLinkTypesSettings } from "./modules/mindmap/linkTypesSettings";
+import {
+  reconcileContainers,
+  registerContainerObserver,
+  unregisterContainerObserver,
+} from "./modules/mindmap/containerGuard";
+import {
+  registerLibraryFilter,
+  unregisterLibraryFilter,
+} from "./modules/mindmap/libraryFilter";
 
 let deletionObserverID: string | undefined;
+let containerObserverID: string | undefined;
 
 /**
  * One toolkit per main window. `unregisterAll()` takes down every element the
@@ -42,6 +52,10 @@ async function onStartup() {
 
   ConnectionsPanelFactory.register();
   deletionObserverID = registerDeletionObserver();
+  containerObserverID = registerContainerObserver();
+  // Zotero.CollectionTreeRow is shared by every window, so this patch is
+  // registered once here rather than per window.
+  registerLibraryFilter();
 
   await Zotero.PreferencePanes.register({
     pluginID: addon.data.config.addonID,
@@ -57,6 +71,10 @@ async function onStartup() {
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
   );
+
+  // After the windows, not before: a library whose container is in the trash
+  // is reported through a ProgressWindow, which needs a window to appear in.
+  await reconcileContainers();
 
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)
@@ -119,6 +137,11 @@ function onShutdown(): void {
     unregisterDeletionObserver(deletionObserverID);
     deletionObserverID = undefined;
   }
+  if (containerObserverID) {
+    unregisterContainerObserver(containerObserverID);
+    containerObserverID = undefined;
+  }
+  unregisterLibraryFilter();
   closeMindmapTab();
   for (const toolkit of windowToolkits.values()) {
     toolkit.unregisterAll();
@@ -149,6 +172,15 @@ async function onPrefsEvent(type: string, data: { [key: string]: any }) {
       if (data.container) {
         renderLinkTypesSettings(data.container as HTMLElement);
       }
+      break;
+    // Labelled from here rather than through data-l10n-id: the preferences
+    // window has no l10n context for the plugin's .ftl files, so the same
+    // getString path the link-types pane uses is the one that resolves.
+    case "library-pane-load":
+      (data.checkbox as Element | null)?.setAttribute(
+        "label",
+        getString("preferences-hide-mindmap-notes"),
+      );
       break;
     default:
       break;
