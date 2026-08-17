@@ -10,18 +10,36 @@ An existing plugin, [samreading/zotero-mindmap](https://github.com/samreading/zo
 
 ## What it does
 
-- Typed, named links between items and notes, with an optional direction, so "critiques" and "primary source for chapter 3" mean something more specific than a generic "related."
+- Typed, named links between items and notes, with an optional direction, so "critiques" and "primary source for chapter 3" mean something more specific than a generic "related." Link types are a vocabulary you edit, not a fixed list.
 - Multiple named mindmaps instead of one flat graph, since most people's sources split by topic rather than one global structure.
-- A rendered graph per mindmap, with link type shown as a label plus a line-style cue, not color alone (color stops being readable past 8-10 types).
-- Link creation from wherever you're actually working: the item pane while reading, a right-click in the library, or directly on an open mindmap.
+- A rendered graph per mindmap in its own Zotero tab, with link type shown as a label plus a line-style cue, not color alone (color stops being readable past 8-10 types). Parallel links between the same two nodes are offset so each stays readable and separately labeled.
+- Link creation from wherever you're actually working: a "Connections" section in the item pane while reading, a right-click in the library, or a right-click on a node in an open mindmap.
+- Node positions you set by dragging, persisted with the mindmap. Nodes you haven't placed get laid out on a grid.
+- Node grouping, for marking a cluster as belonging together without inventing a link between every pair.
+- Cross-mindmap links, reaching from one mindmap into a node whose membership lives in another, styled to flag it as external.
+
+Mindmap data lives in a Zotero note item, tagged and parented to a per-library container item, so it syncs with your library through Zotero itself rather than a separate account or file. The container can be hidden from the library view.
 
 ## Status
 
-Pre-implementation. Scaffolded from [windingwind/zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template); `src/` is still the template's example code, none of it this plugin's functionality yet. See [ROADMAP.md](./ROADMAP.md) for the plan.
+Implemented and usable, not yet released. Version 0.1.0, no published build yet, so installation today means building from source (see Development below).
+
+The feature set above works. What that means in practice: expect rough edges, and read [the plugin data guide](./docs/user-guide/plugin-data-howto.md) before you go poking at the "Zotero Linked Mindmaps (plugin data)" item in your library. Trashing it hides every mindmap in that library until you restore it.
+
+See [ROADMAP.md](./ROADMAP.md) for what came in which phase and what's still open.
+
+## Documentation
+
+Full docs live in [`docs/`](./docs/).
+
+- [Getting started](./docs/user-guide/getting-started.md) walks from an empty install to a first linked mindmap.
+- [User guide](./docs/user-guide/) covers the mindmap tab, the Connections panel, link types, grouping, cross-mindmap links, and recovering plugin data from the trash.
+- [Contributing](./docs/contributing/) covers dev setup, the npm scripts, testing against a live Zotero instance, and configuration.
+- [Internals](./docs/internals/) documents the storage layer, the document schema, graph rendering, and the plugin lifecycle, including the Zotero integration constraints that shaped them.
 
 ## Development
 
-Requires a local Zotero 7 install and a dev profile.
+Requires a local Zotero 7 install and a dev profile. [Full setup guide](./docs/contributing/development-setup.md).
 
 ```sh
 cp .env.example .env
@@ -34,11 +52,16 @@ npm start        # builds and hot-reloads into the Zotero dev profile
 Other commands:
 
 ```sh
-npm run build        # bundle to a .xpi-ready build, then type-check
+npm run build         # bundle to a .xpi-ready build, then type-check with tsc --noEmit
 npm run lint:check    # Prettier + ESLint, check only
 npm run lint:fix      # Prettier + ESLint, auto-fix
 npm test              # run test/ against a live Zotero instance
+npm run test:fast     # same run, but kills Zotero on the completion line instead of
+                      # waiting for its GUI to exit, which sometimes never happens
+npm run clean:profile # reset the dev profile (also runs automatically before npm start)
 ```
+
+`npm run build` type-checks `src/` but not `test/`, so run the suite after changing an exported signature.
 
 ## License
 

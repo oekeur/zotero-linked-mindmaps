@@ -1,37 +1,47 @@
 # Roadmap
 
-Not a task-level breakdown. Order past Phase 1 isn't fixed.
+Not a task-level breakdown. Phases 0 through 4 and 6 are built; Phase 5 is in progress. Nothing here is released yet.
 
-## Phase 0: Feasibility spike
+For what the built features actually do, read the [user guide](./docs/user-guide/); this file records the order things arrived in and what is still open.
 
-Confirm a JS graph library renders inside Zotero's plugin window. Cytoscape.js is the leading candidate.
+## Phase 0: Feasibility spike (done)
 
-## Phase 1: V1 MVP
+Confirmed Cytoscape.js renders inside Zotero's plugin window. It works, but not for free: Zotero's bootstrap scope is missing browser globals Cytoscape assumes exist, and the ones that are present are non-configurable getters that have to be installed with `defineProperty` rather than assignment. See [the Cytoscape notes](./docs/internals/cytoscape-explanation.md).
 
-Single mindmap, items-only nodes, no cross-mindmap links.
+## Phase 1: V1 MVP (done)
 
-- Data model & storage: one JSON document per mindmap, held in a Zotero note item's content, riding Zotero's own sync.
-- Link types: a default set, customizable via a settings panel.
+- Data model and storage: one JSON document per mindmap, held in a Zotero note item's content, riding Zotero's own sync. See [storage internals](./docs/internals/storage-explanation.md).
+- Link types: a default set, editable in a preferences pane.
 - Connections panel: item-pane surface for defining links, plus entry points from the library and from an open mindmap.
 - Mindmap tab: renders the graph, link type shown as a label and a line-style cue, not color alone.
-- Link-target picker: search-filtered dialog for choosing what to link to.
+- Link-target picker: uses Zotero's native item-selector dialog rather than a custom one.
 
-## Phase 2: Multi-mindmap
+The original scope said single mindmap and items-only nodes. Both were lifted in later phases.
 
-Create, rename, describe, and delete multiple named mindmaps.
+## Phase 2: Multi-mindmap (done)
 
-## Phase 3: Notes as nodes
+Create, rename, describe, and delete multiple named mindmaps, listed in the tab sidebar.
 
-Standalone notes and child notes become linkable nodes, same as items.
+## Phase 3: Notes as nodes (done)
 
-## Phase 4: Cross-mindmap links
+Standalone notes and child notes are linkable nodes, same as regular items. Attachments are not.
 
-Links that reach from one mindmap into a node whose membership lives in another, styled distinctly to flag it as external.
+## Phase 4: Cross-mindmap links (done)
 
-## Phase 5: Library integration polish
+Links reaching from one mindmap into a node whose membership lives in another, styled to flag it as external. Stale external nodes get pruned.
 
-Filter mindmap-storage notes out of the default item tree, behind a settings toggle.
+## Phase 5: Library integration polish (in progress)
 
-## Phase 6: Node grouping
+Filter mindmap storage items out of the default item tree, behind a settings toggle. The `hideMindmapNotes` preference and the item-tree patch are written but not yet committed.
 
-Select several nodes on a mindmap and visually group them, separate from a typed/named link. Visual treatment not decided yet — see PRODUCT.md and TASK-34.
+Zotero exposes no API for filtering item-tree rows, so this monkey-patches shared state and carries a real upgrade-breakage risk. See [the library filter notes](./docs/internals/library-filter-explanation.md).
+
+## Phase 6: Node grouping (done)
+
+Select several nodes on a mindmap and group them, separate from a typed or named link. Groups carry an optional name.
+
+## Open
+
+- No released build. Version 0.1.0, install means building from source.
+- A trashed plugin-data container hides every mindmap in that library. The plugin does warn, and the warning stays up until clicked, but it says nothing about how to undo the state it reports. A trashed individual storage note is worse: no warning fires at all. See [plugin data recovery](./docs/user-guide/plugin-data-howto.md).
+- Sync conflicts on a mindmap document are a knowingly accepted risk, not a solved problem.
