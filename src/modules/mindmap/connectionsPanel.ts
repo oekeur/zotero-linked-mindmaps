@@ -103,6 +103,7 @@ function appendL10nText(container: HTMLElement, doc: Document, id: string) {
 }
 
 const ADD_LINK_FORM_CLASS = "mindmap-add-link-form";
+const FORM_MINDMAP_ATTRIBUTE = "data-mindmap-id";
 
 /**
  * True where the panel has no section header to hang a "+" on. The item-pane
@@ -132,6 +133,13 @@ function appendAddLinkSection(
   const formContainer = doc.createElement("div");
   formContainer.classList.add(ADD_LINK_FORM_CLASS);
   formContainer.style.display = "none";
+  // Recorded on the element rather than kept in this closure because the form
+  // is opened from three places and only one of them can reach a closure here:
+  // this button, the section header's "+" (which the item pane calls with
+  // nothing but the body element), and the graph's right-click menu.
+  if (mindmapId !== undefined) {
+    formContainer.setAttribute(FORM_MINDMAP_ATTRIBUTE, mindmapId);
+  }
 
   if (needsInBodyAddButton(container)) {
     appendL10nButton(wrapper, "add-link-button", () => {
@@ -151,6 +159,10 @@ function appendAddLinkSection(
  * Reveals the add-link form inside an already-rendered panel, loading it on
  * first use. No-op while the panel is still rendering or when it is showing an
  * error state, since neither has a form container yet.
+ *
+ * Falls back to the mindmap the panel drew, so a caller that has no id of its
+ * own - the section header's "+" - still lands on the mindmap the user is
+ * looking at rather than being asked to name it again.
  */
 function openAddLinkForm(
   container: HTMLElement,
@@ -165,7 +177,14 @@ function openAddLinkForm(
   }
   formContainer.style.display = "";
   if (formContainer.childElementCount === 0) {
-    void loadAddLinkForm(formContainer, item, container, mindmapId);
+    void loadAddLinkForm(
+      formContainer,
+      item,
+      container,
+      mindmapId ??
+        formContainer.getAttribute(FORM_MINDMAP_ATTRIBUTE) ??
+        undefined,
+    );
   }
 }
 

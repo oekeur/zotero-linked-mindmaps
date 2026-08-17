@@ -9,6 +9,7 @@ import {
 } from "../../src/modules/mindmap/storage";
 import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
 import { createMemberNode, refFor } from "../../src/modules/mindmap/mutations";
+import { addToMindmap } from "../../src/modules/mindmap/libraryContextMenu";
 import { getLocaleID } from "../../src/utils/locale";
 import { clearStorageNotes } from "./storageNotes";
 
@@ -138,6 +139,26 @@ describe("mindmap/connectionsPanel", function () {
       this.timeout(30000);
       await renderConnectionsContent(container, article);
 
+      addLinkButton().click();
+      await Zotero.Promise.delay(600);
+
+      assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
+      assert.isNotNull(
+        form().querySelector(
+          `[data-l10n-id="${getLocaleID("add-link-save-button")}"]`,
+        ),
+      );
+    });
+
+    it("skips the question for a mindmap the panel already resolved", async function () {
+      this.timeout(30000);
+      await createMindmap("Chapter one");
+      const second = await createMindmap("Methods");
+      await addToMindmap([article], second.id);
+
+      // No id passed: the panel finds the mindmap holding the item on its own,
+      // and opening the form must not ask which one that was.
+      await renderConnectionsContent(container, article);
       addLinkButton().click();
       await Zotero.Promise.delay(600);
 
