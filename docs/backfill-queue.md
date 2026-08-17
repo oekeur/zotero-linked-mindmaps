@@ -1,0 +1,123 @@
+# Doc backfill queue
+
+Generated 2026-08-16 by `/doc-backfill`. Scan covered `src/`, `addon/`, `scripts/`, `typings/`, and root config — 30 source files, 5,548 lines, ~150 exported symbols.
+
+Work through it with `/doc-write <entity>`. Mark items done by striking the line and noting the file that now covers it.
+
+## Baseline: what already exists
+
+No `docs/` directory. Five markdown files carry the entire documentation load:
+
+| File | Covers | Quadrant | Problem |
+|---|---|---|---|
+| `README.md` | Plugin premise, four-bullet feature summary, dev setup commands | Explanation (thin) + how-to (dev only) | **Stale.** Says "Pre-implementation… `src/` is still the template's example code." Twelve features ship today. `npm run test:fast` and `npm run clean:profile` are missing from the command list. |
+| `ROADMAP.md` | Phases 0-6 | Explanation (planning) | Phases 1-6 are largely built; the doc still reads as forward-looking. |
+| `CLAUDE.md` | Build/test commands, repo layout, manual verification protocol, engineering standards | Reference + how-to, agent-scoped | Written for AI agents, not contributors. The verification protocol and the silent-failure list are the best operational docs in the repo and are invisible to a human reader who does not open an agent file. |
+| `project/PRODUCT.md`, `project/FEATURES.md` | Product charter, 10 numbered features with rationale | Explanation | **Not in this repo.** `project/` is a separate nested git repo, gitignored here. Nothing a cloner or contributor can read. |
+| `plans/2026-08-15-*.md`, `plans/2026-08-16-*.md` | Target-picker native dialog fix; container-item design | Explanation (point-in-time) | Implementation plans, not maintained docs. The container-item plan is the only written record of the storage container design. |
+
+Effective baseline for a user or outside contributor: the README's four bullets. Everything else is either agent-facing, gitignored, or a plan snapshot.
+
+**Zero user-facing documentation exists.** No how-to for creating a mindmap, adding a link, grouping nodes, or recovering a trashed container — despite all four shipping and two of them (container trash, grouping) having failure modes a user will hit and cannot reason about from the UI alone.
+
+## Tier 1 — User-facing features
+
+Everything an end user touches. Document these first; the whole tier is currently undocumented.
+
+| Entity | Source | Missing |
+|---|---|---|
+| Add-link workflow | `modules/mindmap/addLinkForm.ts`, `targetPicker.ts` | reference, how-to, tutorial |
+| Connections panel (item pane) | `modules/mindmap/connectionsPanel.ts` | reference, how-to |
+| Cross-mindmap (external) links | `addLinkForm.ts:completeExternalLink`, `crossMindmapCleanup.ts` | reference, how-to, explanation |
+| Library "Add to mindmap" context menu | `modules/mindmap/libraryContextMenu.ts` | reference, how-to |
+| Library filtering of plugin data | `modules/mindmap/libraryFilter.ts` | reference, how-to |
+| Link types (create, edit, delete) | `modules/mindmap/linkTypes.ts`, `linkTypesSettings.ts` | reference, how-to, explanation |
+| Mindmap management (new, edit, delete) | `mindmapTab.ts` sidebar, `storage.ts` | reference, how-to |
+| Mindmap tab and graph view | `modules/mindmap/mindmapTab.ts`, `graphRenderer.ts` | reference, how-to, tutorial |
+| Node grouping | `graphRenderer.ts:attachGroupingHandlers`, `mutations.ts` | reference, how-to |
+| Node overview dock | `modules/mindmap/nodeOverview.ts` | reference |
+| Node positioning and layout persistence | `graphRenderer.ts:attachNodeDragHandler`, `layout.ts` | reference, explanation |
+| Storage container item and trash recovery | `containerGuard.ts`, `storage.ts` | reference, how-to, explanation |
+
+`_Storage container_` is the priority within the tier. Trashing the "Zotero Linked Mindmaps (plugin data)" item hides every mindmap in that library, the plugin warns through a ProgressWindow that closes, and nothing else tells the user what happened or how to undo it.
+
+A single **getting-started tutorial** covering install → create a mindmap → add items → link two of them → open the tab would serve the top four rows at once. Write it before the individual how-tos.
+
+## Tier 2 — Developer entry points
+
+No CLI, no API endpoints. The entry points are npm scripts.
+
+| Entity | Source | Missing |
+|---|---|---|
+| `npm run clean:profile` / `scripts/clean-dev-profile.mjs` | `scripts/clean-dev-profile.mjs` | reference |
+| `npm run test:fast` / `scripts/run-tests.mjs` | `scripts/run-tests.mjs` | reference, how-to |
+| Test suite conventions (live-Zotero Mocha, storage-note leakage between suites) | `test/` | how-to, explanation |
+
+`test:fast` and its rationale (Zotero's GUI sometimes never exits, so the script kills `zotero-bin` on the completion line) are documented only inside `CLAUDE.md`. That belongs in a contributor doc.
+
+## Tier 3 — Configuration
+
+| Entity | Source | Missing |
+|---|---|---|
+| `.env` variables (bin path, profile path, data dir, kill command, GitHub token) | `.env.example` | reference |
+| `hideMindmapNotes` preference | `addon/prefs.js`, `typings/prefs.d.ts` | reference |
+| Link-types preference (JSON blob under a plugin pref key) | `linkTypes.ts:LINK_TYPES_PREF_KEY` | reference, explanation |
+| `package.json` `config` block and manifest fields (`addonID`, `addonRef`, `repository.url`, `strict_max_version`) | `package.json`, `addon/manifest.json` | reference |
+
+The manifest/package fields are the ones that fail silently rather than erroring. `CLAUDE.md` lists them; a contributor-facing reference should too.
+
+## Tier 4 — Internal modules
+
+Reference plus explanation where the module encodes a non-obvious decision.
+
+| Entity | Source | Missing |
+|---|---|---|
+| `addon.ts` / `index.ts` (Addon singleton, bootstrap wiring) | `src/addon.ts`, `src/index.ts` | reference |
+| `containerGuard.ts` (container reconciliation, observer) | `modules/mindmap/containerGuard.ts` | reference, explanation |
+| `crossMindmapCleanup.ts` (dangling external node pruning) | `modules/mindmap/crossMindmapCleanup.ts` | reference, explanation |
+| `deletionCleanup.ts` (delete reconciliation against current state) | `modules/mindmap/deletionCleanup.ts` | reference, explanation |
+| `graphRenderer.ts` (Cytoscape render, link visuals, parallel-edge offsets, ties, handlers) | `modules/mindmap/graphRenderer.ts` | reference, explanation |
+| `hooks.ts` (lifecycle, per-window toolkits) | `src/hooks.ts` | reference, explanation |
+| `layout.ts` (grid positions, unplaced-node layout) | `modules/mindmap/layout.ts` | reference |
+| `libraryFilter.ts` (item-tree monkey-patch) | `modules/mindmap/libraryFilter.ts` | reference, explanation |
+| `mutations.ts` (node/link/group document mutations) | `modules/mindmap/mutations.ts` | reference |
+| `nodeLabels.ts` (label resolution, missing-item fallbacks) | `modules/mindmap/nodeLabels.ts` | reference |
+| `schema.ts` (document shape, positions, coincidence, pile detection) | `modules/mindmap/schema.ts` | reference, explanation |
+| `storage.ts` (note CRUD, write queue, container resolution, `StorageError`) | `modules/mindmap/storage.ts` | reference, explanation |
+| `uiElements.ts` (shared l10n button/option helpers) | `modules/mindmap/uiElements.ts` | reference |
+| `utils/cytoscapeGlobalsPolyfill.ts`, `utils/consolePolyfill.ts` | `src/utils/` | reference, explanation |
+| `utils/locale.ts` (`initLocale`, `getString`, bundle scope) | `src/utils/locale.ts` | reference |
+| `utils/prefs.ts` (typed pref accessors) | `src/utils/prefs.ts` | reference |
+| `validate.ts` (parse and type guards for untrusted stored JSON) | `modules/mindmap/validate.ts` | reference, explanation |
+
+`storage.ts` at 660 lines and `graphRenderer.ts` at 910 are the two largest modules and the two with the most implicit contracts. Start there.
+
+## Tier 5 — Architecture and design
+
+Explanation only. Most of this exists as scattered knowledge in `CLAUDE.md`, plan files, and the gitignored `project/` repo — none of it in a place a contributor would find.
+
+- **Container-item design for storage notes** — why mindmap documents live under a tagged container item rather than as loose standalone notes. Source: `plans/2026-08-16-container-item-for-storage-notes.md`.
+- **Cytoscape in a Zotero bootstrap scope** — which browser globals are absent, why `defineProperty` rather than assignment, the `position: relative` container constraint.
+- **Delete reconciliation over delete tracking** — Zotero's delete notifications carry IDs, not keys, and arrive after the erase transaction resolves; cleanup reconciles against current state instead.
+- **Item-tree filtering without an API** — the monkey-patch on `Zotero.CollectionTreeRow`, why a matching child re-adds a filtered parent, and the upgrade-breakage risk.
+- **Notifier observers must not await the storage queue** — Zotero awaits observers inside the transaction commit the queued write runs in; awaiting there wedges the queue for the session.
+- **Per-window toolkit lifecycle** — why one `ZToolkit` per main window instead of a shared one, and what `unregisterAll()` tears down.
+- **Storage as a JSON document in a Zotero note** — the sync-riding tradeoff, the read-modify-write race, why the write queue and content-identity suppression exist, and the accepted sync-conflict risk.
+
+## Totals
+
+43 entities, 72 missing quadrant-documents. At five entities per `/doc-write` session, roughly 9 sessions.
+
+Suggested domain grouping if the work is parallelized:
+
+| Domain | Tier | Entities |
+|---|---|---|
+| User guide (tutorial + feature how-tos) | 1 | 12 |
+| Contributor guide (scripts, tests, config) | 2-3 | 7 |
+| Storage and data model | 4-5 | 10 |
+| Graph rendering and interaction | 4-5 | 5 |
+| Zotero integration and lifecycle | 4-5 | 9 |
+
+## Before anything else
+
+Fix `README.md`. It states the plugin is pre-implementation with template-only source. That is the first thing anyone reads and it is wrong about the entire project. This is a correction, not a backfill item, and it should not wait for a `/doc-write` session.
