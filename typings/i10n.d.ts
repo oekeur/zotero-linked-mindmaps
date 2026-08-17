@@ -32,7 +32,9 @@ export type FluentMessageId =
   | 'container-trashed-startup'
   | 'itemmenu-add-link'
   | 'itemmenu-add-to-mindmap'
+  | 'itemmenu-default-mindmap'
   | 'menuitem-mindmap-open'
+  | 'mindmap-data-trashed-open'
   | 'mindmap-delete-button'
   | 'mindmap-delete-confirm-message'
   | 'mindmap-delete-confirm-title'
@@ -70,4 +72,5 @@ export type FluentMessageId =
   | 'preferences-pane-label'
   | 'preferences-save-button'
   | 'startup-begin'
-  | 'startup-finish';
+  | 'startup-finish'
+  | 'storage-note-trashed-now';

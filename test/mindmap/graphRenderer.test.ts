@@ -14,8 +14,8 @@ import {
   renderMindmap,
   type RenderedState,
   resolveLinkVisual,
-  UNKNOWN_TYPE_LABEL,
 } from "../../src/modules/mindmap/graphRenderer";
+import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
 import {
   EMPTY_NOTE_LABEL,
   MISSING_ITEM_LABEL,

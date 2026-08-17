@@ -22,7 +22,7 @@ import {
   type MindmapSummary,
 } from "./storage";
 import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
-import { getLinkTypeById } from "./linkTypes";
+import { getLinkTypeById, UNKNOWN_TYPE_LABEL } from "./linkTypes";
 import { MISSING_ITEM_LABEL, resolveNodeLabel } from "./nodeLabels";
 import { appendL10nButton, appendMindmapOptions } from "./uiElements";
 import { renderAddLinkForm } from "./addLinkForm";
@@ -125,6 +125,7 @@ function appendAddLinkSection(
   container: HTMLElement,
   doc: Document,
   item: Zotero.Item,
+  mindmapId?: string,
 ) {
   const wrapper = doc.createElement("div");
 
@@ -135,7 +136,7 @@ function appendAddLinkSection(
   if (needsInBodyAddButton(container)) {
     appendL10nButton(wrapper, "add-link-button", () => {
       if (formContainer.style.display === "none") {
-        openAddLinkForm(container, item);
+        openAddLinkForm(container, item, mindmapId);
       } else {
         formContainer.style.display = "none";
       }
@@ -151,7 +152,11 @@ function appendAddLinkSection(
  * first use. No-op while the panel is still rendering or when it is showing an
  * error state, since neither has a form container yet.
  */
-function openAddLinkForm(container: HTMLElement, item: Zotero.Item) {
+function openAddLinkForm(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapId?: string,
+) {
   const formContainer = container.querySelector<HTMLElement>(
     `.${ADD_LINK_FORM_CLASS}`,
   );
@@ -160,7 +165,7 @@ function openAddLinkForm(container: HTMLElement, item: Zotero.Item) {
   }
   formContainer.style.display = "";
   if (formContainer.childElementCount === 0) {
-    void loadAddLinkForm(formContainer, item, container);
+    void loadAddLinkForm(formContainer, item, container, mindmapId);
   }
 }
 
@@ -184,13 +189,22 @@ export const MINDMAP_CHOICE_CLASS = "mindmap-choose-target";
  * implicitly, and with none the default one is created on save, exactly as
  * before. Creating a mindmap is the tab's job, so this only ever lists what
  * already exists.
+ *
+ * `mindmapId` is the answer already given - the graph the panel is docked
+ * beside, or the mindmap the panel resolved for this item. Asking again there
+ * would be asking the user to re-state what they are already looking at.
  */
 async function loadAddLinkForm(
   formContainer: HTMLElement,
   item: Zotero.Item,
   panelContainer: HTMLElement,
+  mindmapId?: string,
 ) {
   try {
+    if (mindmapId !== undefined) {
+      await mountAddLinkForm(formContainer, item, panelContainer, mindmapId);
+      return;
+    }
     const mindmaps = await listMindmaps(item.libraryID);
     if (mindmaps.length > 1) {
       renderMindmapChoice(formContainer, item, panelContainer, mindmaps);
@@ -327,24 +341,30 @@ export async function renderConnectionsContent(
   mindmapId?: string,
   openAddLink = false,
 ): Promise<void> {
-  await renderPanelBody(container, item, mindmapId);
+  const shown = await renderPanelBody(container, item, mindmapId);
   // After the body, because the form container it reveals is part of what the
   // body draws. A no-op on the error state, which has no form to open.
   if (openAddLink) {
-    openAddLinkForm(container, item);
+    openAddLinkForm(container, item, shown);
   }
 }
 
+/**
+ * Draws the panel and reports which mindmap it ended up showing, so the
+ * add-link form targets that one rather than resolving the item's mindmap a
+ * second time and possibly landing elsewhere. Undefined means the panel found
+ * no mindmap to show - the form then falls back to asking.
+ */
 async function renderPanelBody(
   container: HTMLElement,
   item: Zotero.Item,
   mindmapId?: string,
-): Promise<void> {
+): Promise<string | undefined> {
   const doc = container.ownerDocument!;
   container.textContent = "";
 
   if (!canBeMindmapNode(item)) {
-    return;
+    return undefined;
   }
 
   let found: PanelMindmap;
@@ -357,7 +377,7 @@ async function renderPanelBody(
       }`,
     );
     appendL10nText(container, doc, getLocaleID("connections-error-state"));
-    return;
+    return undefined;
   }
 
   if (!found.doc) {
@@ -371,9 +391,9 @@ async function renderPanelBody(
       ),
     );
     if (!found.unreadable) {
-      appendAddLinkSection(container, doc, item);
+      appendAddLinkSection(container, doc, item, mindmapId);
     }
-    return;
+    return mindmapId;
   }
   const mindmapDoc = found.doc;
 
@@ -383,8 +403,8 @@ async function renderPanelBody(
   );
   if (!node) {
     appendL10nText(container, doc, getLocaleID("connections-empty-state"));
-    appendAddLinkSection(container, doc, item);
-    return;
+    appendAddLinkSection(container, doc, item, mindmapDoc.id);
+    return mindmapDoc.id;
   }
 
   const titleEl = doc.createElement("div");
@@ -414,8 +434,8 @@ async function renderPanelBody(
   );
   if (links.length === 0) {
     appendL10nText(container, doc, getLocaleID("connections-no-links-state"));
-    appendAddLinkSection(container, doc, item);
-    return;
+    appendAddLinkSection(container, doc, item, mindmapDoc.id);
+    return mindmapDoc.id;
   }
 
   const list = doc.createElement("ul");
@@ -428,7 +448,7 @@ async function renderPanelBody(
       : MISSING_ITEM_LABEL;
 
     const linkType = getLinkTypeById(link.typeId);
-    const parts = [linkType?.label ?? link.typeId];
+    const parts = [linkType?.label ?? UNKNOWN_TYPE_LABEL];
     if (link.name) {
       parts.push(`"${link.name}"`);
     }
@@ -447,7 +467,8 @@ async function renderPanelBody(
     list.appendChild(li);
   }
   container.appendChild(list);
-  appendAddLinkSection(container, doc, item);
+  appendAddLinkSection(container, doc, item, mindmapDoc.id);
+  return mindmapDoc.id;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import { addToMindmap } from "../../src/modules/mindmap/libraryContextMenu";
 import {
+  createMindmap,
   findMindmapNote,
   readMindmapDocument,
   writeMindmapDocument,
@@ -9,13 +10,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   isUnplaced,
 } from "../../src/modules/mindmap/schema";
-
-async function clearStorageNote() {
-  const item = await findMindmapNote();
-  if (item) {
-    await item.eraseTx();
-  }
-}
+import { clearStorageNotes } from "./storageNotes";
 
 describe("mindmap/libraryContextMenu", function () {
   describe("addToMindmap", function () {
@@ -23,7 +18,8 @@ describe("mindmap/libraryContextMenu", function () {
     let note: Zotero.Item;
 
     beforeEach(async function () {
-      await clearStorageNote();
+      this.timeout(30000);
+      await clearStorageNotes();
 
       article = new Zotero.Item("journalArticle");
       article.libraryID = Zotero.Libraries.userLibraryID;
@@ -37,9 +33,10 @@ describe("mindmap/libraryContextMenu", function () {
     });
 
     afterEach(async function () {
+      this.timeout(30000);
       await article.eraseTx();
       await note.eraseTx();
-      await clearStorageNote();
+      await clearStorageNotes();
     });
 
     it("adds every selected item as a node, in a single write", async function () {
@@ -88,6 +85,28 @@ describe("mindmap/libraryContextMenu", function () {
       const addedCount = await addToMindmap([]);
       assert.equal(addedCount, 0);
       assert.isNull(await findMindmapNote());
+    });
+
+    it("adds to the mindmap it was given, not the library's first", async function () {
+      this.timeout(30000);
+      const first = await createMindmap("Chapter one");
+      const second = await createMindmap("Methods");
+
+      const addedCount = await addToMindmap([article, note], second.id);
+      assert.equal(addedCount, 2);
+
+      assert.lengthOf((await readMindmapDocument(second.id)).nodes, 2);
+      assert.isEmpty((await readMindmapDocument(first.id)).nodes);
+    });
+
+    it("still resolves the default mindmap when given no id", async function () {
+      this.timeout(30000);
+      const first = await createMindmap("Chapter one");
+      await createMindmap("Methods");
+
+      await addToMindmap([article]);
+
+      assert.lengthOf((await readMindmapDocument(first.id)).nodes, 1);
     });
   });
 });
