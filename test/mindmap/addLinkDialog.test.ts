@@ -1,6 +1,9 @@
 import { assert } from "chai";
 import { config } from "../../package.json";
-import { openAddLinkDialog } from "../../src/modules/mindmap/addLinkForm";
+import {
+  ADD_LINK_DIALOG_CONTENT_ID,
+  openAddLinkDialog,
+} from "../../src/modules/mindmap/addLinkForm";
 import { clearStorageNotes } from "./storageNotes";
 
 /**
@@ -13,7 +16,7 @@ import { clearStorageNotes } from "./storageNotes";
  * says what broke.
  */
 describe("mindmap/addLinkForm standalone dialog", function () {
-  const CONTENT_ID = "zoterolinkedmindmaps-add-link-dialog-content";
+  const CONTENT_ID = ADD_LINK_DIALOG_CONTENT_ID;
 
   let item: Zotero.Item;
 
@@ -66,14 +69,6 @@ describe("mindmap/addLinkForm standalone dialog", function () {
     }
     throw new Error("the Add link dialog never opened");
   }
-
-  before(function () {
-    const instance = (Zotero as any)[config.addonInstance];
-    // openAddLinkDialog builds its window through the plugin's own toolkit and
-    // reads addonRef off the addon singleton; the test bundle has neither.
-    (globalThis as any).addon = instance;
-    (globalThis as any).ztoolkit = instance.data.ztoolkit;
-  });
 
   beforeEach(async function () {
     this.timeout(30000);
@@ -135,6 +130,27 @@ describe("mindmap/addLinkForm standalone dialog", function () {
     await closed;
   });
 
+  /**
+   * Whether the native dropdown actually opens can only be seen by clicking
+   * it, which no test here can do. What is checkable is that the element is a
+   * real HTML select carrying its options, in the namespace the item pane
+   * builds them in - the form having been rendered into a chrome document
+   * rather than the blank window whose selects would not open.
+   */
+  it("builds the type field as an HTML select carrying its options", async function () {
+    this.timeout(45000);
+    const { content, win, closed } = await openDialog();
+    const select = content.querySelector("select") as HTMLSelectElement;
+
+    assert.isNotNull(select);
+    assert.equal(select.namespaceURI, "http://www.w3.org/1999/xhtml");
+    assert.isAbove(select.options.length, 1);
+    assert.isNotEmpty(select.options[0].textContent?.trim() ?? "");
+
+    win.close();
+    await closed;
+  });
+
   it("sizes the window so the whole form is on screen", async function () {
     this.timeout(45000);
     const { content, win, closed } = await openDialog();
@@ -144,6 +160,7 @@ describe("mindmap/addLinkForm standalone dialog", function () {
     assert.isAtMost(
       Math.round(save.getBoundingClientRect().bottom),
       win.innerHeight,
+      `form is taller than the window it opened in (inner=${win.innerHeight})`,
     );
 
     win.close();

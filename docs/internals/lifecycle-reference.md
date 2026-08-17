@@ -12,7 +12,7 @@ Source: `addon/bootstrap.js`, `src/index.ts`, `src/addon.ts`, `src/hooks.ts`.
 
 `startup({ id, version, resourceURI, rootURI }, reason)` does four things in order:
 
-1. Registers a chrome mapping through `amIAddonManagerStartup.registerChrome`, pointing `content/zoterolinkedmindmaps` at `rootURI + "content/"`. The returned handle is kept in the module-level `chromeHandle`.
+1. Registers a chrome mapping through `amIAddonManagerStartup.registerChrome`, pointing `content/zoterolinkedmindmaps` at `rootURI + "content/"`. The returned handle is kept in the module-level `chromeHandle`. This is what makes `chrome://zoterolinkedmindmaps/content/addLink.xhtml` resolve, the document `openAddLinkDialog` opens.
 2. Builds the plugin sandbox context: `const ctx = { rootURI }; ctx._globalThis = ctx;`. Everything assigned to `_globalThis` inside the bundle becomes a plugin-global.
 3. Loads the bundle with `Services.scriptloader.loadSubScript(rootURI + "/content/scripts/zoterolinkedmindmaps.js", ctx)`.
 4. Awaits `Zotero.ZoteroLinkedMindmaps.hooks.onStartup()`.

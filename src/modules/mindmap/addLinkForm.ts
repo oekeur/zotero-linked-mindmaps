@@ -492,36 +492,42 @@ export function renderAddLinkForm(
   });
 }
 
-/** What the dialog opens at, before the form it holds has been measured. */
-const DIALOG_INITIAL_WIDTH = 480;
-const DIALOG_INITIAL_HEIGHT = 320;
+export const ADD_LINK_DIALOG_CONTENT_ID =
+  "zoterolinkedmindmaps-add-link-dialog-content";
+
+const ADD_LINK_DIALOG_URL =
+  "chrome://zoterolinkedmindmaps/content/addLink.xhtml";
 
 /**
- * Resizes `win` around the form it now holds. The toolkit's own fitContent is
- * turned off in favour of this: it fires on a fixed 300ms timer, which the
- * mindmap read and Fluent's fill-in can both finish after, leaving the window
- * sized for content that wasn't there yet and the Save button off the bottom.
+ * Grows `win` if the form has ended up taller than the height the window
+ * opened at. The window's own height covers the form as it normally stands;
+ * this is for the cases that outgrow it, the "choose from another mindmap"
+ * pickers in particular.
+ *
+ * Only ever grows. A XUL window applies its intrinsic sizing after load, and
+ * that pass discards a resize made before it - shrinking a window that is
+ * merely roomy is not worth losing that race over.
+ *
+ * The wait matters as much as the measurement: the form is built after the
+ * window has sized itself, and Fluent fills its labels in later still, so
+ * measuring any earlier reads a form that has not finished growing.
  */
-async function fitDialogToContent(win: Window): Promise<void> {
+async function fitDialogToContent(
+  win: Window,
+  content: HTMLElement,
+): Promise<void> {
   const doc = win.document as Document & { l10n?: { ready: Promise<void> } };
   await doc.l10n?.ready;
-  // One frame, so the strings Fluent just filled in are laid out before the
-  // measurement rather than after it.
   await new Promise<void>((resolve) =>
     win.requestAnimationFrame(() => resolve()),
   );
 
-  const root = doc.documentElement;
-  if (!root) {
-    return;
-  }
-  const height = root.scrollHeight + (win.outerHeight - win.innerHeight);
-  const width = Math.max(
-    win.outerWidth,
-    root.scrollWidth + (win.outerWidth - win.innerWidth),
-  );
-  if (height > 0 && width > 0) {
-    win.resizeTo(width, height);
+  const rect = content.getBoundingClientRect();
+  // The gap above the form is left below it too, so the form does not end up
+  // flush against the bottom edge.
+  const needed = Math.ceil(rect.bottom + rect.top);
+  if (rect.height > 0 && needed > win.innerHeight) {
+    win.resizeBy(0, needed - win.innerHeight);
   }
 }
 
@@ -530,6 +536,15 @@ async function fitDialogToContent(win: Window): Promise<void> {
  * pane (e.g. from a library right-click menu). Resolves once the dialog
  * window closes, so a caller opening one per item in a selection can wait
  * for each to finish before opening the next, rather than racing writes.
+ *
+ * The window is the plugin's own chrome document rather than the blank one a
+ * ztoolkit.Dialog opens. That blank window costs more than it saves: it
+ * carries no Fluent strings, so the form renders every label and button empty;
+ * it sizes itself on a timer the form's own async render outlasts; and an HTML
+ * select's dropdown does not open in it at all. A chrome document registers
+ * its own .ftl declaratively and puts the form in the same kind of document
+ * the item pane already renders it into. It still has to be fitted around the
+ * form afterwards, which fitDialogToContent does.
  *
  * `mindmapId` is the mindmap the link belongs in. Left out, the library's
  * default one is used and created on demand - which is right for a library
@@ -541,51 +556,40 @@ export function openAddLinkDialog(
   item: Zotero.Item,
   mindmapId?: string,
 ): Promise<void> {
-  void win;
   return new Promise((resolve) => {
-    const dialog = new ztoolkit.Dialog(1, 1)
-      .addCell(0, 0, {
-        tag: "div",
-        namespace: "html",
-        id: "zoterolinkedmindmaps-add-link-dialog-content",
-        styles: { width: "100%" },
-      })
-      .setDialogData({
-        // The form's fields carry data-l10n-id, which Fluent resolves against
-        // the window the element lives in. This is a window of its own, so it
-        // starts with no plugin strings registered: without this every label
-        // and button in the form renders blank. The main window gets the same
-        // file at startup, which is why the item-pane surfaces don't need it.
-        l10nFiles: [`${addon.data.config.addonRef}-mainWindow.ftl`],
-        loadCallback: () => {
-          void (async () => {
-            const contentEl = dialog.window.document.getElementById(
-              "zoterolinkedmindmaps-add-link-dialog-content",
-            ) as HTMLElement;
-            try {
-              const mindmapDoc = await readMindmapDocument(
-                mindmapId,
-                item.libraryID,
-              );
-              renderAddLinkForm(contentEl, item, mindmapDoc, () => {
-                dialog.window.close();
-              });
-            } catch (err) {
-              contentEl.textContent = `Failed to load mindmap: ${
-                (err as Error).message
-              }`;
-            }
-            await fitDialogToContent(dialog.window);
-          })();
-        },
-        unloadCallback: () => resolve(),
-      })
-      .open("Add link", {
-        centerscreen: true,
-        resizable: true,
-        width: DIALOG_INITIAL_WIDTH,
-        height: DIALOG_INITIAL_HEIGHT,
-        fitContent: false,
-      });
+    const dialog = (win as any).openDialog(
+      ADD_LINK_DIALOG_URL,
+      "",
+      "chrome,centerscreen,resizable,dialog=no",
+    ) as Window;
+
+    dialog.addEventListener(
+      "load",
+      () => {
+        // Resolving on the window's own unload, rather than on a close() the
+        // form knows about, covers the user closing it from the titlebar too.
+        dialog.addEventListener("unload", () => resolve(), { once: true });
+        void (async () => {
+          const contentEl = dialog.document.getElementById(
+            ADD_LINK_DIALOG_CONTENT_ID,
+          ) as HTMLElement;
+          try {
+            const mindmapDoc = await readMindmapDocument(
+              mindmapId,
+              item.libraryID,
+            );
+            renderAddLinkForm(contentEl, item, mindmapDoc, () => {
+              dialog.close();
+            });
+          } catch (err) {
+            contentEl.textContent = `Failed to load mindmap: ${
+              (err as Error).message
+            }`;
+          }
+          await fitDialogToContent(dialog, contentEl);
+        })();
+      },
+      { once: true },
+    );
   });
 }
