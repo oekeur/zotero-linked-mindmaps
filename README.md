@@ -20,11 +20,19 @@ An existing plugin, [samreading/zotero-mindmap](https://github.com/samreading/zo
 
 Mindmap data lives in a Zotero note item, tagged and parented to a per-library container item, so it syncs with your library through Zotero itself rather than a separate account or file. The container can be hidden from the library view.
 
+## Install
+
+Download `zotero-linked-mindmaps.xpi` from the [latest release](https://github.com/oekeur/zotero-linked-mindmaps/releases/latest). If your browser opens it instead of saving it, use "Save link as".
+
+In Zotero: open Tools, then Plugins. Click the gear icon at the top right, choose "Install Plugin From File...", pick the `.xpi`, and restart Zotero. Requires Zotero 7.
+
+The build carries an update URL, so Zotero's own plugin updater offers later versions. A plugin that fails to load does so quietly, with no error dialog, so check that "Zotero Linked Mindmaps" appears in the Plugins list after the restart.
+
+[Getting started](./docs/user-guide/getting-started.md) walks from there to a first linked mindmap.
+
 ## Status
 
-Implemented and usable, not yet released. Version 0.1.0, no published build yet, so installation today means building from source (see Development below).
-
-The feature set above works. What that means in practice: expect rough edges, and read [the plugin data guide](./docs/user-guide/plugin-data-howto.md) before you go poking at the "Zotero Linked Mindmaps (plugin data)" item in your library. Trashing it hides every mindmap in that library until you restore it.
+Version 0.1.0, the first published build. The feature set above works. Expect rough edges, and read [the plugin data guide](./docs/user-guide/plugin-data-howto.md) before you go poking at the "Zotero Linked Mindmaps (plugin data)" item in your library. Trashing it hides every mindmap in that library until you restore it.
 
 See [ROADMAP.md](./ROADMAP.md) for what came in which phase and what's still open.
 

@@ -1,21 +1,20 @@
 # Getting started with Zotero Linked Mindmaps
 
-By the end of this you will have two of your own items on a mindmap with a labelled line between them. It takes about ten minutes, most of which is the build. Do the steps in order, because later ones assume the earlier ones happened.
+By the end of this you will have two of your own items on a mindmap with a labelled line between them. It takes about ten minutes. Do the steps in order, because later ones assume the earlier ones happened.
 
 You need Zotero 7 and a library with at least two regular items in it. Any two will do: articles, books, whatever you already have.
 
-## 1. Build and install the plugin
+## 1. Install the plugin
 
-No release build is published yet, so you build the `.xpi` from the repository.
+1. Open the [latest release](https://github.com/oekeur/zotero-linked-mindmaps/releases/latest) and download `zotero-linked-mindmaps.xpi`. If your browser opens the file instead of saving it, use "Save link as".
+2. In Zotero, open Tools, then Plugins.
+3. Click the gear icon at the top right of the Plugins window and choose "Install Plugin From File...".
+4. Pick the `.xpi` you downloaded and confirm.
+5. Restart Zotero.
 
-1. Clone the repository and run `npm install` in it.
-2. Run `npm run build`. The packaged `.xpi` lands in `.scaffold/build/`.
-3. In Zotero, open Tools, then Plugins.
-4. Click the gear icon at the top right of the Plugins window and choose "Install Plugin From File...".
-5. Pick the `.xpi` from `.scaffold/build/` and confirm.
-6. Restart Zotero.
+Later versions arrive through Zotero's own plugin updater; the build carries an update URL, so there is nothing to subscribe to.
 
-If you are working on the plugin rather than using it, `npm start` builds and loads it into a dev profile instead. See [development setup](../contributing/development-setup.md).
+To build the `.xpi` yourself instead, clone the repository, run `npm install` and `npm run build`, and install the file that lands in `.scaffold/build/`. If you are working on the plugin rather than using it, `npm start` builds and loads it into a dev profile. See [development setup](../contributing/development-setup.md).
 
 ## 2. Check that it loaded
 

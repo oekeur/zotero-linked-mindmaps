@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Implemented, not released. `src/modules/mindmap/` holds 20 real modules (~5,500 lines) and `test/mindmap/` 16 test files; none of the template's example code remains in `src/`. Version 0.1.0 with no published build, so installing means building from source. Read `project/PRODUCT.md` before making design decisions: it's the product charter (goals, non-goals, and the reasoning behind data-model choices already made). User-facing and internals docs live in `docs/`.
+Released at 0.1.0. `src/modules/mindmap/` holds 20 real modules (~5,500 lines) and `test/mindmap/` 16 test files; none of the template's example code remains in `src/`. The `.xpi` is published on GitHub Releases (tag `v0.1.0`), with `update.json` hosted on the long-lived `release` tag; see `docs/contributing/releasing-howto.md`. Read `project/PRODUCT.md` before making design decisions: it's the product charter (goals, non-goals, and the reasoning behind data-model choices already made). User-facing and internals docs live in `docs/`.
 
 Every roadmap phase (0 through 6) is built. See `ROADMAP.md`.
 

@@ -13,6 +13,9 @@ hero:
       text: Lost your mindmaps?
       link: /user-guide/plugin-data-howto
     - theme: alt
+      text: Download the plugin
+      link: https://github.com/oekeur/zotero-linked-mindmaps/releases/latest
+    - theme: alt
       text: View on GitHub
       link: https://github.com/oekeur/zotero-linked-mindmaps
 
@@ -56,6 +59,8 @@ The [user guide](./user-guide/getting-started.md) covers the mindmap tab, the Co
 
 ## Status
 
-Implemented and usable, but not released yet. Installing means building from source, which [development setup](./contributing/development-setup.md) walks through.
+Version 0.1.0 is published. Download the `.xpi` from the [latest release](https://github.com/oekeur/zotero-linked-mindmaps/releases/latest) and install it through Tools, then Plugins, then the gear icon. [Getting started](./user-guide/getting-started.md) covers the steps in order.
+
+Building from source still works and is what you want if you're changing the plugin: see [development setup](./contributing/development-setup.md).
 
 One thing worth knowing before you start. The plugin stores its data in a library item called "Zotero Linked Mindmaps (plugin data)". Trash that item and every mindmap in the library disappears until you restore it. Nothing is lost, but it is alarming the first time. [How to recover](./user-guide/plugin-data-howto.md).
