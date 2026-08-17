@@ -21,6 +21,23 @@ import { parseMindmapDocument } from "./validate";
 
 export const STORAGE_TAG = "_zoterolinkedmindmaps-storage-v1";
 
+/**
+ * Marks the one item per library that every storage note hangs off. Zotero's
+ * library and collection views add `noChildren` to the search behind their
+ * rows, so a child note never renders as a top-level row - which is what
+ * collapses any number of storage notes into a single visible entry, using
+ * Zotero's own view behavior rather than a patched internal.
+ *
+ * The container is found by this tag rather than recorded in a preference: a
+ * pref is device-local, and every synced device has to arrive at the same
+ * container from library data alone.
+ */
+export const CONTAINER_TAG = "_zoterolinkedmindmaps-container-v1";
+
+// Stored, synced data rather than UI text, so it stays untranslated - two
+// devices in different locales must still recognise the same item.
+const CONTAINER_TITLE = "Zotero Linked Mindmaps (plugin data)";
+
 const DATA_BLOCK_ID = "zoterolinkedmindmaps-data";
 const DATA_BLOCK_OPEN = `<pre id="${DATA_BLOCK_ID}">`;
 // Zotero re-serializes a note's HTML through its own schema after save,
@@ -130,6 +147,138 @@ export async function findMindmapNote(
 }
 
 /**
+ * The plugin's container items in a library, lowest key first. Ordered by key
+ * rather than item id because ids are local to one device: when two devices
+ * each created a container before syncing, only the key gives both of them the
+ * same answer about which one wins.
+ */
+export async function findContainers(
+  libraryID = defaultLibraryID(),
+  { includeTrashed = false } = {},
+): Promise<Zotero.Item[]> {
+  const search = new Zotero.Search();
+  search.addCondition("libraryID", "is", libraryID);
+  search.addCondition("tag", "is", CONTAINER_TAG);
+  if (includeTrashed) {
+    search.addCondition("includeDeleted", "true");
+  }
+  const ids = await search.search();
+  if (ids.length === 0) {
+    return [];
+  }
+  const items = (await Zotero.Items.getAsync(ids)) as Zotero.Item[];
+  return [...items].sort((a, b) =>
+    a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
+  );
+}
+
+/**
+ * The library's container, created if it has none. Callers that must not
+ * create one - the startup reconciliation, which has to leave a trashed
+ * container alone - go through reconcileContainer instead.
+ */
+export async function findOrCreateContainer(
+  libraryID = defaultLibraryID(),
+): Promise<Zotero.Item> {
+  const existing = await findContainers(libraryID);
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  const item = new Zotero.Item("document");
+  item.libraryID = libraryID;
+  item.setField("title", CONTAINER_TITLE);
+  item.addTag(CONTAINER_TAG);
+  await item.saveTx();
+  return item;
+}
+
+/** Child-note count off freshly read data, not whatever the item cached. */
+async function childNoteCount(item: Zotero.Item): Promise<number> {
+  await item.reload(["childItems"], true);
+  return item.numNotes(true);
+}
+
+export type ContainerState = "ok" | "trashed";
+
+/**
+ * Brings a library's storage notes under one container: adopts the lowest-key
+ * container when two devices each made their own, moves every stray note under
+ * it, and erases the containers left empty. Idempotent - a library already in
+ * that shape writes nothing.
+ *
+ * Returns "trashed" when every container the library has is in the trash, and
+ * creates no replacement in that case. A fresh container would take the next
+ * write while the real mindmaps sat in the trash, unreachable to a search that
+ * skips child notes of deleted items - so the user would be told nothing and
+ * lose everything. Warning about it is the caller's job.
+ */
+export async function reconcileContainer(
+  libraryID = defaultLibraryID(),
+): Promise<ContainerState> {
+  return enqueue(async () => {
+    const notes = await findAllMindmapNotes(libraryID);
+    let containers = await findContainers(libraryID);
+    if (containers.length === 0) {
+      const trashed = await findContainers(libraryID, { includeTrashed: true });
+      if (trashed.length > 0) {
+        return "trashed";
+      }
+      // A library with no mindmaps gets no container, so the plugin adds no
+      // row at all until it has something to store.
+      if (notes.length === 0) {
+        return "ok";
+      }
+      containers = [await findOrCreateContainer(libraryID)];
+    }
+
+    const [adopted, ...duplicates] = containers;
+    const strays = notes.filter((note) => note.parentItemID !== adopted.id);
+    if (strays.length > 0) {
+      // One transaction so a library never half-migrates: the reparenting
+      // touches only the parent link, leaving each note's key and content as
+      // they were.
+      await Zotero.DB.executeTransaction(async () => {
+        for (const note of strays) {
+          // A child item cannot sit in a collection - Zotero enforces it with
+          // a DB trigger - so a note the user had filed somewhere has to come
+          // out of it first, or the whole migration fails on that one note.
+          note.setCollections([]);
+          note.parentItemID = adopted.id;
+          await note.save();
+        }
+      });
+    }
+
+    for (const duplicate of duplicates) {
+      // Emptied by the reparenting above, unless the user hung a note of their
+      // own off it - in which case it stays, since erasing takes its children
+      // with it.
+      if ((await childNoteCount(duplicate)) === 0) {
+        await duplicate.eraseTx();
+      }
+    }
+    return "ok";
+  });
+}
+
+/**
+ * Erases a container that no longer holds anything, so a library whose last
+ * mindmap was deleted shows no plugin row. Erases rather than trashes, for the
+ * same reason deleteMindmap does.
+ */
+async function eraseContainerIfEmpty(containerID: number): Promise<void> {
+  const container = (await Zotero.Items.getAsync(containerID)) as
+    Zotero.Item | false;
+  if (!container || !container.hasTag(CONTAINER_TAG)) {
+    return;
+  }
+  if ((await childNoteCount(container)) > 0) {
+    return;
+  }
+  await container.eraseTx();
+}
+
+/**
  * Reloads a note's text from the database. A Zotero.Item's cached note text
  * can lag its own committed write for a moment - Zotero reloads the object
  * asynchronously after a save - so reading the cache right after writing can
@@ -228,8 +377,12 @@ async function createNoteFor(
   doc: MindmapDocument,
   libraryID: number,
 ): Promise<Zotero.Item> {
+  const container = await findOrCreateContainer(libraryID);
   const item = new Zotero.Item("note");
   item.libraryID = libraryID;
+  // Parented before the save, so the note never exists as a top-level row -
+  // not even for the moment between creating it and moving it.
+  item.parentItemID = container.id;
   item.setNote(buildNoteHtml(doc));
   item.addTag(STORAGE_TAG);
   await item.saveTx();
@@ -450,6 +603,9 @@ export async function updateMindmapMetadata(
  * Erases rather than trashes: a trashed storage note is still tagged and
  * still found by the registry search, so it would keep showing up as a
  * mindmap the user believes they deleted.
+ *
+ * Takes the container with it when that was the library's last mindmap, so
+ * deleting everything leaves no plugin row behind.
  */
 export async function deleteMindmap(
   id: string,
@@ -457,7 +613,11 @@ export async function deleteMindmap(
 ): Promise<void> {
   await enqueue(async () => {
     const { item } = await resolveMindmap(id, libraryID);
+    const containerID = item.parentItemID;
     await item.eraseTx();
+    if (typeof containerID === "number") {
+      await eraseContainerIfEmpty(containerID);
+    }
   });
 }
 

@@ -20,6 +20,9 @@ preferences-delete-confirm-used =
        *[other] Delete this link type? { $count } links use it and will show as "(unknown type)" there.
     }
 preferences-delete-confirm-unknown = Could not check how many links use this type - its mindmap data could not be read. Delete anyway?
+preferences-hide-mindmap-notes = Hide the "Zotero Linked Mindmaps (plugin data)" item from the library
+container-trashed-now = "Zotero Linked Mindmaps (plugin data)" was moved to the trash. Every mindmap in that library stays hidden until you restore it.
+container-trashed-startup = "Zotero Linked Mindmaps (plugin data)" is in the trash. Every mindmap in that library stays hidden until you restore it.
 itemmenu-add-to-mindmap = Add to mindmap
 itemmenu-add-link = Add link…
 add-to-mindmap-progress = Added { $count } item(s) to mindmap

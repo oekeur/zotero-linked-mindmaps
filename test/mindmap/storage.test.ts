@@ -5,12 +5,15 @@ import {
   isUnplaced,
 } from "../../src/modules/mindmap/schema";
 import {
+  CONTAINER_TAG,
   createMindmap,
   deleteMindmap,
   findAllMindmapNotes,
+  findContainers,
   findMindmapNote,
   listMindmaps,
   readMindmapDocument,
+  reconcileContainer,
   StorageError,
   STORAGE_TAG,
   updateMindmapDocument,
@@ -362,6 +365,131 @@ describe("mindmap/storage", function () {
 
       assert.equal(listed.length, 1);
       assert.equal(listed[0].id, good.id);
+    });
+  });
+
+  describe("container item", function () {
+    async function makeContainer(): Promise<Zotero.Item> {
+      const item = new Zotero.Item("document");
+      item.libraryID = Zotero.Libraries.userLibraryID;
+      item.setField("title", "Zotero Linked Mindmaps (plugin data)");
+      item.addTag(CONTAINER_TAG);
+      await item.saveTx();
+      return item;
+    }
+
+    async function makeTopLevelStorageNote(html: string): Promise<Zotero.Item> {
+      const note = new Zotero.Item("note");
+      note.libraryID = Zotero.Libraries.userLibraryID;
+      note.setNote(html);
+      note.addTag(STORAGE_TAG);
+      await note.saveTx();
+      return note;
+    }
+
+    function byKey(items: Zotero.Item[]): Zotero.Item[] {
+      return [...items].sort((a, b) => (a.key < b.key ? -1 : 1));
+    }
+
+    it("hangs every new storage note off a single container (AC #1)", async function () {
+      await createMindmap("First");
+      await createMindmap("Second");
+      await createMindmap("Third");
+
+      const containers = await findContainers();
+      assert.equal(containers.length, 1);
+      const notes = await findAllMindmapNotes();
+      assert.equal(notes.length, 3);
+      for (const note of notes) {
+        assert.equal(note.parentItemID, containers[0].id);
+      }
+    });
+
+    it("reparents a pre-existing top-level note, unchanged, and does nothing on a second run (AC #2)", async function () {
+      const note = await makeTopLevelStorageNote(
+        '<p>warn</p><pre id="zoterolinkedmindmaps-data">{"schemaVersion":1,"id":"legacy","title":"Legacy","nodes":[],"links":[]}</pre>',
+      );
+      const key = note.key;
+      await note.reload(["note"], true);
+      const before = note.getNote();
+
+      assert.equal(await reconcileContainer(), "ok");
+
+      const containers = await findContainers();
+      assert.equal(containers.length, 1);
+      await note.reload(["primaryData", "note"], true);
+      assert.equal(note.parentItemID, containers[0].id);
+      assert.equal(note.key, key);
+      assert.equal(note.getNote(), before);
+
+      assert.equal(await reconcileContainer(), "ok");
+      assert.equal((await findContainers()).length, 1);
+      await note.reload(["primaryData"], true);
+      assert.equal(note.parentItemID, containers[0].id);
+    });
+
+    it("reports a trashed container and creates no replacement behind it (AC #4)", async function () {
+      await createMindmap("Hidden by the trash");
+      const [container] = await findContainers();
+      await Zotero.Items.trashTx([container.id]);
+
+      assert.equal(await reconcileContainer(), "trashed");
+
+      assert.isEmpty(await findContainers());
+      const all = await findContainers(undefined, { includeTrashed: true });
+      assert.equal(all.length, 1);
+      assert.equal(all[0].id, container.id);
+    });
+
+    it("adopts the lowest-key container and erases the duplicate", async function () {
+      const [lower, higher] = byKey([
+        await makeContainer(),
+        await makeContainer(),
+      ]);
+      const note = await makeTopLevelStorageNote("<p>stray</p>");
+      note.parentItemID = higher.id;
+      await note.saveTx();
+
+      assert.equal(await reconcileContainer(), "ok");
+
+      const containers = await findContainers();
+      assert.equal(containers.length, 1);
+      assert.equal(containers[0].id, lower.id);
+      await note.reload(["primaryData"], true);
+      assert.equal(note.parentItemID, lower.id);
+    });
+
+    it("erases the container once the last mindmap is deleted (AC #5)", async function () {
+      const only = await createMindmap("The only one");
+      assert.equal((await findContainers()).length, 1);
+
+      await deleteMindmap(only.id);
+
+      assert.isEmpty(await findContainers());
+    });
+
+    it("keeps the container while another mindmap still uses it", async function () {
+      const doomed = await createMindmap("Doomed");
+      await createMindmap("Survivor");
+
+      await deleteMindmap(doomed.id);
+
+      assert.equal((await findContainers()).length, 1);
+    });
+
+    // The container exists to keep storage notes off the library's top level,
+    // not to change what the plugin can reach: the registry search adds no
+    // noChildren condition, so a child note still matches it (AC #6).
+    it("still finds and reads a mindmap once its note is a child", async function () {
+      const created = await createMindmap("Readable as a child");
+      const notes = await findAllMindmapNotes();
+
+      assert.equal(notes.length, 1);
+      assert.isNumber(notes[0].parentItemID);
+      assert.equal(
+        (await readMindmapDocument(created.id)).title,
+        "Readable as a child",
+      );
     });
   });
 });
