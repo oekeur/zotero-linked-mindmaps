@@ -12,6 +12,8 @@ An external node is the third option: a node on this mindmap that openly stands 
 
 Membership is what the distinction is about, and code has to branch on it in several places, not one. A borrowed node is not offered when another mindmap goes looking for something to borrow, because borrowings are not a mindmap's to lend on. A borrowed node is not a target for reconciliation's "does this still exist" question, because only member nodes count as real. And a borrowed node is exactly what reconciliation deletes when its home is gone, which is never true of a member node.
 
+Membership is also why borrowing has to exclude the item being linked from. A stub and a member node are separate nodes, so nothing in the data model breaks if both stand for the same Zotero item, and that is exactly the problem: the graph would draw one paper as two circles with a link between them. Every other mechanism that finds a node by its Zotero reference would then find two, which is the duplication external nodes exist to avoid. The node dropdown leaves it out, and the save rejects it if the other mindmap changes under an open form.
+
 Making it a variant of the node type rather than a boolean means the extra fields come with it: an external node has a home mindmap id and a home node id, and a member node cannot have them. There is no state where a node claims to be borrowed and has nowhere to be borrowed from.
 
 The visual treatment follows the same logic. The dashed border and paler fill say "not really from here" without spending the shape channel, which is reserved for a possible future item-versus-note distinction, and without relying on a color difference alone.

@@ -15,6 +15,8 @@ The tab closes like any Zotero tab, with its close button or Zotero's own tab sh
 
 Opening the tab in a library that holds no mindmap creates one, titled "Mindmap", so the tab lands on a usable graph rather than on an empty state.
 
+With one exception: when the library's plugin data is in the trash, the tab creates nothing. A trashed storage note, or a trashed "Zotero Linked Mindmaps (plugin data)" container that took its notes down with it, drops out of the plugin's search, so a library that still holds mindmaps looks empty. Rather than build a second set on top of the first, the tab shows a warning that stays on screen until you click it: "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back." Restore the item from Zotero's trash and reopen the tab. See [plugin data](plugin-data-reference.md).
+
 ## Sidebar (mindmap list)
 
 Headed "Mindmaps". Lists every mindmap in the library, ordered by the Zotero item id of the storage note behind each one. On the device where they were created that is creation order, oldest first; a mindmap arriving by sync takes an id from when it was downloaded, so the order can differ between devices.
@@ -41,7 +43,7 @@ Saving with a blank title does nothing at all: the form stays open and no messag
 
 ### Empty state
 
-With no mindmaps in the library, the graph area shows "No mindmaps yet. Create one to start linking items." You reach this by deleting every mindmap while the tab is open, since opening the tab creates one when none exists.
+With no mindmaps in the library, the graph area shows "No mindmaps yet. Create one to start linking items." Two ways to reach it: delete every mindmap while the tab is open, or open the tab over plugin data that is in the trash, where the tab declines to create a replacement.
 
 ### Load failure
 
@@ -101,7 +103,7 @@ Hidden until you click or right-click a node. Fixed 320px wide on the right of t
 
 It holds a read-only overview of the node's item on top of the Connections content for that item. Full field list and controls: [node overview reference](node-overview-reference.md). The links half is the same component as the item pane's Connections section: [Connections panel reference](connections-panel-reference.md).
 
-The dock is pinned to the mindmap the graph is showing, so an item that appears in several mindmaps shows this graph's links rather than another mindmap's.
+The dock is pinned to the mindmap the graph is showing, so an item that appears in several mindmaps shows this graph's links rather than another mindmap's. The link form opened from here inherits that mindmap and writes to it. It does not ask "Add to mindmap:" the way the item pane's Connections section does in a library with several, since the graph already answered the question.
 
 ## Live refresh
 

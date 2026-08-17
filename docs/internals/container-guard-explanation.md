@@ -36,17 +36,27 @@ Reconciliation runs at startup rather than on demand because the states it fixes
 
 It hides every mindmap in that library at once.
 
-Zotero's search excludes child notes of deleted items unless `includeDeleted` is set (`search.js:1281`). Trashing the container therefore makes `findAllMindmapNotes` return nothing: the registry is empty, the mindmap list is empty, and the plugin behaves exactly as it would in a library that never had a mindmap. One trash action, silently, for every mindmap in the library.
+Zotero's search excludes child notes of deleted items unless `includeDeleted` is set (`search.js:1281`). Trashing the container therefore makes `findAllMindmapNotes` return nothing: the registry is empty, the mindmap list is empty, and the plugin cannot tell it apart from a library that never had a mindmap without asking the trash. One trash action, every mindmap in the library, and nothing in Zotero's own interface connecting the two ends of it.
 
-Worse, the plugin could make it permanent. `findOrCreateContainer` ignores trashed containers, so the next write would create a fresh one and start filling it, while the real mindmaps sat in the trash under a container nothing would ever adopt them out of. Restoring the trashed container at that point would leave two containers and a split registry; emptying the trash instead would erase everything with no warning ever shown.
+Worse, the plugin could make it permanent by writing a replacement. A fresh container would start taking writes while the real mindmaps sat in the trash under a container nothing would ever adopt them out of. Restoring the trashed container at that point would leave two containers and a split registry; emptying the trash instead would erase everything with no warning ever shown.
 
-So `reconcileContainer` refuses. A library with no untrashed container but at least one trashed one returns `"trashed"` and writes nothing at all: no new container, no reparenting. `containerGuard` turns that into a warning that stays on screen until the user clicks it.
+So both levels refuse. `reconcileContainer` returns `"trashed"` and writes nothing at all when a library has no untrashed container but at least one trashed one: no new container, no reparenting. `findOrCreateContainer` throws `StorageError("container-trashed")` in the same situation, which covers every other write path, since creating a storage note goes through it. `containerGuard` turns the startup case into a warning that stays on screen until the user clicks it, and `mindmapTab` turns the tab-open case into one, using the same `warn` helper.
 
-There is a second warning at trash time, from the notifier observer, so a user who trashes the container from the library UI hears about it in the same session rather than at the next restart.
+Two containers as a repair is a state the plugin can now only reach through sync, which is the case reconciliation was built for. It cannot reach it by answering a trashed container with a new one.
+
+The notifier observer adds a warning at trash time, so a user who trashes the container from the library UI hears about it in the same session rather than at the next restart.
+
+## Why a trashed storage note gets its own message
+
+A trashed storage note is the same hazard at one-mindmap scale, and Zotero's UI says nothing about it either: the note carries no title a user would recognise, and it stops being listed with no other trace. So the observer matches `STORAGE_TAG` alongside `CONTAINER_TAG`.
+
+The note case gets its own string rather than reusing the container's, because the container message claims every mindmap in the library is hidden and that would be false here. Where one batch trashes both, the observer warns about the container and stops, since the wider claim is the true one there.
+
+The gap that remains is the startup half. Reconciliation checks containers, so a library with a live container and a trashed note under it converges to `"ok"` and says nothing. A note trashed in a session the user has since closed is missing with no message behind it. What partly covers that is `hasHiddenMindmapData`: if the trashed note was the library's only mindmap, opening the Mindmap tab finds an empty registry, checks the trash, and warns instead of creating a replacement. A library with three mindmaps and one of them trashed gets nothing at the next startup.
 
 What the plugin will not do is un-trash. Trashing was a deliberate user action on a visible item, and reversing it would be the plugin fighting the user over their own library. The warnings say what it costs and how to undo it; the undo is theirs.
 
-The hole this leaves is honest and unfixed: trash the container, empty the trash, and the mindmaps are gone with no recovery path. That is the same hazard the per-note case already carries (trashing a single storage note silently erases the mindmap it held), with the blast radius widened from one mindmap to a whole library. Accepted, warned about twice, not solved.
+The hole this leaves is honest and unfixed: trash the container, empty the trash, and the mindmaps are gone with no recovery path. Warned about, not solved.
 
 ## Where the container still shows up
 

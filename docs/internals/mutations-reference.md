@@ -12,7 +12,13 @@ The intended pairing is that an in-place mutator runs inside the callback passed
 function canBeMindmapNode(item: Zotero.Item): boolean;
 ```
 
-True when `item.isRegularItem()` or `item.isNote()`. The Zotero object types a mindmap node is allowed to point at. Attachments, annotations and collections are excluded. Pure; no document involved.
+Two tests, in order. An item carrying `CONTAINER_TAG` (`_zoterolinkedmindmaps-container-v1`) or `STORAGE_TAG` (`_zoterolinkedmindmaps-storage-v1`) is rejected outright. Everything else is true when `item.isRegularItem()` or `item.isNote()`.
+
+So: regular items and notes qualify, except the plugin's own container item and its JSON storage notes. Attachments, annotations and collections are excluded by the type test. Pure; no document involved, and no storage read (both tags are read off the item in hand).
+
+The tag test is not redundant with hiding plugin data from the library. The container is a regular item and the storage notes are notes, so a type test alone lets a user add the plugin's data row, or a mindmap's own JSON, to a mindmap as a node. `hideMindmapNotes` is a preference the user can turn off, and the trash view is never filtered at all. See [library-filter-reference.md](library-filter-reference.md) and [storage-reference.md](storage-reference.md) for the tags themselves.
+
+Every surface that decides whether an item is linkable calls this: the library context menu, the Connections panel's render check, and the add-link target picker.
 
 ## `refFor`
 

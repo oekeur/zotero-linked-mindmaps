@@ -41,7 +41,9 @@ Everything an end user touches. Document these first; the whole tier is currentl
 | Node positioning and layout persistence   | `graphRenderer.ts:attachNodeDragHandler`, `layout.ts`           | reference, explanation         |
 | Storage container item and trash recovery | `containerGuard.ts`, `storage.ts`                               | reference, how-to, explanation |
 
-`_Storage container_` is the priority within the tier. Trashing the "Zotero Linked Mindmaps (plugin data)" item hides every mindmap in that library. The plugin does raise a warning that stays up until clicked, but it never says how to undo the state it reports. Trashing an individual storage note raises no warning at all.
+`_Storage container_` was the priority within the tier. Trashing the "Zotero Linked Mindmaps (plugin data)" item hides every mindmap in that library, and at scan time the plugin warned only for the container, never for an individual storage note, and never said how to undo what it reported.
+
+Writing that up surfaced the gap, and the fixes landed in `595587f`: a storage note now warns through `storage-note-trashed-now`, and opening the tab over trashed data warns with `mindmap-data-trashed-open` instead of quietly creating a replacement. [Plugin data recovery](./user-guide/plugin-data-howto.md) describes current behavior; this paragraph describes what prompted the work.
 
 A single **getting-started tutorial** covering install -> create a mindmap -> add items -> link two of them -> open the tab would serve the top four rows at once. Write it before the individual how-tos.
 

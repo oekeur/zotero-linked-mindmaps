@@ -8,7 +8,7 @@ An item joins a mindmap as the side effect of its first link. There is no "add m
 
 1. Select the item and open the Connections section. It reads "Not in any mindmap yet."
 2. Click the "+" in the section header.
-3. Choose the mindmap under "Add to mindmap:" and click "Continue", if the library has more than one.
+3. Choose the mindmap under "Add to mindmap:" and click "Continue". This is the one moment you are asked, and it only comes up when the library holds more than one mindmap.
 4. Fill in the add-link form and click "Save".
 
 The item is now a node in that mindmap, positioned by the layout on the next render.
@@ -18,8 +18,9 @@ To add items without authoring a link, use the library context menu instead: sel
 ## Add a link
 
 1. Click the "+" in the section header, or the "Add link" button in the body when the panel is the one in the mindmap tab.
-2. Choose the mindmap and click "Continue" if asked.
-3. Fill in Type, Name, Direction and target, then click "Save".
+2. Fill in Type, Name, Direction and target, then click "Save".
+
+The link goes into the mindmap named after "Mindmap:" at the top of the panel, without asking. You are only asked to choose when the item is in no mindmap yet and the library holds more than one.
 
 Full field reference: [links-add-reference.md](links-add-reference.md).
 
@@ -44,6 +45,6 @@ An item that is a node in several mindmaps is only removed from the one shown. R
 The panel has no selector for this. What it shows depends on where it is:
 
 - In the mindmap tab, the panel follows the graph. Load a different mindmap from the sidebar ([mindmaps-manage-howto.md](mindmaps-manage-howto.md)) and click the node again.
-- In the item pane, it shows the first mindmap holding the item, by storage note id. To see a different one, save a link into that mindmap: pick it under "Add to mindmap:" before the form, and the panel redraws against it for as long as the item stays selected. Reselecting the item goes back to the first mindmap.
+- In the item pane, it shows the first mindmap holding the item, by storage note id, and there is no way to move it off that one. Adding a link no longer offers a choice once the panel has resolved a mindmap, so the link goes into the same mindmap the panel is already showing.
 
-This is a real limitation: an item in several mindmaps has no direct way to browse its links per mindmap from the item pane.
+This is a real limitation: an item in several mindmaps has no way to browse its links per mindmap from the item pane. Open the other mindmap in the mindmap tab and click the node there instead.

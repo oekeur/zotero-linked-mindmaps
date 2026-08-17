@@ -8,13 +8,7 @@ For the reasoning behind the visual encoding and the refresh mechanism, see [ren
 
 ## Exported constants
 
-### `UNKNOWN_TYPE_LABEL`
-
-```ts
-export const UNKNOWN_TYPE_LABEL = "(unknown type)";
-```
-
-Label text `resolveLinkVisual` returns when a link's `typeId` has no entry in the link-type vocabulary. Used alone when the link has no `name`, and as the prefix `"(unknown type): <name>"` when it does.
+`UNKNOWN_TYPE_LABEL` (`"(unknown type)"`) is not one of them. It lives in `linkTypes.ts` and is imported here. `resolveLinkVisual` returns it as the label when a link's `typeId` has no entry in the link-type vocabulary: alone when the link has no `name`, and as the prefix `"(unknown type): <name>"` when it does. The Connections panel imports the same constant for its own link rows, so a link whose type was deleted reads identically on the graph and in the item pane, which is what the type-deletion confirmation ("... will show as \"(unknown type)\" there") promises.
 
 ### `EXTERNAL_NODE_CLASS`
 

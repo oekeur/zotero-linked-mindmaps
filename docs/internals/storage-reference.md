@@ -32,7 +32,11 @@ The container's title, `"Zotero Linked Mindmaps (plugin data)"`, is not exported
 
 ```ts
 type StorageErrorReason =
-  "block-missing" | "parse-failed" | "invalid-schema" | "not-found";
+  | "block-missing"
+  | "parse-failed"
+  | "invalid-schema"
+  | "not-found"
+  | "container-trashed";
 ```
 
 `block-missing`: the note has no `<pre>` element, so it holds no data block at all.
@@ -42,6 +46,8 @@ type StorageErrorReason =
 `invalid-schema`: the JSON parsed but `parseMindmapDocument` rejected the result. Also used for two argument checks that are not about JSON at all: a blank title passed to `createMindmap` or `updateMindmapMetadata`.
 
 `not-found`: no mindmap in the library carries the requested id.
+
+`container-trashed`: every container the library has is in the trash, and `findOrCreateContainer` refused to build a replacement. The only throw in this module that is about the library's state rather than a document's contents. `mindmapTab.ts` catches it by reason and warns.
 
 ### `StorageError`
 
@@ -78,7 +84,25 @@ Every note item in `libraryID` tagged `STORAGE_TAG`, sorted by ascending item id
 
 The search adds no `noChildren` condition, so notes parented to the container still match. `test/mindmap/storage.test.ts` asserts this ("still finds and reads a mindmap once its note is a child").
 
+Trashed notes do not match: the search sets no `includeDeleted` condition, so a storage note in the trash drops out of the registry, and neither does a live note whose parent container is trashed, since Zotero's search excludes the children of deleted items. Both cases make the library read as empty; `hasHiddenMindmapData` is how a caller tells that apart from a library that holds nothing.
+
 Does not read note content, so a corrupt note is still returned. No side effects.
+
+### `hasHiddenMindmapData`
+
+```ts
+function hasHiddenMindmapData(libraryID?: number): Promise<boolean>;
+```
+
+Whether the library holds plugin data the registry cannot reach. `true` when the trash holds either a storage note or a container that a live search does not see.
+
+Runs two comparisons rather than one search. First, storage notes with and without `includeDeleted`: more with than without means at least one note is trashed. Then containers with and without `includeDeleted`, through `findContainers`. The second comparison is what catches notes that went down with a trashed container, since Zotero does not flag a trashed parent's children as deleted, so counting trashed notes alone would miss them.
+
+Callers use this before treating an empty registry as an empty library. `mindmapTab.ts` checks it before creating a library's first mindmap on tab open, and warns instead of creating when it comes back `true`.
+
+Four cases are covered in `test/mindmap/storage.test.ts`: a trashed note, a trashed container, a healthy library, and `findOrCreateContainer` refusing behind a trashed container.
+
+No side effects.
 
 ### `findMindmapNote`
 
@@ -109,7 +133,11 @@ function findOrCreateContainer(libraryID?: number): Promise<Zotero.Item>;
 
 The library's lowest-key container, creating one if the library has none. A created container is a `Zotero.Item` of type `document` with its title set to the fixed English container title, tagged `CONTAINER_TAG`, saved with `saveTx()`.
 
-Side effect: creates and saves an item when none exists. Ignores trashed containers, so calling this in a library whose only container is in the trash creates a second one; callers that must not do that (the startup reconciliation) go through `reconcileContainer` instead.
+Throws `StorageError("container-trashed")` instead of creating when the live search finds no container but an `includeTrashed` search finds one. A replacement would take the next write while the real mindmaps sat in the trash, invisible to a search that skips a deleted item's child notes, leaving the user two containers and nothing telling them so. Reporting the throw is the caller's job. `reconcileContainer` answers the same situation with a `"trashed"` state rather than an error.
+
+The trashed check is a plain `findContainers` call, not a queued one, on purpose: this runs inside queued tasks (`createMindmap` calls `createNoteFor` calls this), and the queue is not reentrant.
+
+Side effect: creates and saves an item when the library has never had a container.
 
 ## Container reconciliation
 
@@ -204,6 +232,8 @@ function createMindmapNote(libraryID?: number): Promise<Zotero.Item>;
 Creates a storage note holding a fresh empty document titled `"Mindmap"`, with a generated document id from `Zotero.Utilities.generateObjectKey()`, no nodes and no links.
 
 The note is parented to the library's container (creating the container if needed) before the save, so it never exists as a top-level row, not even for the moment between creation and reparenting. The note gets `STORAGE_TAG` and is saved with `saveTx()`.
+
+Propagates `StorageError("container-trashed")` from `findOrCreateContainer`, so nothing is written in a library whose only container is in the trash. Every path that creates a storage note runs through here, which is what makes that refusal cover `createMindmap`, `findOrCreateMindmapNote`, `resolveMindmap` with no id, and `writeMindmapDocument`'s create fallback.
 
 Not queued. Side effects: creates a note, and possibly a container.
 
@@ -334,7 +364,7 @@ function deleteMindmap(id: string, libraryID?: number): Promise<void>;
 
 Removes a mindmap for good. Runs as a queued task: resolve the id (throwing `StorageError("not-found")` when nothing carries it), remember the note's `parentItemID`, erase the note with `eraseTx()`, then erase that parent if it is still tagged `CONTAINER_TAG` and has no child notes left.
 
-Erases rather than trashes. A trashed storage note is still tagged and still found by the registry search, so it would keep appearing as a mindmap the user believes they deleted.
+Erases rather than trashes, for two reasons that are not the one the registry search would suggest. A trashed note does drop out of `findAllMindmapNotes` on its own, since that search sets no `includeDeleted` condition, so the mindmap stops being listed either way. What trashing would leave behind is an opaque JSON note sitting in the user's trash after a delete that looked like it worked, with nothing in it they can read or act on. It would also keep the container alive: `childNoteCount` calls `numNotes(true)`, which counts trashed children, so `eraseContainerIfEmpty` would never fire and the plugin's row would outlive the library's last mindmap.
 
 The mindmap's nodes and links live inside the note, so erasing it removes them. The Zotero items and notes those nodes pointed at are separate objects this never opens; `test/mindmap/storage.test.ts` asserts a referenced article survives its mindmap's deletion.
 

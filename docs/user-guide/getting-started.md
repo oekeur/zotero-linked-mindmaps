@@ -31,6 +31,8 @@ A tab titled "Mindmap" opens and stays selected. Opening it again later reselect
 
 The first time you open it in a library with no mindmap yet, the plugin creates one for you, titled "Mindmap". The graph area is blank because that mindmap has no nodes.
 
+On a fresh library that is all you will see. If instead a warning appears reading "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.", the library already has mindmaps sitting in Zotero's trash; restore them and reopen the tab rather than starting over.
+
 ## 4. Find your mindmap in the sidebar
 
 The strip on the left of the tab is the mindmap list. It is headed "Mindmaps" and holds one row per mindmap in the library. You should see a single row reading "Mindmap".
@@ -56,7 +58,7 @@ Leave this mindmap as the only one in the library for the rest of the tutorial. 
 
 A popup confirms with "Added 2 item(s) to mindmap". Both items are now nodes.
 
-"Add to mindmap" always writes to the library's first mindmap, not to whichever one the tab is showing. With one mindmap that distinction does not exist, which is why this tutorial keeps you at one. Once you have several, use the Connections panel in the item pane to put an item into a specific mindmap. See [the library right-click menu](library-menu-howto.md) and [the Connections panel](connections-panel-howto.md).
+With one mindmap in the library, "Add to mindmap" is a single click and writes to that one, which is why this tutorial keeps you at one. Once the library holds several, the same entry opens a submenu of them and you pick the target by name. See [the library right-click menu](library-menu-howto.md) and [the Connections panel](connections-panel-howto.md).
 
 ## 7. Look at the graph
 
@@ -87,7 +89,7 @@ Right now the links section reads "No links yet." Leave the panel open.
 
 The graph redraws with a line between the two nodes, labelled with the type (or `type: name` when you gave it a name). A directional type draws as a dashed line with an arrowhead; a non-directional one as a plain solid line.
 
-If the library has more than one mindmap, the form asks "Add to mindmap:" before it appears, even when you opened it from a node in a specific graph. Pick the mindmap and click "Continue".
+Opened this way the form never asks which mindmap to use. It targets the one the graph is drawing, which is the one you are looking at. The "Add to mindmap:" question appears only where the plugin has no answer already: the item pane's Connections section, in a library holding several mindmaps.
 
 For everything the link form can do, including linking to a node that lives in another mindmap, see [adding links](links-add-howto.md) and [link types](link-types-reference.md).
 

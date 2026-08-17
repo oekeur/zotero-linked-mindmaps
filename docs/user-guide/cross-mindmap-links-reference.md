@@ -8,7 +8,7 @@ From the add-link form's second target button, "Choose from another mindmap" ([l
 
 The first lists every mindmap in the library except the one being edited. Excluding the current one is deliberate: a link inside this mindmap is what the ordinary "Choose target" button is for. With no other mindmap in the library, the message "No other mindmaps to link to yet." appears instead of the dropdowns.
 
-The second lists that mindmap's own member nodes, by the same labels the graph uses. External stubs in the other mindmap are not offered, so a mindmap can only lend out what belongs to it, and a chain of stubs pointing at stubs cannot be built.
+The second lists that mindmap's own member nodes, by the same labels the graph uses, minus any node standing for the item the form was opened for. External stubs in the other mindmap are not offered either, so a mindmap can only lend out what belongs to it, and a chain of stubs pointing at stubs cannot be built.
 
 Saving writes two things into the mindmap being edited, and nothing at all into the other one:
 
@@ -17,7 +17,7 @@ Saving writes two things into the mindmap being edited, and nothing at all into 
 
 An external node for the same (mindmap, node) pair is reused rather than duplicated, so linking to the same borrowed node a second time adds a link and no second stub.
 
-Where a local target is chosen, the same form path also refuses a target identical to the source ("An item can't be linked to itself."). That check does not run for an external target. Picking the source item's own node in another mindmap creates a link from the item to a stub of itself, and nothing blocks it.
+A self-link is refused on this route as it is on the local one, and refused twice over. The node dropdown never offers a node standing for the source item, so there is nothing to pick; a selection that turns into one anyway between picking and saving (the other mindmap changed under the form) is discarded at save, writing neither the stub nor the link. Neither refusal prints a message: the local route's "An item can't be linked to itself." belongs to the item picker, and this route has nothing to reject.
 
 ## How they render
 

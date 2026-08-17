@@ -50,7 +50,7 @@ A consequence worth knowing: opening a synced mindmap on a second machine whose 
 
 Deleting a type does not touch any link. The link keeps its `typeId`, which now matches nothing.
 
-Such a link still renders. On the graph it is labelled "(unknown type)", or `(unknown type): <name>` when it has a name, and drawn as a grey dotted line with no arrowhead, distinct from both the dashed directional and solid non-directional styles. In the Connections panel it is listed by its raw stored type id instead, which is the one place the two surfaces disagree.
+Such a link still renders. On the graph it is labelled "(unknown type)", or `(unknown type): <name>` when it has a name, and drawn as a grey dotted line with no arrowhead, distinct from both the dashed directional and solid non-directional styles. The Connections panel lists it under the same "(unknown type)" label, which is also the wording the delete confirmation promises.
 
 Recreating a type with the same label does not reattach those links: a new type gets a new generated id. Restoring a deleted default (`cites`, `supports`, `contradicts`, `primary-source-for`, `related-to`) by hand is only possible by editing the preference directly, since the settings pane cannot set an id.
 

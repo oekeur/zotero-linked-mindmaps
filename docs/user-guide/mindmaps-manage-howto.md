@@ -20,6 +20,8 @@ Titles are not required to be unique. Two mindmaps with the same title are two s
 
 Opening the Mindmap tab in a library with no mindmaps creates one for you, titled "Mindmap". Rename it rather than making a second one if that is the one you want.
 
+The tab makes that exception when the library's plugin data is in the trash. There it creates nothing and warns instead: "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back." Your mindmaps are still there, out of the plugin's reach until you restore the trashed item. See [plugin data](plugin-data-howto.md).
+
 ## Rename a mindmap, or change its description
 
 1. Click "Edit" on the mindmap's row.

@@ -22,7 +22,7 @@ Top to bottom:
 
 The three fields are the ones Zotero's own item list shows as columns (type, creator, date), chosen for telling nodes apart rather than for reading the item. The full item pane is one "Show in library" click away.
 
-Clicking a node opens the panel without opening the link form. Right-clicking a node and choosing "Add link" opens the panel with the link form already open.
+Clicking a node opens the panel without opening the link form. Right-clicking a node and choosing "Add link" opens the panel with the link form already open, targeting the mindmap the graph is drawing; no "Add to mindmap:" question is asked here.
 
 ## For a node whose item is missing
 

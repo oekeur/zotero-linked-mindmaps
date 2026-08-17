@@ -20,13 +20,13 @@ The price is that identity is invisible in the interface. Two types can share a 
 
 The alternative would be to delete the links that use the type, or to rewrite them to some fallback type. Both destroy authored work in response to a vocabulary edit. Someone tidying up a dropdown does not expect to lose relationships they recorded months earlier, and a link's real content (which two items, which direction, what name) survives its type perfectly well.
 
-So a delete removes the type and nothing else. The links keep pointing at an id that now resolves to nothing, and every surface that draws them handles the miss rather than throwing: the graph labels the edge "(unknown type)" and draws it as a grey dotted line, distinct from both the dashed directional style and the solid non-directional one. The link stays visible, stays selectable, and stays removable.
+So a delete removes the type and nothing else. The links keep pointing at an id that now resolves to nothing, and every surface that draws them handles the miss rather than throwing: the graph labels the edge "(unknown type)" and draws it as a grey dotted line, distinct from both the dashed directional style and the solid non-directional one, and the Connections panel prints the same label. The link stays visible, stays selectable, and stays removable.
+
+One label, not one per surface. The delete confirmation tells the user those links "will show as (unknown type)", so a surface that printed the raw type id instead would be quietly breaking a promise the dialog made a moment earlier. The label lives with the type vocabulary and both surfaces read it from there.
 
 The confirmation dialog reports how many links will end up in that state, counted across every mindmap in every library, precisely because the consequence is invisible otherwise. When a mindmap cannot be read the count cannot be trusted, so the dialog says so instead of reporting zero. Reporting a type as unused when a corrupt note might be full of its links would delete it with no warning at all.
 
 What deletion does not offer is a way back. Recreating the type gives it a fresh id, so the orphaned links stay orphaned. Renaming a type you no longer like is the non-destructive move; deleting one is not.
-
-There is one honest inconsistency here. The graph shows "(unknown type)", while the Connections panel in the item pane falls back to printing the raw stored type id. The panel's fallback predates the graph's and has not been brought in line.
 
 ## Type is a label plus a line style, not a color
 

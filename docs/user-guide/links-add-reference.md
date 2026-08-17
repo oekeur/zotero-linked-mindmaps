@@ -30,7 +30,7 @@ Two buttons, and no text field:
 
 "Choose target" opens Zotero's own item-selector dialog, scoped to the library the source item is in. Only one item can be picked. Regular items and notes are selectable, including child notes, which appear as rows of their own.
 
-"Choose from another mindmap" reveals a second pair of dropdowns for linking to a node whose membership is in a different mindmap. See [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md).
+"Choose from another mindmap" reveals a second pair of dropdowns for linking to a node whose membership is in a different mindmap. The node dropdown leaves out any node standing for the source item itself, so that route cannot produce a self-link either. See [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md).
 
 Once a valid target is chosen, the form shows its name next to the buttons:
 
@@ -49,11 +49,13 @@ The form reports three conditions inline, next to the target buttons.
 
 Picking the source item itself shows "An item can't be linked to itself." The target is not accepted and Save stays disabled.
 
-Picking an attachment, or anything else that is neither a regular item nor a note, shows "Only items and notes can be linked. Attachments can't." Zotero's item-selector dialog has no filter that excludes attachments while keeping notes, so an attachment can be selected and is rejected afterwards.
+Picking an attachment, or anything else that is neither a regular item nor a note, shows "Only items and notes can be linked. Attachments can't." Zotero's item-selector dialog has no filter that excludes attachments while keeping notes, so an attachment can be selected and is rejected afterwards. The plugin's own "Zotero Linked Mindmaps (plugin data)" item and the storage notes under it are refused the same way, even though the storage notes are notes.
 
 Pressing "Choose from another mindmap" in a library with no other mindmap shows "No other mindmaps to link to yet."
 
-A failed write is not reported in the form. The error goes to Zotero's debug output, the form stays open, and the panel behind it does not redraw. The self-link check runs a second time at save; if it trips there (the stored document changed between picking and saving), the save is discarded silently.
+The other-mindmap route reports nothing inline. A node standing for the source item is left out of the dropdown rather than offered and rejected, so an other-mindmap selection is either valid or absent. Where that leaves the dropdown empty, Save stays disabled.
+
+A failed write is not reported in the form. The error goes to Zotero's debug output, the form stays open, and the panel behind it does not redraw. The self-link check runs a second time at save, for a local target and an other-mindmap one alike; if it trips there (the stored document changed between picking and saving), the save is discarded silently.
 
 Cancelling the item-selector dialog leaves the form untouched, including any target chosen before.
 
@@ -78,13 +80,13 @@ Saving never modifies or removes an existing node or link. Adding a second link 
 
 ## Which mindmap is written
 
-When the library holds more than one mindmap, the form is preceded by a mindmap chooser: the label "Add to mindmap:", a dropdown of every mindmap in the library, and a "Continue" button. With exactly one mindmap that mindmap is used without asking. With none, the library's default mindmap is created on save, titled "Mindmap".
+The answer comes from whatever opened the form, and the form only asks when nothing gave it one.
 
-The chooser belongs to the Connections panel, so it appears at both of that panel's mounts: the item pane and the docked panel in the mindmap tab.
+In the Connections panel, the mindmap the panel is showing is the mindmap the link is written to. That covers the docked panel in the mindmap tab (the graph on screen), the item pane once the panel has resolved a mindmap for the item, and a redraw straight after a save (the mindmap just written to). Both of the panel's add-link controls use it: the header "+" and the in-body "Add link" button. Right-clicking a node on the graph and choosing "Add link" lands on the mindmap that graph is drawing.
 
-Known rough edge: opening the form by right-clicking a node on the graph still shows the chooser when the library holds more than one mindmap, and nothing in it is preselected to the mindmap on screen. The panel is pinned to that mindmap for display, but the add-link flow is not told which one it is, so the user has to pick again the mindmap they are already looking at, and the first entry in the dropdown wins if they do not. Picking a different one writes the link into that other mindmap instead, and the panel then redraws against whichever mindmap was written.
+The chooser appears only when the panel has no mindmap to pass on, which means the item is a node in none yet and the library holds more than one. It is the label "Add to mindmap:", a dropdown of every mindmap in the library, and a "Continue" button. With exactly one mindmap that mindmap is used without asking. With none, the library's default mindmap is created on save, titled "Mindmap".
 
-The standalone dialog opened from the library context menu has no chooser. It always writes to the library's default mindmap, which is the storage note with the lowest item id, or a new one titled "Mindmap" when the library has none. A dialog that cannot read that mindmap shows `Failed to load mindmap:` followed by the error instead of the form.
+The standalone dialog opened from the library context menu is told which mindmap to use by the entry that opened it. A library holding more than one mindmap gets an "Add link" submenu listing them by title, and the entry chosen names the mindmap. A library with one mindmap or none gets a plain "Add link…" entry, which writes to the library's default mindmap: the storage note with the lowest item id, or a new one titled "Mindmap" when the library has none. A dialog that cannot read the mindmap shows `Failed to load mindmap:` followed by the error instead of the form.
 
 ## Related
 

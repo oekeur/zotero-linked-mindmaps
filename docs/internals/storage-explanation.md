@@ -86,10 +86,20 @@ This is accepted for v1, not solved. The reasoning is that simultaneous multi-de
 
 The blast radius is one mindmap document, since each mindmap is its own note. It is not the whole library.
 
+## An empty registry means two different things
+
+`findAllMindmapNotes` returns nothing for a library that has never held a mindmap and for a library whose mindmaps are all in the trash. The trash cases are two: a trashed storage note drops out of a search that sets no `includeDeleted`, and a trashed container takes its live child notes with it, because Zotero's search excludes the children of deleted items.
+
+Answering "empty" by creating something is the wrong move in the second case and the right one in the first. A fresh mindmap written behind trashed data is a second copy the user cannot reconcile with the first, arriving at the exact moment they are trying to work out where their work went.
+
+`hasHiddenMindmapData` is the disambiguator, and it runs two count comparisons rather than one search. Trashed notes with `includeDeleted` against live ones catches a trashed note. Trashed containers against live ones catches the notes that went down with a container, which the note count cannot see: Zotero does not set the deleted flag on a trashed parent's children, so those notes are live rows that no live search reaches.
+
+`findOrCreateContainer` enforces the same rule one level lower, throwing `container-trashed` instead of building a replacement. Every write path that needs a container goes through it, so the refusal covers `createMindmap`, `writeMindmapDocument`'s create fallback and `resolveMindmap` with no id, not only the tab-open path that checks `hasHiddenMindmapData` up front. The tab checks first anyway, because a check gives a message worth reading and a caught throw gives a debug line.
+
 ## Known unrecoverable states
 
-Trashing a storage note hides it from the plugin: the registry search skips it, and the mindmap it held is gone from every list without a warning. Emptying the trash makes that permanent.
+Trashing a storage note hides that mindmap from the plugin. The trash observer warns at the time, and the Mindmap tab warns on open when it was the library's last mindmap, but there is no startup check for it: the reconciliation looks at containers, and a live container with one trashed note under it reads as healthy. A note trashed in a session the user has since closed goes unmentioned. Emptying the trash makes it permanent.
 
-Trashing the container has the same effect on every mindmap in the library at once, because Zotero's search excludes child notes of deleted items. The plugin warns at trash time and at startup and refuses to build a replacement container, but it never un-trashes. See [container-guard-explanation.md](container-guard-explanation.md).
+Trashing the container has the same effect on every mindmap in the library at once. The plugin warns at trash time and at startup and refuses to build a replacement container, but it never un-trashes. See [container-guard-explanation.md](container-guard-explanation.md).
 
 A note whose JSON no longer parses is skipped by `readAllMindmaps` with a `Zotero.debug` line, so the other mindmaps stay usable and the corrupt one silently disappears from the list. There is no repair path and no user-visible report of it. Someone hitting this has to open the note by hand.

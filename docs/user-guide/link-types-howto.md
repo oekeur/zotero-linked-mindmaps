@@ -40,7 +40,7 @@ Some links use it: a dialog titled "Delete link type" asks
 
 > Delete this link type? 4 links use it and will show as "(unknown type)" there.
 
-with the real count, and "link" in the singular when the count is one. Confirming deletes the type and leaves those links in place. Cancelling changes nothing.
+with the real count, and "link" in the singular when the count is one. Confirming deletes the type and leaves those links in place; they then read "(unknown type)" on the graph and in the Connections panel alike. Cancelling changes nothing.
 
 A mindmap could not be read: the count is unknown, and the dialog says instead
 

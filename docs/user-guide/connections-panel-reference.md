@@ -2,11 +2,11 @@
 
 An item-pane section headed "Connections" that shows which mindmap the selected item belongs to, lists the links touching it, and offers controls to add or remove them. The sidenav icon's tooltip reads "Connections: mindmap links for this item".
 
-The same content is drawn in a second place: the docked panel beside the graph in the mindmap tab, under the node summary. The two mounts differ in how the add-link form is opened and in how the mindmap is chosen, noted below.
+The same content is drawn in a second place: the docked panel beside the graph in the mindmap tab, under the node summary. The two mounts differ in how the add-link form is opened, noted below; everything else is the same content from the same code.
 
 ## When the section is available
 
-Enabled for regular items and notes. Disabled for everything else, attachments included. Removing an item from a mindmap here never touches the Zotero item or note itself.
+Enabled for regular items and notes. Disabled for everything else, attachments included, and for the plugin's own bookkeeping: the "Zotero Linked Mindmaps (plugin data)" item and the storage notes under it are refused even though the notes are notes. Removing an item from a mindmap here never touches the Zotero item or note itself.
 
 ## Which mindmap it shows
 
@@ -38,7 +38,7 @@ supports "reanalysis" → Kuhn 1962
 
 The direction arrow is drawn from this item's point of view: it points right when the stored direction runs away from this item, left when it runs toward it. The second arrow is fixed and separates the link description from the other end's name.
 
-A link whose type is no longer in the vocabulary is listed by its raw stored type id rather than by a label. The graph writes "(unknown type)" for the same link; the panel does not.
+A link whose type is no longer in the vocabulary is listed as "(unknown type)", the same label the graph draws on that link's edge. The raw stored type id is never shown.
 
 The other end's title is a regular item's title, a note's content preview, or "(missing item)" when the node points at something no longer in the library.
 
@@ -48,7 +48,9 @@ The other end's title is a regular item's title, a note's content preview, or "(
 
 "Add link", a button in the panel body. Present only where the panel has no section header, which today means the docked panel in the mindmap tab. Toggles the form: pressing it while the form is open hides it.
 
-"Add to mindmap:" with a dropdown and a "Continue" button. Appears in place of the add-link form when the library has more than one mindmap, so the mindmap the link goes into is chosen before the fields appear. Skipped when the library has one mindmap or none. The dropdown lists mindmaps in storage order with the first one selected; it is never preselected to the mindmap the panel is showing, not even in the mindmap tab where the panel is pinned to the open graph.
+Either control writes to the mindmap the panel is showing, the one named after "Mindmap:" at the top. The panel records it on the form when it draws, so the header "+" reaches it too even though the item pane hands that button nothing but the panel body.
+
+"Add to mindmap:" with a dropdown and a "Continue" button. Appears in place of the add-link form only when the panel has no mindmap to hand on: the item is a node in none yet and the library holds more than one. Skipped when the library has one mindmap or none, and skipped whenever the panel is already showing a mindmap. The dropdown lists mindmaps in storage order with the first one selected.
 
 "Remove from mindmap". Removes this item's node from the shown mindmap, along with every link touching it. Afterwards the plugin reconciles cross-mindmap stubs in the library, dropping any that pointed at the removed node (see [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md)). The Zotero item is untouched.
 

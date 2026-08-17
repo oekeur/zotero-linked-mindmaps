@@ -59,27 +59,41 @@ At startup, and after each library's windows have loaded, the plugin reconciles 
 
 **Two or more containers.** This happens when two devices each created a container before syncing. The plugin adopts the container with the lowest item key (the key rather than the item id, because ids are local to one device and both devices must reach the same answer), moves every storage note under it, and erases the duplicates that are left empty. A duplicate that still holds a note of your own is left alone.
 
-**Every container in the trash.** The plugin warns and does nothing else. It does not restore the container, and it deliberately does not create a replacement: a fresh container would take the next write while the real mindmaps sat in the trash, unreachable.
+**Every container in the trash.** The plugin warns and does nothing else. It does not restore the container, and it deliberately does not create a replacement: a fresh container would take the next write while the real mindmaps sat in the trash, unreachable. The same refusal applies outside startup. Any write that would need a container throws instead of building one, so opening the Mindmap tab or pressing New while the container is in the trash creates nothing.
 
 ## Trash behaviour
 
 Zotero's search excludes the child notes of a deleted item. A trashed container therefore hides every storage note under it, which hides every mindmap in that library from the plugin. The data is still there, and restoring the container brings it back.
 
-The plugin warns in two places, both through a popup in the corner of the main window. The popup has no auto-close timer; it stays until you click it.
+Trashing a single storage note rather than the container hides that one mindmap and leaves the rest working.
+
+The plugin warns through a popup in the corner of the main window. The popup has no auto-close timer; it stays until you click it. There are four messages.
 
 When you move the container to the trash:
 
 > "Zotero Linked Mindmaps (plugin data)" was moved to the trash. Every mindmap in that library stays hidden until you restore it.
 
+When you move a single storage note to the trash:
+
+> A mindmap's data note was moved to the trash. That mindmap stays hidden until you restore it.
+
+A batch that trashes both the container and notes under it gets only the container message, since that is the wider of the two.
+
 At the next startup, while the container is still in the trash:
 
 > "Zotero Linked Mindmaps (plugin data)" is in the trash. Every mindmap in that library stays hidden until you restore it.
 
-Neither message names the library it is about. If you have several writable libraries, you have to check each one's trash.
+There is no startup equivalent for a trashed storage note. A note trashed in an earlier session goes unreported until you notice its mindmap missing.
+
+When you open the Mindmap tab in a library whose registry is empty but whose trash holds plugin data, either a container or a storage note:
+
+> Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.
+
+None of the messages names the library it is about. If you have several writable libraries, you have to check each one's trash.
 
 The plugin never takes an item out of the trash on your behalf. Emptying the trash erases the container and its notes for good, and the plugin cannot recover them.
 
-Trashing a single storage note rather than the container hides that one mindmap and produces no warning at all. See [Recovering plugin data](plugin-data-howto.md) for what that looks like.
+See [Recovering plugin data](plugin-data-howto.md) for the recovery steps.
 
 ## Read errors
 
