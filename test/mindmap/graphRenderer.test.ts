@@ -9,6 +9,7 @@ import {
   computeParallelOffsets,
   EXTERNAL_NODE_CLASS,
   GROUP_NODE_CLASS,
+  NODE_MENU_ADD_LINK_CLASS,
   PARENT_CHILD_TIE_CLASS,
   renderMindmap,
   type RenderedState,
@@ -21,6 +22,7 @@ import {
   resolveNodeLabel,
 } from "../../src/modules/mindmap/nodeLabels";
 import {
+  CLOSE_CLASS,
   OVERVIEW_CLASS,
   SHOW_IN_LIBRARY_CLASS,
 } from "../../src/modules/mindmap/nodeOverview";
@@ -403,6 +405,24 @@ describe("mindmap/graphRenderer", function () {
       assert.doesNotThrow(() => tapHandler(nodeEvent("n1")));
       assert.equal(dockContainer.style.display, "none");
     });
+
+    it("closes the dock from its own button, since right-click is the link menu", async function () {
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
+
+      await tapHandler(nodeEvent("n1"));
+      const close = dockContainer.querySelector(
+        `.${CLOSE_CLASS}`,
+      ) as HTMLButtonElement;
+      assert.isNotNull(close, "the dock has no close control");
+      close.click();
+
+      assert.equal(dockContainer.style.display, "none");
+      assert.equal(dockContainer.textContent, "");
+    });
   });
 
   describe("attachNodeContextMenuHandler", function () {
@@ -413,11 +433,16 @@ describe("mindmap/graphRenderer", function () {
       target: { id(): string; data(key: string): unknown };
     }) => void;
 
+    let graphContainer: HTMLDivElement;
+
     // The shape a Cytoscape node event actually has. `data` matters here: the
     // handler asks whether the target is a group container before doing
-    // anything else.
-    function nodeEvent(id: string) {
-      return { target: { id: () => id, data: () => undefined } };
+    // anything else, and `renderedPosition` is where the menu is drawn.
+    function nodeEvent(id: string, isGroup = false) {
+      return {
+        target: { id: () => id, data: () => isGroup || undefined },
+        renderedPosition: { x: 10, y: 20 },
+      };
     }
 
     beforeEach(async function () {
@@ -435,16 +460,29 @@ describe("mindmap/graphRenderer", function () {
       dockContainer = doc.createElement("div");
       dockContainer.style.display = "none";
       doc.documentElement.appendChild(dockContainer);
+      graphContainer = doc.createElement("div");
+      graphContainer.style.cssText =
+        "position: relative; width: 200px; height: 200px;";
+      doc.documentElement.appendChild(graphContainer);
     });
 
     afterEach(async function () {
+      this.timeout(30000);
       dockContainer.remove();
+      graphContainer.remove();
       await article.eraseTx();
       await otherArticle.eraseTx();
+      // Opening the add-link form reads the mindmap document, and that read
+      // creates the library's default mindmap when there is none. Left behind,
+      // it becomes the note the next suite's id-less lookups resolve to.
+      await clearStorageNotes();
     });
 
+    // The menu is drawn into the graph container, so the fake has to offer one
+    // the way a real Core does.
     function fakeCy(): cytoscape.Core {
       return {
+        container: () => graphContainer,
         on(
           events: string,
           _selector: string,
@@ -457,63 +495,62 @@ describe("mindmap/graphRenderer", function () {
       } as unknown as cytoscape.Core;
     }
 
-    it("docks and shows the Connections panel for the right-clicked node's item", function () {
-      const nodeRefsById = new Map<string, ZoteroObjectRef>([
-        [
-          "n1",
-          { kind: "item", libraryID: article.libraryID, key: article.key },
-        ],
-      ]);
-      attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
+    function refTo(item: Zotero.Item): ZoteroObjectRef {
+      return { kind: "item", libraryID: item.libraryID, key: item.key };
+    }
+
+    function menuButton(): HTMLButtonElement | null {
+      return graphContainer.querySelector(`.${NODE_MENU_ADD_LINK_CLASS}`);
+    }
+
+    it("opens an add-link menu on the right-clicked node (PRODUCT.md)", function () {
+      attachNodeContextMenuHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
 
       cxttapHandler(nodeEvent("n1"));
 
-      assert.notEqual(dockContainer.style.display, "none");
-    });
-
-    it("hides the dock when the already-docked node is right-clicked again", function () {
-      const nodeRefsById = new Map<string, ZoteroObjectRef>([
-        [
-          "n1",
-          { kind: "item", libraryID: article.libraryID, key: article.key },
-        ],
-      ]);
-      attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
-
-      cxttapHandler(nodeEvent("n1"));
-      cxttapHandler(nodeEvent("n1"));
-
+      assert.isNotNull(menuButton(), "no add-link action in the node menu");
+      // The menu is the whole gesture: right-click alone does not dock.
       assert.equal(dockContainer.style.display, "none");
-      assert.equal(dockContainer.textContent, "");
     });
 
-    it("re-renders in place when a different node is right-clicked", function () {
-      const nodeRefsById = new Map<string, ZoteroObjectRef>([
-        [
-          "n1",
-          { kind: "item", libraryID: article.libraryID, key: article.key },
-        ],
-        [
-          "n2",
-          {
-            kind: "item",
-            libraryID: otherArticle.libraryID,
-            key: otherArticle.key,
-          },
-        ],
-      ]);
-      attachNodeContextMenuHandler(fakeCy(), nodeRefsById, dockContainer);
+    it("docks the node with the add-link form open when the action is used", async function () {
+      attachNodeContextMenuHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
 
       cxttapHandler(nodeEvent("n1"));
-      cxttapHandler(nodeEvent("n2"));
+      menuButton()!.click();
+      await Zotero.Promise.delay(500);
 
       assert.notEqual(dockContainer.style.display, "none");
+      assert.include(dockContainer.textContent ?? "", "Context Menu Test");
+      // The menu closes behind the action rather than staying over the graph.
+      assert.isNull(menuButton());
+    });
+
+    it("ignores a right-click on a group container", function () {
+      attachNodeContextMenuHandler(
+        fakeCy(),
+        new Map([["g1", refTo(article)]]),
+        dockContainer,
+      );
+
+      cxttapHandler(nodeEvent("g1", true));
+
+      assert.isNull(menuButton());
     });
 
     it("no-ops when the right-clicked node id has no matching ref", function () {
       attachNodeContextMenuHandler(fakeCy(), new Map(), dockContainer);
 
       assert.doesNotThrow(() => cxttapHandler(nodeEvent("n1")));
+      assert.isNull(menuButton());
       assert.equal(dockContainer.style.display, "none");
     });
 

@@ -44,3 +44,4 @@ mindmap-empty-state = No mindmaps yet. Create one to start linking items.
 mindmap-delete-confirm-title = Delete mindmap
 mindmap-delete-confirm-message = Delete "{ $title }"? Its links and layout go with it. The items and notes it points at stay in your library.
 mindmap-show-in-library = Show in library
+mindmap-dock-close = Close
