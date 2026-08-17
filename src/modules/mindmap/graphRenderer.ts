@@ -26,7 +26,7 @@ import { renderMissingItem, renderNodeOverview } from "./nodeOverview";
 import { renderConnectionsContent } from "./connectionsPanel";
 import { createGroup, deleteGroup, renameGroup } from "./mutations";
 import { appendL10nButton } from "./uiElements";
-import type { LinkType } from "./linkTypes";
+import { UNKNOWN_TYPE_LABEL, type LinkType } from "./linkTypes";
 import type {
   MindmapDocument,
   MindmapLink,
@@ -34,8 +34,6 @@ import type {
   Position,
   ZoteroObjectRef,
 } from "./schema";
-
-export const UNKNOWN_TYPE_LABEL = "(unknown type)";
 
 // Zotero's main chrome window is a XUL document with no <head> element, but
 // Cytoscape's canvas renderer unconditionally does

@@ -11,11 +11,17 @@
  * recovered into.
  */
 import { getString } from "../../utils/locale";
-import { CONTAINER_TAG, reconcileContainer } from "./storage";
+import { CONTAINER_TAG, reconcileContainer, STORAGE_TAG } from "./storage";
 
 const OBSERVER_ID = "zoterolinkedmindmaps-container-guard";
 
-function warn(text: string): void {
+/**
+ * A dismiss-on-click ProgressWindow with no close timer, so a warning about
+ * data going out of reach cannot scroll past unread. Exported because the
+ * mindmap tab reports the same situation when it declines to create a
+ * replacement mindmap.
+ */
+export function warn(text: string): void {
   new ztoolkit.ProgressWindow(addon.data.config.addonName, {
     closeOnClick: true,
     closeTime: -1,
@@ -63,15 +69,31 @@ function notify(
   }
   void (async () => {
     try {
+      let storageNoteTrashed = false;
       for (const id of ids) {
         const item = (await Zotero.Items.getAsync(Number(id))) as
           Zotero.Item | false;
         // The same event fires on restore, so the deleted flag is what
         // separates "moved to trash" from "taken back out of it".
-        if (item && item.deleted && item.hasTag(CONTAINER_TAG)) {
+        if (!item || !item.deleted) {
+          continue;
+        }
+        // The container first: trashing it takes every storage note under it
+        // out of reach, so the broader message is the accurate one even when
+        // the same batch also names notes.
+        if (item.hasTag(CONTAINER_TAG)) {
           warn(getString("container-trashed-now"));
           return;
         }
+        // A single trashed storage note is one mindmap gone, with nothing else
+        // in Zotero's UI saying so - the note carries no title a user would
+        // recognise and it simply stops being listed.
+        if (item.hasTag(STORAGE_TAG)) {
+          storageNoteTrashed = true;
+        }
+      }
+      if (storageNoteTrashed) {
+        warn(getString("storage-note-trashed-now"));
       }
     } catch (err) {
       Zotero.debug(

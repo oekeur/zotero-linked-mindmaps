@@ -11,7 +11,10 @@ import {
   findAllMindmapNotes,
   findContainers,
   findMindmapNote,
+  findOrCreateContainer,
+  hasHiddenMindmapData,
   listMindmaps,
+  readDocumentFromNote,
   readMindmapDocument,
   reconcileContainer,
   StorageError,
@@ -439,6 +442,65 @@ describe("mindmap/storage", function () {
       const all = await findContainers(undefined, { includeTrashed: true });
       assert.equal(all.length, 1);
       assert.equal(all[0].id, container.id);
+    });
+
+    it("refuses to build a replacement behind a trashed container", async function () {
+      await createMindmap("Hidden by the trash");
+      const [container] = await findContainers();
+      await Zotero.Items.trashTx([container.id]);
+
+      let thrown: unknown;
+      try {
+        await findOrCreateContainer();
+      } catch (err) {
+        thrown = err;
+      }
+
+      assert.instanceOf(thrown, StorageError);
+      assert.equal((thrown as StorageError).reason, "container-trashed");
+      assert.isEmpty(await findContainers());
+      assert.lengthOf(
+        await findContainers(undefined, { includeTrashed: true }),
+        1,
+      );
+    });
+
+    it("still builds a container for a library that has never had one", async function () {
+      assert.isEmpty(await findContainers());
+
+      const container = await findOrCreateContainer();
+
+      assert.isTrue(container.hasTag(CONTAINER_TAG));
+      assert.lengthOf(await findContainers(), 1);
+    });
+
+    it("reports hidden data for a trashed storage note", async function () {
+      await createMindmap("First");
+      const second = await createMindmap("Second");
+      assert.isFalse(await hasHiddenMindmapData());
+
+      const [note] = (await findAllMindmapNotes()).filter(
+        (candidate) => readDocumentFromNote(candidate).id === second.id,
+      );
+      await Zotero.Items.trashTx([note.id]);
+
+      assert.isTrue(await hasHiddenMindmapData());
+      assert.lengthOf(await findAllMindmapNotes(), 1);
+    });
+
+    it("reports hidden data for notes that went down with a trashed container", async function () {
+      await createMindmap("Hidden by the trash");
+      const [container] = await findContainers();
+
+      await Zotero.Items.trashTx([container.id]);
+
+      assert.isTrue(await hasHiddenMindmapData());
+    });
+
+    it("reports no hidden data for a healthy library", async function () {
+      await createMindmap("Perfectly fine");
+
+      assert.isFalse(await hasHiddenMindmapData());
     });
 
     it("adopts the lowest-key container and erases the duplicate", async function () {

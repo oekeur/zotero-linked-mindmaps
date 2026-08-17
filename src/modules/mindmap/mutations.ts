@@ -13,9 +13,26 @@ import {
   type MindmapNode,
   type ZoteroObjectRef,
 } from "./schema";
+import { CONTAINER_TAG, STORAGE_TAG } from "./storage";
 
-/** The Zotero object types a mindmap node is allowed to point at. */
+/**
+ * The Zotero objects a mindmap node is allowed to point at: regular items and
+ * notes, minus the plugin's own bookkeeping.
+ *
+ * The container and the storage notes are an item and notes like any other, so
+ * a type test alone lets the user add the plugin's data row - or a mindmap's
+ * own JSON - to a mindmap as a node. Hiding them from the item tree is not
+ * enough to prevent it: that is a preference the user can turn off, and the
+ * trash view is never filtered at all.
+ *
+ * Every surface that decides whether an item is linkable comes through here -
+ * the library context menu, the Connections panel's enable check and the
+ * add-link target picker - so this is the one place the rule needs to hold.
+ */
 export function canBeMindmapNode(item: Zotero.Item): boolean {
+  if (item.hasTag(CONTAINER_TAG) || item.hasTag(STORAGE_TAG)) {
+    return false;
+  }
   return item.isRegularItem() || item.isNote();
 }
 
