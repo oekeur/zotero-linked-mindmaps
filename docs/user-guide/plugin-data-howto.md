@@ -10,17 +10,17 @@ Opening the Mindmap tab in this state shows a second popup:
 
 > Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.
 
-The cause is almost always that the item titled `Zotero Linked Mindmaps (plugin data)` is in the trash. Every mindmap in that library is stored in notes hanging off that item, and Zotero hides the child notes of a trashed item, so one trash action hides all of them at once. Your data is still there. Restoring the item brings it back.
+Nine times out of ten the cause is that the item titled `Zotero Linked Mindmaps (plugin data)` is in the trash. Every mindmap in that library is stored in notes hanging off that item, and Zotero hides the child notes of a trashed item, so one trash action hides the lot. The good news is that your data is all still there, and restoring the item brings it back.
 
-Before anything else: do not empty the trash. That erases the item and its notes for good, and nothing can recover them.
+Before you do anything else: don't empty the trash. That erases the item and its notes for good, and nothing can get them back.
 
 ### Restore the container
 
-1. You can leave the Mindmap tab open. It writes nothing while the container is in the trash: the plugin checks the trash before creating a library's first mindmap and declines when it finds data there. Pressing New in the sidebar also creates nothing; the mindmap does not appear, and the reason goes to the debug log (Help > Debug Output Logging).
-2. In Zotero's left pane, click Trash under the library whose mindmaps are missing. If you have several libraries, check each one; the warning popup does not say which library it was about.
-3. Look for an item titled `Zotero Linked Mindmaps (plugin data)`. The setting that hides this item from your library does not apply to the trash view, so it is visible there whether or not that setting is on.
+1. Leave the Mindmap tab open if you like. It writes nothing while the container is in the trash, because the plugin checks the trash before creating a library's first mindmap and declines when it finds data there. Pressing New in the sidebar creates nothing either. The mindmap doesn't appear, and the reason goes to the debug log (Help > Debug Output Logging).
+2. In Zotero's left pane, click Trash under the library whose mindmaps are missing. If you have several libraries, check each one. The warning popup doesn't say which library it was about, which is a shortcoming of the warning.
+3. Look for an item titled `Zotero Linked Mindmaps (plugin data)`. The setting that hides this item from your library doesn't apply to the trash view, so it's visible there whether that setting is on or off.
 4. Right-click it and choose Restore to Library.
-5. Restart Zotero. The startup reconciliation puts any storage note that came back at the top level under the container again, without touching its content.
+5. Restart Zotero. If any storage note came back at the top level, the startup reconciliation puts it under the container again without touching its content.
 
 ### Confirm your mindmaps came back
 
@@ -28,9 +28,9 @@ Before anything else: do not empty the trash. That erases the item and its notes
 2. The sidebar under the heading "Mindmaps" should list your mindmaps again, with their nodes and links intact.
 3. Select an item that was on a mindmap and check the Connections panel in the item pane. It should show the mindmap and its links rather than the empty state.
 
-Nothing was created while the container sat in the trash, so there is no leftover mindmap to clean up.
+Nothing was created while the container sat in the trash, so there's no leftover mindmap to tidy up afterwards.
 
-If the container was not in the trash, or restoring it changed nothing, see [When a single mindmap is missing](#symptom-one-mindmap-is-missing-the-rest-are-fine) below. If some mindmaps came back and one did not, that one's note may be corrupt; the plugin skips a storage note it cannot parse and writes the reason to Zotero's debug output (Help > Debug Output Logging).
+If the container wasn't in the trash, or restoring it changed nothing, try [When a single mindmap is missing](#symptom-one-mindmap-is-missing-the-rest-are-fine) below. And if most of your mindmaps came back but one didn't, that one's note may be corrupt. The plugin skips a storage note it can't parse and writes the reason to Zotero's debug output (Help > Debug Output Logging).
 
 ## Symptom: one mindmap is missing, the rest are fine
 
@@ -38,7 +38,7 @@ This is a trashed storage note rather than a trashed container. Only the one min
 
 > A mindmap's data note was moved to the trash. That mindmap stays hidden until you restore it.
 
-That popup appears when the note goes into the trash. It is not repeated at the next startup, so a note trashed in an earlier session is missing with no message.
+That popup appears when the note goes into the trash, and only then. It doesn't come back at the next startup, so if you trashed the note in an earlier session the mindmap is simply missing with nothing to explain it. That gap is known and not yet fixed.
 
 If the trashed note held the library's only mindmap, opening the Mindmap tab shows:
 
@@ -55,13 +55,13 @@ No replacement mindmap is made in that case. Your data stays in the trashed note
 
 ## What not to do
 
-Do not empty the trash before you have restored the item. This is the one action the plugin cannot undo for you. Once the container and its notes are erased, every mindmap in that library is gone, along with its nodes, links and layout. The items and notes those nodes pointed at stay in your library; the mindmap structure around them does not.
+Don't empty the trash before you've restored the item. This is the one action the plugin can't undo for you. Once the container and its notes are erased, every mindmap in that library is gone, along with its nodes, links and layout. Your items and notes survive, since the nodes only pointed at them. What you lose is the structure you built around them.
 
-Do not remove the tag `_zoterolinkedmindmaps-container-v1` from the container item, or `_zoterolinkedmindmaps-storage-v1` from a storage note. The plugin finds its data by those tags. An untagged container makes the plugin build a new one and leave the old notes stranded; an untagged storage note stops being a mindmap as far as the plugin is concerned.
+Don't remove the tag `_zoterolinkedmindmaps-container-v1` from the container item, or `_zoterolinkedmindmaps-storage-v1` from a storage note. Those tags are how the plugin finds its data. Strip the tag from a container and the plugin builds a new one and leaves the old notes stranded. Strip it from a storage note and that note stops being a mindmap as far as the plugin is concerned.
 
-Do not edit a storage note by hand. Zotero's note editor rewrites the note's HTML when it saves, which can break the data block the plugin reads. Renaming the container item is fine, since the plugin matches on the tag, not on the title.
+Don't edit a storage note by hand. Zotero's note editor rewrites the note's HTML when it saves, which can break the data block the plugin reads. Renaming the container item is fine, though, since the plugin matches on the tag and ignores the title.
 
-Do not delete the container item to tidy up your library. To keep it out of sight, use the setting described in [Hiding plugin data](hide-plugin-data-howto.md), which is on by default. When you delete a library's last mindmap, the plugin erases the container by itself.
+Don't delete the container item to tidy up your library. If you want it out of sight, use the setting described in [Hiding plugin data](hide-plugin-data-howto.md), which is on by default anyway. And when you delete a library's last mindmap, the plugin erases the container for you.
 
 ## Related
 

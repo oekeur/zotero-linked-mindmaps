@@ -1,8 +1,8 @@
 # Getting started with Zotero Linked Mindmaps
 
-A guided path from a Zotero install with no plugin to a mindmap with two linked items on screen. Follow the steps in order; each one leaves you somewhere the next one can start from.
+By the end of this you will have two of your own items on a mindmap with a labelled line between them. It takes about ten minutes, most of which is the build. Do the steps in order, because later ones assume the earlier ones happened.
 
-You need Zotero 7 and a library with at least two regular items in it (any two: articles, books, whatever you already have).
+You need Zotero 7 and a library with at least two regular items in it. Any two will do: articles, books, whatever you already have.
 
 ## 1. Build and install the plugin
 
@@ -19,25 +19,25 @@ If you are working on the plugin rather than using it, `npm start` builds and lo
 
 ## 2. Check that it loaded
 
-After the restart, a small popup appears in the bottom right of the Zotero window reading "Addon is loading", and a second later "[100%] Addon is ready". That popup is the plugin's own startup signal.
+After the restart, a small popup appears in the bottom right of the Zotero window reading "Addon is loading", and a second later "[100%] Addon is ready". That popup is the plugin telling you it started.
 
-If you missed it, open Tools, then Plugins, and look for Zotero Linked Mindmaps in the list. A plugin that fails to load leaves no error dialog behind, so the Plugins list is the check that matters.
+It is easy to miss. If you did, open Tools, then Plugins, and look for Zotero Linked Mindmaps in the list. Do check: when a Zotero plugin fails to load it does so quietly, with no error dialog and nothing in the interface to tell you, so the Plugins list is the only place the failure shows up.
 
 ## 3. Open the Mindmap tab
 
-Open the File menu and click "Mindmap". The keyboard shortcut Shift+G does the same thing from anywhere that isn't a text field.
+Open the File menu and click "Mindmap". Shift+G does the same thing from anywhere that isn't a text field.
 
-A tab titled "Mindmap" opens and stays selected. Opening it again later reselects this tab rather than making a second one.
+A tab titled "Mindmap" opens and stays selected. Open it again later and you land back on the same tab, so you can't end up with four of them.
 
-The first time you open it in a library with no mindmap yet, the plugin creates one for you, titled "Mindmap". The graph area is blank because that mindmap has no nodes.
+If the library has no mindmap yet, the plugin makes you one on the spot and calls it "Mindmap". The graph area will be blank, since there is nothing in it.
 
-On a fresh library that is all you will see. If instead a warning appears reading "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.", the library already has mindmaps sitting in Zotero's trash; restore them and reopen the tab rather than starting over.
+On a fresh library that is all you should see. But if a warning turns up instead, reading "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.", then this library has had mindmaps before and they are sitting in Zotero's trash. Restore them and reopen the tab. Don't start over: the work is still there.
 
 ## 4. Find your mindmap in the sidebar
 
-The strip on the left of the tab is the mindmap list. It is headed "Mindmaps" and holds one row per mindmap in the library. You should see a single row reading "Mindmap".
+The strip down the left of the tab is the mindmap list. It is headed "Mindmaps" and holds one row per mindmap in the library, so right now you should see a single row reading "Mindmap".
 
-The `‹` button at the top of the strip collapses it down to a narrow bar; `›` brings it back. The tab remembers which state you left it in.
+The `‹` button at the top collapses the strip to a narrow bar; `›` brings it back. The tab remembers which state you left it in.
 
 ## 5. Give the mindmap a name of your own
 
@@ -46,9 +46,9 @@ The `‹` button at the top of the strip collapses it down to a narrow bar; `›
 3. Type anything you like into "Description (optional)", or leave it empty.
 4. Click "Save".
 
-The list comes back with the new title, and the description underneath it in smaller text. Nothing else about the mindmap changes; renaming touches only the title and the description.
+The list comes back with the new title and the description under it in smaller text. Renaming touches the title and the description and nothing else, so your nodes and links are safe.
 
-Leave this mindmap as the only one in the library for the rest of the tutorial. Step 6 relies on that, for a reason spelled out there.
+One request: leave this as the only mindmap in the library until you finish. Step 6 leans on that, and I explain why when you get there.
 
 ## 6. Add two items from the library
 
@@ -58,23 +58,23 @@ Leave this mindmap as the only one in the library for the rest of the tutorial. 
 
 A popup confirms with "Added 2 item(s) to mindmap". Both items are now nodes.
 
-With one mindmap in the library, "Add to mindmap" is a single click and writes to that one, which is why this tutorial keeps you at one. Once the library holds several, the same entry opens a submenu of them and you pick the target by name. See [the library right-click menu](library-menu-howto.md) and [the Connections panel](connections-panel-howto.md).
+Here is the reason for step 5's request. With one mindmap in the library there is nothing to choose between, so "Add to mindmap" is a single click that writes straight to it. Once you have several, that same entry opens a submenu and you pick the target by name. Neither behaviour is hard, but the one-click version is a cleaner first experience. The [library right-click menu](library-menu-howto.md) covers both, and you can do the same job from [the Connections panel](connections-panel-howto.md).
 
 ## 7. Look at the graph
 
-Switch back to the Mindmap tab. The two items are on the canvas as labelled circles. You did not have to reopen the tab: the graph watches the mindmap it is showing and redraws when it changes.
+Switch back to the Mindmap tab. Your two items are sitting on the canvas as labelled circles. Notice you did not have to reopen anything: the graph watches the mindmap it is showing and redraws itself when the mindmap changes.
 
-Each node is labelled with the item's title. A note's node is labelled with the first 60 characters of its text instead, since note titles are often unhelpful.
+Each node carries the item's title. Notes are the exception, because a note's title is usually some truncated first line that tells you nothing, so a note node shows the first 60 characters of the text instead.
 
-Drag a node somewhere else on the canvas. Where you drop it is saved straight away, and it will be in that spot the next time you open the tab. See [node layout](node-layout-reference.md) for what happens to nodes that have never been placed.
+Now drag a node somewhere else. Where you drop it is saved immediately, and it will be in that spot next time you open the tab. Nodes that have never been dragged get placed automatically; [node layout](node-layout-reference.md) explains how.
 
 ## 8. Open a node in the dock
 
-Click one of the nodes. A panel opens on the right of the tab showing the item's title in bold, its item type, first creator and date, a "Show in library" button, and the item's mindmap links underneath.
+Click one of the nodes. A panel opens on the right of the tab with the item's title in bold, its item type, first creator and date, a "Show in library" button, and the item's mindmap links underneath.
 
-Right now the links section reads "No links yet." Leave the panel open.
+For now the links section reads "No links yet." Leave the panel open.
 
-"Close" hides the panel. "Show in library" jumps Zotero to that item in the Library tab, which means leaving the graph, so it is a button rather than something a click on a node does by accident. See [the node overview panel](node-overview-reference.md).
+"Close" hides the panel again. "Show in library" jumps Zotero to that item over in the Library tab, which yanks you out of the graph, so it sits behind a deliberate button press instead of firing whenever you click a node. The [node overview panel](node-overview-reference.md) page lists everything in there.
 
 ## 9. Link the two items
 
@@ -87,18 +87,16 @@ Right now the links section reads "No links yet." Leave the panel open.
 7. Pick the other item and confirm. Its title appears next to the button, and "Save" becomes clickable.
 8. Click "Save".
 
-The graph redraws with a line between the two nodes, labelled with the type (or `type: name` when you gave it a name). A directional type draws as a dashed line with an arrowhead; a non-directional one as a plain solid line.
+The graph redraws with a line between the two nodes, labelled with the type (or `type: name` if you filled in a name). Directional types draw as a dashed line with an arrowhead, non-directional ones as a plain solid line.
 
-Opened this way the form never asks which mindmap to use. It targets the one the graph is drawing, which is the one you are looking at. The "Add to mindmap:" question appears only where the plugin has no answer already: the item pane's Connections section, in a library holding several mindmaps.
+You may have noticed the form never asked which mindmap to put the link on. It uses the one the graph is drawing, which is the one in front of you. The "Add to mindmap:" question only turns up where the plugin genuinely cannot work it out: the item pane's Connections section, in a library that holds several mindmaps.
 
-For everything the link form can do, including linking to a node that lives in another mindmap, see [adding links](links-add-howto.md) and [link types](link-types-reference.md).
+The form does more than this, including linking to a node that lives in a different mindmap. See [adding links](links-add-howto.md) and [link types](link-types-reference.md).
 
 ## Where to go next
 
-Grouping several nodes into a labelled region: [grouping how-to](grouping-howto.md).
+That is the whole loop: add items, link them, arrange them. Everything else is variations on it.
 
-Creating, renaming and deleting mindmaps: [managing mindmaps](mindmaps-manage-howto.md).
+If you want to pen several nodes into a labelled region, read the [grouping how-to](grouping-howto.md). For creating, renaming and deleting mindmaps, [managing mindmaps](mindmaps-manage-howto.md). If you would rather just see every control in the tab listed out, that is the [mindmap tab reference](mindmap-tab-reference.md).
 
-Every control in the tab, listed: [mindmap tab reference](mindmap-tab-reference.md).
-
-Where your mindmaps are actually stored, and why an item called "Zotero Linked Mindmaps (plugin data)" exists in your library: [plugin data](plugin-data-explanation.md).
+And sooner or later you will spot an item in your library called "Zotero Linked Mindmaps (plugin data)" and wonder what it is doing there. [Plugin data](plugin-data-explanation.md) explains where your mindmaps actually live, and why they live there.

@@ -1,8 +1,8 @@
 # Create, rename and delete mindmaps
 
-All of it happens in the Mindmap tab's sidebar. There is no other place to manage mindmaps: no menu entry, no preferences pane, no library right-click route.
+All of it happens in the Mindmap tab's sidebar, and only there. No menu entry, no preferences pane, no library right-click route.
 
-Expand the sidebar first with `›` if it is collapsed. Every control below is hidden while it is collapsed.
+Expand the sidebar with `›` first if it's collapsed, since every control below is hidden while it is.
 
 ## Create a mindmap
 
@@ -12,15 +12,15 @@ Expand the sidebar first with `›` if it is collapsed. Every control below is h
 4. Optionally type a "Description (optional)".
 5. Click "Save".
 
-The list comes back with the new mindmap in it, and the graph switches to it. A new mindmap starts with no nodes and no links.
+The list comes back with the new mindmap in it and the graph switches over to it, empty of nodes and links.
 
-A blank title is rejected: "Save" does nothing and the form stays open with no message. Type something and save again.
+A blank title gets rejected, and rather unhelpfully: "Save" simply does nothing, the form stays open, and no message explains why. Type something and save again.
 
-Titles are not required to be unique. Two mindmaps with the same title are two separate mindmaps, told apart only by their descriptions in the list.
+Titles don't have to be unique. Two mindmaps with the same title are two separate mindmaps, and in the list only their descriptions tell them apart.
 
-Opening the Mindmap tab in a library with no mindmaps creates one for you, titled "Mindmap". Rename it rather than making a second one if that is the one you want.
+Opening the Mindmap tab in a library with no mindmaps creates one for you, titled "Mindmap". If that's the one you wanted, rename it rather than making a second.
 
-The tab makes that exception when the library's plugin data is in the trash. There it creates nothing and warns instead: "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back." Your mindmaps are still there, out of the plugin's reach until you restore the trashed item. See [plugin data](plugin-data-howto.md).
+There's one exception, and it's the important one. When the library's plugin data is in the trash, the tab creates nothing and warns you instead: "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back." Your mindmaps are still there and out of the plugin's reach until you restore the trashed item. See [plugin data](plugin-data-howto.md).
 
 ## Rename a mindmap, or change its description
 
@@ -28,11 +28,11 @@ The tab makes that exception when the library's plugin data is in the trash. The
 2. Change "Title", "Description (optional)", or both.
 3. Click "Save".
 
-The mindmap's nodes, links, groups and node positions are untouched. Only the title and the description change.
+Nothing else moves. Your nodes, links, groups and node positions are all untouched, and only the title and description change.
 
-Clearing the description and saving removes it; the row then shows only the title.
+Clear the description and save and it goes, leaving the row showing just the title.
 
-"Edit" acts on the row you clicked, not on the mindmap currently drawn in the graph. Editing a mindmap you are not looking at leaves the graph where it was.
+"Edit" acts on the row you clicked, not on whatever the graph happens to be drawing. So you can edit a mindmap you aren't looking at and the graph stays where it was.
 
 Click "Cancel" to leave the form without saving.
 
@@ -42,22 +42,22 @@ Click "Cancel" to leave the form without saving.
 2. A dialog titled "Delete mindmap" asks: `Delete "<title>"? Its links and layout go with it. The items and notes it points at stay in your library.`
 3. Confirm.
 
-The row disappears. If you deleted the mindmap the graph was showing, the tab loads the first mindmap in the list, or shows "No mindmaps yet. Create one to start linking items." when that was the last one.
+The row disappears. If you deleted the mindmap the graph was showing, the tab loads the first mindmap in the list instead, or shows "No mindmaps yet. Create one to start linking items." if that was the last one.
 
 ### What deletion removes
 
-Everything that lives inside the mindmap: its nodes, its links, its groups, and every node position you set by dragging.
+Everything that lived inside the mindmap: its nodes, its links, its groups, and every node position you set by dragging.
 
-The Zotero note the mindmap was stored in is erased outright rather than moved to the trash, so it cannot be recovered from the trash afterwards. Deleting the library's last mindmap also removes the "Zotero Linked Mindmaps (plugin data)" container item that held it, leaving no plugin row behind. See [plugin data](plugin-data-reference.md).
+The Zotero note the mindmap was stored in gets erased outright rather than moved to the trash, so there's nothing in the trash to recover afterwards. Delete the library's last mindmap and the "Zotero Linked Mindmaps (plugin data)" container item that held it goes too, leaving no plugin row behind. See [plugin data](plugin-data-reference.md).
 
 ### What deletion leaves alone
 
-Every Zotero item and note the mindmap pointed at. Those are separate objects; the mindmap only referenced them and deleting it never opens them.
+Every Zotero item and note the mindmap pointed at. Those are separate objects that the mindmap only ever referenced, and deleting it never touches them.
 
-Other mindmaps, including their nodes and links. One exception is worth knowing about: a link in another mindmap that reached into a node of the deleted one has nothing left to point at, and the stub standing in for it is dropped when that reconciliation runs. See [cross-mindmap links](cross-mindmap-links-explanation.md).
+Other mindmaps too, nodes and links included. There's one exception worth knowing about: a link in another mindmap that reached into a node of the deleted one now has nothing to point at, and the stub standing in for it gets dropped the next time reconciliation runs. See [cross-mindmap links](cross-mindmap-links-explanation.md).
 
 ### Recovering from a deletion
 
-There is no undo. The storage note is erased, not trashed, so Zotero's trash holds nothing to restore.
+You can't. There's no undo, and the storage note is erased rather than trashed, so Zotero's trash holds nothing to restore.
 
-If the library syncs and another device still holds the deleted mindmap's note in its own copy, the deletion propagates there as well once that device syncs.
+And if the library syncs and another device still has the deleted mindmap's note in its own copy, the deletion will propagate there too once that device syncs.
