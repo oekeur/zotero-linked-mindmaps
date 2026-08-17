@@ -12,6 +12,14 @@ export interface LinkType {
   directional: boolean;
 }
 
+/**
+ * What a link whose typeId matches no type is called. A type can be deleted
+ * from settings while links still reference it, and the delete confirmation
+ * promises the user those links "will show as (unknown type)" - so every
+ * surface that names a link type has to use this one, not the raw typeId.
+ */
+export const UNKNOWN_TYPE_LABEL = "(unknown type)";
+
 const LINK_TYPES_PREF_KEY = `${config.prefsPrefix}.linkTypes`;
 
 export const DEFAULT_LINK_TYPES: LinkType[] = [

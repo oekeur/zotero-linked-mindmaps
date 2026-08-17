@@ -206,14 +206,29 @@ describe("mindmap/addLinkForm", function () {
     it("adds an external stub in this document and links to it (AC #2)", function () {
       const doc = emptyDoc();
 
-      const link = completeExternalLink(doc, params());
+      const result = completeExternalLink(doc, params());
 
+      assert.isTrue(result.ok);
+      const link = (result as { link: { targetNodeId: string } }).link;
       const stub = doc.nodes.find((node) => node.membership === "external")!;
       assert.isDefined(stub);
       assert.equal(stub.homeMindmapId, "other-mindmap");
       assert.equal(stub.homeNodeId, "their-node");
       assert.equal(link.targetNodeId, stub.id);
       assert.deepEqual(doc.links, [link]);
+    });
+
+    it("rejects a borrowed node standing for the same object as the source", function () {
+      const doc = emptyDoc();
+
+      const result = completeExternalLink(doc, {
+        ...params(),
+        targetRef: sourceRef,
+      });
+
+      assert.isFalse(result.ok);
+      assert.lengthOf(doc.nodes, 0);
+      assert.lengthOf(doc.links, 0);
     });
 
     it("reuses an existing stub for the same borrowed node", function () {
@@ -290,6 +305,12 @@ describe("mindmap/addLinkForm", function () {
         ) as HTMLElement;
       }
 
+      // The borrowed node stands for a different item than the one the form is
+      // editing. A node for `item` itself is not a valid external target - it
+      // would draw one item as two nodes with a link between them - and the
+      // dropdown leaves those out.
+      let borrowed: Zotero.Item;
+
       async function buildOtherMindmapWithNode() {
         const here = await createMindmap("Here");
         const there = await createMindmap("There");
@@ -302,7 +323,11 @@ describe("mindmap/addLinkForm", function () {
               membership: "member",
               id: "their-node",
               position: { x: 0, y: 0 },
-              ref: { kind: "item", libraryID: item.libraryID, key: item.key },
+              ref: {
+                kind: "item",
+                libraryID: borrowed.libraryID,
+                key: borrowed.key,
+              },
             },
           ],
         });
@@ -311,12 +336,17 @@ describe("mindmap/addLinkForm", function () {
 
       beforeEach(async function () {
         this.timeout(30000);
+        borrowed = new Zotero.Item("journalArticle");
+        borrowed.libraryID = Zotero.Libraries.userLibraryID;
+        borrowed.setField("title", "Borrowed From Another Mindmap");
+        await borrowed.saveTx();
         await clearStorageNotes();
       });
 
       afterEach(async function () {
         this.timeout(30000);
         await clearStorageNotes();
+        await borrowed.eraseTx();
       });
 
       it("lists the other mindmaps and their nodes, never this one (AC #1)", async function () {
@@ -338,6 +368,40 @@ describe("mindmap/addLinkForm", function () {
           [...selects[1].options].map((option) => option.value),
           ["their-node"],
         );
+      });
+
+      it("leaves out a borrowed node standing for the item being edited", async function () {
+        this.timeout(30000);
+        const here = await createMindmap("Here");
+        const there = await createMindmap("There");
+        await writeMindmapDocument({
+          ...emptyDoc(),
+          id: there.id,
+          title: "There",
+          nodes: [
+            {
+              membership: "member",
+              id: "their-node",
+              position: { x: 0, y: 0 },
+              ref: { kind: "item", libraryID: item.libraryID, key: item.key },
+            },
+          ],
+        });
+        const hereDoc = await readMindmapDocument(here.id);
+
+        renderAddLinkForm(container, item, hereDoc, () => {});
+        externalButton().click();
+        await Zotero.Promise.delay(700);
+
+        const selects = externalArea().querySelectorAll("select");
+        assert.lengthOf(selects, 2);
+        assert.isEmpty([...selects[1].options]);
+        const saveButton = Array.from(
+          container.querySelectorAll("button"),
+        ).find((button) =>
+          button.getAttribute("data-l10n-id")?.includes("save"),
+        ) as HTMLButtonElement;
+        assert.isTrue(saveButton.disabled);
       });
 
       it("says so when there is no other mindmap to link to", async function () {

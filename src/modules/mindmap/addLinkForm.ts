@@ -117,11 +117,20 @@ export interface CompleteExternalLinkParams {
  *
  * An existing stub for the same (mindmap, node) pair is reused, so linking to
  * the same borrowed node twice doesn't put it on the graph twice.
+ *
+ * Rejects a borrowed node that stands for the same Zotero object as the source.
+ * The stub and the source node are distinct nodes, so nothing here would break
+ * - but the other mindmap can hold a member node for the very item being
+ * edited, and taking it would draw one item as two nodes joined by a link.
  */
 export function completeExternalLink(
   doc: MindmapDocument,
   params: CompleteExternalLinkParams,
-): MindmapLink {
+): CompleteLinkResult {
+  if (refsMatch(params.sourceRef, params.targetRef)) {
+    return { ok: false, reason: "self-link" };
+  }
+
   let targetNode = doc.nodes.find(
     (node) =>
       node.membership === "external" &&
@@ -137,13 +146,14 @@ export function completeExternalLink(
     doc.nodes.push(targetNode);
   }
 
-  return appendLink(doc, {
+  const link = appendLink(doc, {
     sourceRef: params.sourceRef,
     targetNodeId: targetNode.id,
     typeId: params.typeId,
     name: params.name,
     direction: params.direction,
   });
+  return { ok: true, link };
 }
 
 /**
@@ -365,6 +375,9 @@ export function renderAddLinkForm(
       let offered = new Map<string, MindmapNode>();
 
       // Only member nodes: a mindmap's own borrowings are not its to lend on.
+      // The source item is left out too - another mindmap can hold a node for
+      // the item being edited, and borrowing it would draw that one item as
+      // two nodes with a link between them.
       async function loadNodes() {
         nodeSelect.textContent = "";
         saveButton.disabled = true;
@@ -374,7 +387,10 @@ export function renderAddLinkForm(
         );
         offered = new Map(
           target.nodes
-            .filter((node) => node.membership === "member")
+            .filter(
+              (node) =>
+                node.membership === "member" && !refsMatch(node.ref, sourceRef),
+            )
             .map((node) => [node.id, node]),
         );
         for (const node of offered.values()) {
@@ -447,22 +463,18 @@ export function renderAddLinkForm(
         let completed = false;
         await updateMindmapDocument(
           (current) => {
-            if (target.kind === "external") {
-              // A borrowed node is a different object from the source by
-              // definition, so there is no self-link to guard against.
-              completeExternalLink(current, {
-                ...common,
-                homeMindmapId: target.homeMindmapId,
-                homeNodeId: target.homeNodeId,
-              });
-              completed = true;
-              return current;
-            }
-            const result = completeLink(current, common);
+            const result =
+              target.kind === "external"
+                ? completeExternalLink(current, {
+                    ...common,
+                    homeMindmapId: target.homeMindmapId,
+                    homeNodeId: target.homeNodeId,
+                  })
+                : completeLink(current, common);
             completed = result.ok;
-            // The picker already blocks selecting a self-referential target,
-            // so this only guards against the selection changing meaning
-            // between pick and save.
+            // Both pickers already keep a self-referential target from being
+            // chosen, so this only guards against the selection changing
+            // meaning between pick and save.
             return result.ok ? current : null;
           },
           doc.id,
@@ -485,10 +497,16 @@ export function renderAddLinkForm(
  * pane (e.g. from a library right-click menu). Resolves once the dialog
  * window closes, so a caller opening one per item in a selection can wait
  * for each to finish before opening the next, rather than racing writes.
+ *
+ * `mindmapId` is the mindmap the link belongs in. Left out, the library's
+ * default one is used and created on demand - which is right for a library
+ * that has no mindmap yet, and wrong for one that has several, so callers with
+ * a user's answer in hand should pass it.
  */
 export function openAddLinkDialog(
   win: Window,
   item: Zotero.Item,
+  mindmapId?: string,
 ): Promise<void> {
   void win;
   return new Promise((resolve) => {
@@ -507,7 +525,7 @@ export function openAddLinkDialog(
             ) as HTMLElement;
             try {
               const mindmapDoc = await readMindmapDocument(
-                undefined,
+                mindmapId,
                 item.libraryID,
               );
               renderAddLinkForm(contentEl, item, mindmapDoc, () => {

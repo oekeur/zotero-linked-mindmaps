@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import { canBeMindmapNode, refFor } from "../../src/modules/mindmap/mutations";
+import { CONTAINER_TAG, STORAGE_TAG } from "../../src/modules/mindmap/storage";
 import { openTargetPicker } from "../../src/modules/mindmap/targetPicker";
 
 interface PickerIO {
@@ -146,5 +147,30 @@ describe("mindmap/targetPicker", function () {
     assert.isTrue(canBeMindmapNode(standaloneNote));
     assert.isTrue(canBeMindmapNode(childNote));
     assert.isFalse(canBeMindmapNode(attachment));
+  });
+
+  it("refuses the plugin's own container item and storage notes", async function () {
+    // Built by hand rather than through findOrCreateContainer /
+    // createMindmapNote: those write a real container and a real storage note
+    // into the library, which later suites then find in the registry.
+    const container = new Zotero.Item("document");
+    container.libraryID = Zotero.Libraries.userLibraryID;
+    container.setField("title", "Zotero Linked Mindmaps (plugin data)");
+    container.addTag(CONTAINER_TAG);
+    await container.saveTx();
+
+    const storageNote = new Zotero.Item("note");
+    storageNote.libraryID = Zotero.Libraries.userLibraryID;
+    storageNote.parentItemID = container.id;
+    storageNote.setNote("<p>not a real document</p>");
+    storageNote.addTag(STORAGE_TAG);
+    await storageNote.saveTx();
+
+    try {
+      assert.isFalse(canBeMindmapNode(container));
+      assert.isFalse(canBeMindmapNode(storageNote));
+    } finally {
+      await container.eraseTx();
+    }
   });
 });

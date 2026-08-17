@@ -49,7 +49,11 @@ const NOTE_WARNING =
   "<p>This note stores structured data for the Zotero Linked Mindmaps plugin. Editing it manually will corrupt your mindmap.</p>";
 
 export type StorageErrorReason =
-  "block-missing" | "parse-failed" | "invalid-schema" | "not-found";
+  | "block-missing"
+  | "parse-failed"
+  | "invalid-schema"
+  | "not-found"
+  | "container-trashed";
 
 export class StorageError extends Error {
   reason: StorageErrorReason;
@@ -120,20 +124,59 @@ function defaultLibraryID(): number {
  * that listing opens and parses every note rather than reading one index,
  * which is fine at the low tens of mindmaps a library is expected to hold.
  */
-export async function findAllMindmapNotes(
-  libraryID = defaultLibraryID(),
-): Promise<Zotero.Item[]> {
+async function searchStorageNotes(
+  libraryID: number,
+  { includeTrashed = false } = {},
+): Promise<number[]> {
   const search = new Zotero.Search();
   search.addCondition("libraryID", "is", libraryID);
   search.addCondition("itemType", "is", "note");
   search.addCondition("tag", "is", STORAGE_TAG);
-  const ids = await search.search();
+  if (includeTrashed) {
+    search.addCondition("includeDeleted", "true");
+  }
+  return search.search();
+}
+
+export async function findAllMindmapNotes(
+  libraryID = defaultLibraryID(),
+): Promise<Zotero.Item[]> {
+  const ids = await searchStorageNotes(libraryID);
   if (ids.length === 0) {
     return [];
   }
   const items = (await Zotero.Items.getAsync(ids)) as Zotero.Item[];
   // Sorted here rather than relying on getAsync echoing the id order back.
   return [...items].sort((a, b) => a.id - b.id);
+}
+
+/**
+ * Whether the library holds plugin data the registry cannot reach. Trashing
+ * hides data rather than removing it: a trashed storage note drops out of the
+ * search, and a trashed container takes its child notes with it. Either way
+ * the library looks empty while the mindmaps still exist, and anything that
+ * answers "empty" by creating a replacement writes a second copy the user can
+ * never reconcile with the first.
+ *
+ * The two cases are tested separately rather than through one search. Trashing
+ * a parent does not flag its children, so a count of trashed notes would not
+ * see the mindmaps that went down with a trashed container.
+ */
+export async function hasHiddenMindmapData(
+  libraryID = defaultLibraryID(),
+): Promise<boolean> {
+  const [visibleNotes, allNotes] = await Promise.all([
+    searchStorageNotes(libraryID),
+    searchStorageNotes(libraryID, { includeTrashed: true }),
+  ]);
+  if (allNotes.length > visibleNotes.length) {
+    return true;
+  }
+  const [liveContainers, allContainers] = await Promise.all([
+    findContainers(libraryID),
+    findContainers(libraryID, { includeTrashed: true }),
+  ]);
+  return allContainers.length > liveContainers.length;
 }
 
 /**
@@ -173,9 +216,19 @@ export async function findContainers(
 }
 
 /**
- * The library's container, created if it has none. Callers that must not
- * create one - the startup reconciliation, which has to leave a trashed
- * container alone - go through reconcileContainer instead.
+ * The library's container, created if it has none.
+ *
+ * Throws rather than creating one when every container the library has is in
+ * the trash. A replacement would take the next write while the real mindmaps
+ * sat in the trash, invisible to a search that skips a deleted item's child
+ * notes - so the user would end up with two containers, one holding everything
+ * they made and one holding what they do from now on, and nothing telling them
+ * so. Reporting it is the caller's job; reconcileContainer answers the same
+ * situation with a "trashed" state instead of an error.
+ *
+ * The trashed check is a plain search, deliberately: this runs inside queued
+ * storage tasks (createMindmap -> createNoteFor), and the queue is not
+ * reentrant.
  */
 export async function findOrCreateContainer(
   libraryID = defaultLibraryID(),
@@ -183,6 +236,13 @@ export async function findOrCreateContainer(
   const existing = await findContainers(libraryID);
   if (existing.length > 0) {
     return existing[0];
+  }
+  // No live container, so anything this finds is trashed.
+  if ((await findContainers(libraryID, { includeTrashed: true })).length > 0) {
+    throw new StorageError(
+      "container-trashed",
+      `library ${libraryID} has only trashed containers; refusing to create a replacement`,
+    );
   }
   const item = new Zotero.Item("document");
   item.libraryID = libraryID;
@@ -600,9 +660,14 @@ export async function updateMindmapMetadata(
  * erasing the note removes them with it; the Zotero items and notes those
  * nodes pointed at are separate objects this never opens.
  *
- * Erases rather than trashes: a trashed storage note is still tagged and
- * still found by the registry search, so it would keep showing up as a
- * mindmap the user believes they deleted.
+ * Erases rather than trashes. A trashed note does drop out of the registry
+ * search on its own, so the mindmap stops being listed either way - but
+ * trashing would leave the user an opaque JSON note sitting in the trash after
+ * a delete that looked like it worked, with nothing they can read or act on.
+ * It would also keep the container alive: childNoteCount counts with
+ * numNotes(true), which includes trashed children, so eraseContainerIfEmpty
+ * below would never fire and the plugin row would outlive the library's last
+ * mindmap.
  *
  * Takes the container with it when that was the library's last mindmap, so
  * deleting everything leaves no plugin row behind.

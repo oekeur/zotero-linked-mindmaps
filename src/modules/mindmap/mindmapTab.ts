@@ -17,6 +17,7 @@ import {
   createMindmap,
   deleteMindmap,
   findAllMindmapNotes,
+  hasHiddenMindmapData,
   listMindmaps,
   readMindmapDocument,
   resolveMindmap,
@@ -25,6 +26,7 @@ import {
   updateMindmapMetadata,
   type MindmapSummary,
 } from "./storage";
+import { warn } from "./containerGuard";
 import { getLinkTypes } from "./linkTypes";
 import {
   attachLiveRefresh,
@@ -461,6 +463,39 @@ export function createMindmapTabController(
 let mindmapTabID: string | undefined;
 let controller: MindmapTabController | undefined;
 
+/**
+ * Gives a library with no mindmap yet its first one, so the tab lands on a
+ * usable graph rather than an empty state nobody asked for.
+ *
+ * An empty registry has two causes and they need opposite answers. A library
+ * that genuinely holds nothing wants a mindmap. A library whose data is in the
+ * trash looks identical from the registry's side, and creating there would
+ * hand the user a blank mindmap while the one they had sat unreachable - which
+ * reads as the plugin having erased their work. So that case is reported and
+ * left alone; restoring from the trash is the only thing that fixes it, and
+ * that is the user's to do.
+ */
+async function createDefaultMindmapIfNeeded(): Promise<void> {
+  if ((await findAllMindmapNotes()).length > 0) {
+    return;
+  }
+  if (await hasHiddenMindmapData()) {
+    warn(getString("mindmap-data-trashed-open"));
+    return;
+  }
+  try {
+    await readMindmapDocument();
+  } catch (err) {
+    // The container can land in the trash between the check above and the
+    // write below.
+    if (err instanceof StorageError && err.reason === "container-trashed") {
+      warn(getString("mindmap-data-trashed-open"));
+      return;
+    }
+    throw err;
+  }
+}
+
 export async function openMindmapTab(): Promise<void> {
   const Zotero_Tabs = ztoolkit.getGlobal("Zotero_Tabs");
 
@@ -516,11 +551,7 @@ export async function openMindmapTab(): Promise<void> {
   body.appendChild(dock as unknown as Node);
 
   controller = createMindmapTabController({ sidebar, graph, dock });
-  // A library with no mindmap yet gets one on first open, so the tab lands on
-  // a usable graph rather than an empty state nobody asked for.
-  if ((await findAllMindmapNotes()).length === 0) {
-    await readMindmapDocument();
-  }
+  await createDefaultMindmapIfNeeded();
   await controller.refresh();
 }
 
