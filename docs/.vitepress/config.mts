@@ -220,6 +220,10 @@ export default defineConfig({
               text: "Configuration",
               link: "/contributing/configuration-reference",
             },
+            {
+              text: "Cutting a release",
+              link: "/contributing/releasing-howto",
+            },
           ],
         },
       ],

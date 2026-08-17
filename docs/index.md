@@ -41,6 +41,7 @@ The documentation here follows [Diataxis](https://diataxis.fr/). Tutorials teach
 | Recover mindmaps that vanished | [Plugin data recovery](./user-guide/plugin-data-howto.md)                                                                 |
 | Add a link type of your own    | [Editing link types](./user-guide/link-types-howto.md)                                                                    |
 | Run the project locally        | [Development setup](./contributing/development-setup.md)                                                                  |
+| Publish a version              | [Cutting a release](./contributing/releasing-howto.md)                                                                    |
 | Change how mindmaps are stored | [Storage design](./internals/storage-explanation.md), then [storage reference](./internals/storage-reference.md)          |
 | Add a Zotero notifier observer | [Notifiers and the storage queue](./internals/notifier-queue-explanation.md) first, it constrains what an observer may do |
 | Change the graph's look        | [Rendering design](./internals/rendering-explanation.md)                                                                  |

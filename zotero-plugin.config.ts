@@ -39,6 +39,16 @@ export default defineConfig({
     ],
   },
 
+  release: {
+    bumpp: {
+      // Runs after the version bump and before the commit, with
+      // throwOnError, so a broken build aborts the release instead of
+      // tagging it. In CI this is also what produces the .xpi and update
+      // JSON that the GitHub release step uploads.
+      execute: "npm run build",
+    },
+  },
+
   test: {
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
   },

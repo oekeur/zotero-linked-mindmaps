@@ -125,11 +125,13 @@ Use this instead of `npm test` for a one-shot run. See [testing-howto.md](./test
 zotero-plugin release
 ```
 
-Bumps the version (interactive prompt by default, `preid` `beta`), commits as `chore(publish): release v%s`, tags `v%s`, generates a changelog, and creates a GitHub release with the built `.xpi` and update JSON attached. GitHub publishing defaults to `"ci"`, meaning it runs from CI; to publish from your machine, set `GITHUB_TOKEN` in `.env`.
+Bumps the version (interactive prompt by default, `preid` `beta`), runs `npm run build` through `release.bumpp.execute`, commits as `chore(publish): release v%s`, tags `v%s`, and pushes both. GitHub publishing defaults to `"ci"`, so running this locally stops at the push.
+
+The tag push triggers `.github/workflows/release.yml`, which calls the reusable `zotero-plugin-dev/workflows/.github/workflows/release-plugin.yml` and runs this same script inside Actions. There it skips the bump, builds, generates a changelog, and creates the `v<version>` release with the `.xpi` attached plus the `release` release holding `update.json` and `update-beta.json`.
 
 The release URLs are templated from `repository.url` in `package.json`. A wrong owner or repo there produces a release pointing at the wrong place, with no error. See [configuration-reference.md](./configuration-reference.md).
 
-No tag-triggered release workflow exists in `.github/workflows/` yet; only `ci.yml` is present, running the `lint`, `build`, and `test` jobs on push and pull request to `main`.
+[releasing-howto.md](./releasing-howto.md) walks through an actual release, including the arguments for a beta and what to do when a step fails.
 
 ## update-deps
 
