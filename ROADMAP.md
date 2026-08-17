@@ -1,6 +1,6 @@
 # Roadmap
 
-Not a task-level breakdown. Phases 0 through 4 and 6 are built; Phase 5 is in progress. Nothing here is released yet.
+Not a task-level breakdown. Every phase below is built. Nothing here is released yet.
 
 For what the built features actually do, read the [user guide](./docs/user-guide/); this file records the order things arrived in and what is still open.
 
@@ -30,13 +30,13 @@ Standalone notes and child notes are linkable nodes, same as regular items. Atta
 
 Links reaching from one mindmap into a node whose membership lives in another, styled to flag it as external. Stale external nodes get pruned.
 
-## Phase 5: Library integration polish (mostly done)
+## Phase 5: Library integration polish (done)
 
 Keep the plugin's storage out of the user's way in the library and in the link-target picker.
 
 The main part is done, and it needs no patched internals. Every storage note is parented to one container item per library, and Zotero's library and collection views add `noChildren` to the search that builds their rows, so a child note never renders as a top-level row. N mindmaps collapse to one visible row through Zotero's own view behavior. This replaced an earlier plan to patch `Zotero.CollectionTreeRow.prototype.getSearchObject` for the same job. See [container guard design](./docs/internals/container-guard-explanation.md).
 
-What remains is hiding that last container row, behind the `hideMindmapNotes` toggle. That part does patch `getSearchObject`, and it is written but not yet committed. It is deliberately optional and fails open: if the method is missing it logs and skips, and if the wrap throws it returns the original search, so a Zotero upgrade costs one visible row rather than an item tree that renders nothing. The honest cost is that it degrades with no signal. See [the library filter notes](./docs/internals/library-filter-explanation.md).
+Hiding that last container row is the one part that does patch `getSearchObject`, behind the `hideMindmapNotes` toggle. It is deliberately optional and fails open: if the method is missing it logs and skips, and if the wrap throws it returns the original search, so a Zotero upgrade costs one visible row rather than an item tree that renders nothing. The honest cost is that it degrades with no signal. See [the library filter notes](./docs/internals/library-filter-explanation.md).
 
 ## Phase 6: Node grouping (done)
 

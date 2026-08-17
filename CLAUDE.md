@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Implemented, not released. `src/modules/mindmap/` holds 20 real modules (~5,500 lines) and `test/mindmap/` 16 test files; none of the template's example code remains in `src/`. Version 0.1.0 with no published build, so installing means building from source. Read `project/PRODUCT.md` before making design decisions: it's the product charter (goals, non-goals, and the reasoning behind data-model choices already made). User-facing and internals docs live in `docs/`.
 
-Roadmap phases 0-4 and 6 are built; phase 5 (filtering plugin data out of the item tree) is written but not yet committed. See `ROADMAP.md`.
+Every roadmap phase (0 through 6) is built. See `ROADMAP.md`.
 
 Plugin name: **Zotero Linked Mindmaps** (`config.addonName`/`addonRef` in `package.json`) — chosen to avoid colliding with `samreading/zotero-mindmap`, an existing, different plugin named in `project/PRODUCT.md:23` that this project improves on.
 
