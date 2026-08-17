@@ -59,7 +59,7 @@ git push origin v0.1.0
 
 The workflow then runs the same way it would for any other tag.
 
-The auto-generated release notes for this one will list all 128 commits, because there's no previous tag to diff against. Edit them down on the release page afterwards.
+There's no previous tag to diff against, so the auto-generated notes for this one cover the entire history, grouped by commit type. That's what v0.1.0 shipped with. Trim it on the release page if you'd rather it read as a summary.
 
 ## Where the changelog comes from
 
@@ -74,6 +74,10 @@ You can't edit the notes before they're posted. Edit them on GitHub afterwards.
 **The tag pushed but no workflow ran.** The tag points at a commit without `release.yml` in it, or the tag doesn't match `v*`. Delete the tag locally and on origin, then re-tag a commit that has the workflow.
 
 **The workflow ran but the release is missing its `.xpi`.** Read the Actions log. The scaffold throws `No xpi file found, are you sure you have run build?` when `.scaffold/build/` is empty, which means the build step inside the release didn't run: check that `release.bumpp.execute` is still set to `npm run build` in `zotero-plugin.config.ts`.
+
+**The workflow failed partway through.** It publishes in a fixed order: create `v<version>`, upload the `.xpi`, then create or refresh the `release` release with the JSON assets. A failure in the second half leaves a `v<version>` release that looks finished but has no matching `update.json` behind it. Re-running the job as-is won't fix that, because creating a release for a tag that already has one is a hard error. Delete the `v<version>` release (the tag stays), then `gh run rerun <run-id> --failed`.
+
+Don't be tempted to build locally and upload `update.json` by hand. It carries a sha512 of the `.xpi` it was built alongside, and your local `.xpi` is not byte-identical to the one CI built, so the hash won't match the asset users download.
 
 **Users aren't getting the update.** Fetch the `update.json` asset from the `release` release and check the `update_link` in it resolves. A wrong `repository.url` in `package.json` produces working-looking URLs that point at a repository that doesn't exist, with no error anywhere in the build. [configuration-reference.md](./configuration-reference.md) lists the fields that fail this quietly.
 
