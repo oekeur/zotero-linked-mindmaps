@@ -10,6 +10,8 @@ This is the fastest way to get items onto a mindmap: they arrive as nodes, with 
 
 If the library holds more than one mindmap, "Add to mindmap" opens a submenu rather than acting straight away. Pick the one you want from it. The entries are mindmap titles, oldest first.
 
+![Zotero's item right-click menu with "Add to Mindmap" open, listing Mindmap 1 and Mindmap 2, above the separate "Add Link in" entry](../images/library-context-menu.png)
+
 Your item is now a node with no position yet. Open the mindmap tab to see where it gets placed ([mindmap-tab-howto.md](mindmap-tab-howto.md)).
 
 ## Add several items at once

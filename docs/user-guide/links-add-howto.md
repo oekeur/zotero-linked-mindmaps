@@ -18,6 +18,9 @@ Four places open the add-link form, and they all produce the same link record. W
 1. Open the mindmap tab and load the mindmap you want (see [mindmap-tab-howto.md](mindmap-tab-howto.md)).
 2. Right-click the node you want to link from. A small menu opens at the click point with one action, "Add link".
 3. Click "Add link". The node docks in the panel beside the graph and the form opens under its summary, on the mindmap the graph is currently drawing. You won't be asked which mindmap that is, because it's the one in front of you.
+
+   ![A node on the canvas with the one-entry "Add link" menu opened beside it](../images/node-add-link.png)
+
 4. Fill in the form as in steps 4 to 8 above. The link appears on the graph while you watch.
 
 Left-clicking a node docks it without opening the form. Right-clicking empty canvas or a group region opens the grouping menu, not this one (see [grouping-howto.md](grouping-howto.md)).
@@ -37,4 +40,4 @@ Each dialog waits for the one before it, so a multi-item run can't end up with t
 
 ## Link to a node that lives in another mindmap
 
-Use "Choose from another mindmap" instead of "Choose target" at step 7. The steps are in [cross-mindmap-links-howto.md](cross-mindmap-links-howto.md).
+Use "Link to another mindmap…" instead of "Choose target…" at step 7. The steps are in [cross-mindmap-links-howto.md](cross-mindmap-links-howto.md).
