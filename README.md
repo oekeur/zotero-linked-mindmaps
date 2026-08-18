@@ -2,6 +2,8 @@
 
 A Zotero 7 plugin for organizing and visualizing interconnected sources as one or more mindmaps, with typed, named links between items and notes.
 
+![The Mindmap tab in Zotero: three nodes on a canvas joined by a dashed "cites: test" arrow and a solid "related to" line, one node dashed to mark it as borrowed from another mindmap, with the mindmap list on the left and the node dock on the right](./docs/images/mindmap-tab.png)
+
 ## Why
 
 Zotero's tags and `relatedItem` field connect two items, but not how they're connected. Whether one critiques the other or is the primary source for one specific chapter gets flattened into the same untyped link. For a highly interconnected source corpus, that loses most of the structure worth mapping.
@@ -14,6 +16,9 @@ An existing plugin, [samreading/zotero-mindmap](https://github.com/samreading/zo
 - Multiple named mindmaps instead of one flat graph, since most people's sources split by topic rather than one global structure.
 - A rendered graph per mindmap in its own Zotero tab, with link type shown as a label plus a line-style cue, not color alone (color stops being readable past 8-10 types). Parallel links between the same two nodes are offset so each stays readable and separately labeled.
 - Link creation from wherever you're actually working: a "Mindmaps" section in the item pane while reading, a right-click in the library, or a right-click on a node in an open mindmap.
+
+  ![The Mindmaps section in Zotero's item pane, showing one existing link row and the add-link form with Type, Name, Direction and Target fields](./docs/images/item-pane-mindmaps-section.png)
+
 - Node positions you set by dragging, persisted with the mindmap. Nodes you haven't placed get laid out on a grid.
 - Node grouping, for marking a cluster as belonging together without inventing a link between every pair.
 - Cross-mindmap links, reaching from one mindmap into a node whose membership lives in another, styled to flag it as external.

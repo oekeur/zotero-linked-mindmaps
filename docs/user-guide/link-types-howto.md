@@ -7,7 +7,9 @@ The vocabulary is edited in Zotero's settings, in a pane the plugin registers. F
 1. Open Zotero's settings window (Edit, then Settings).
 2. Select "Mindmaps" in the pane list on the left.
 
-The pane holds two groups. "Link types" is a list with one row per type, headed "Label" and "On the graph": the second column draws the line the graph will actually use for that type, dashed with an arrowhead for a directional type and solid for an undirected one, next to the word describing it. Add, edit and remove controls sit on a strip along the bottom of the list itself. The second group, "Library", holds the setting that hides the plugin's storage item.
+The pane holds two groups. "Link types" is a list with one row per type, headed "Label" and "Directional": the second column draws the line the graph will actually use for that type, dashed with an arrowhead for a directional type and solid for an undirected one, next to the word describing it. Add, edit and remove controls sit on a strip along the bottom of the list itself. The second group, "Library", holds the setting that hides the plugin's storage item.
+
+![The Mindmaps pane in Zotero's settings, with the link type list headed Label and Directional, the add, edit and remove strip below it, and the Library group underneath](../images/settings-link-types.png)
 
 ## Add a type
 
@@ -24,6 +26,8 @@ The list comes back with the new type selected. "Cancel" returns to the table wi
 2. Click "Edit" on the strip below the list. It is disabled while nothing is selected.
 3. Change the "Label" field, the "Directional" checkbox, or both.
 4. Click "Save".
+
+![The link type editor open over the list, with the Label field reading "supports", the Directional checkbox ticked, and Save and Cancel beside them](../images/settings-link-type-editor.png)
 
 Renaming is safe. Existing links keep their type, because a link stores the type's id rather than its label, and the new label shows up on the graph and in the Mindmaps section the next time each one redraws.
 
