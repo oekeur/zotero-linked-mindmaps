@@ -2,16 +2,16 @@
 
 Four places open the add-link form, and they all produce the same link record. What differs between them is which item you start from and how the form gets presented to you. For field by field detail, see [links-add-reference.md](links-add-reference.md).
 
-## From the Connections section in the item pane
+## From the Mindmaps section in the item pane
 
-1. Select a regular item or a note in the library. The Connections section is disabled for anything else: attachments, and the plugin's own "Zotero Linked Mindmaps (plugin data)" item and storage notes.
-2. Open the Connections section in the item pane. Click the "+" button in its header (tooltip "Add link"). The section expands if it was collapsed.
+1. Select a regular item or a note in the library. The Mindmaps section is disabled for anything else: attachments, and the plugin's own "Zotero Linked Mindmaps (plugin data)" item and storage notes.
+2. Open the Mindmaps section in the item pane. Click the "+" button in its header (tooltip "Add link"). The section expands if it was collapsed.
 3. If the panel already names a mindmap after "Mindmap:", that's where the link goes and you won't be asked anything. You only get the "Add to mindmap:" question when the item isn't in a mindmap yet and the library holds more than one; pick one and click "Continue".
 4. Pick a link type under "Type".
 5. Type a label under "Name (optional)" if you want one. Leave it blank otherwise.
-6. If a "Direction" dropdown appeared, choose "Forward" (this item points at the target) or "Backward" (the target points at this item).
+6. If a "Direction" dropdown appeared, choose which way the relation runs. Both options spell it out using the type as the verb, so for `cites` you are picking between "This item cites the target" and "The target cites this item".
 7. Click "Choose target" and pick the item or note to link to in Zotero's item selector.
-8. Click "Save". The Connections list redraws with the new link.
+8. Click "Save". The links list redraws with the new link.
 
 ## From a node in the mindmap tab
 

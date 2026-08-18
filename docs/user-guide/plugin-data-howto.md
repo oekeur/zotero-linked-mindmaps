@@ -2,9 +2,9 @@
 
 ## Symptom: every mindmap in a library is gone
 
-The Mindmap tab shows an empty list, or "No mindmaps yet. Create one to start linking items.", and the Connections panel shows "Not in any mindmap yet." for items you know were on a mindmap. You may have seen a popup saying:
+The Mindmap tab shows an empty list, or "No mindmaps yet. Create one to start linking items.", and the Mindmaps section shows "Not in any mindmap yet." for items you know were on a mindmap. You may have seen a popup saying:
 
-> "Zotero Linked Mindmaps (plugin data)" was moved to the trash. Every mindmap in that library stays hidden until you restore it.
+> The Zotero Linked Mindmaps item was moved to the trash. Every mindmap in that library stays hidden until you restore it.
 
 Opening the Mindmap tab in this state shows a second popup:
 
@@ -26,7 +26,7 @@ Before you do anything else: don't empty the trash. That erases the item and its
 
 1. Open the Mindmap tab with File > Mindmap, or press Shift+G.
 2. The sidebar under the heading "Mindmaps" should list your mindmaps again, with their nodes and links intact.
-3. Select an item that was on a mindmap and check the Connections panel in the item pane. It should show the mindmap and its links rather than the empty state.
+3. Select an item that was on a mindmap and check the Mindmaps section in the item pane. It should show the mindmap and its links rather than the empty state.
 
 Nothing was created while the container sat in the trash, so there's no leftover mindmap to tidy up afterwards.
 

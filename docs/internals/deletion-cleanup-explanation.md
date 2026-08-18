@@ -4,7 +4,7 @@
 
 ## The problem
 
-A mindmap node points at a Zotero item by `{kind, libraryID, key}` (see [schema-explanation.md](schema-explanation.md)). Delete the item and the node is left pointing at nothing. It still renders, still carries links, still shows up in the Connections panel, and resolving it returns false. Something has to remove it.
+A mindmap node points at a Zotero item by `{kind, libraryID, key}` (see [schema-explanation.md](schema-explanation.md)). Delete the item and the node is left pointing at nothing. It still renders, still carries links, still shows up in the Mindmaps section, and resolving it returns false. Something has to remove it.
 
 The obvious design is to listen for deletions and remove whatever was deleted. Zotero makes that harder than it sounds.
 

@@ -28,4 +28,4 @@ The dropdown only lists nodes that belong to the other mindmap, and three things
 
 ## Undoing one
 
-Either remove the link from the Connections panel with its "Remove" button, or remove the stub node itself with "Remove from mindmap" while the stub is selected on the graph. Removing the stub takes every link touching it along with it. Neither one touches the other mindmap.
+Either remove the link from the Mindmaps section with its "Remove" button, or remove the stub node itself with "Remove from mindmap" while the stub is selected on the graph. Removing the stub takes every link touching it along with it. Neither one touches the other mindmap.

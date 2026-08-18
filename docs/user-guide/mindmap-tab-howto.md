@@ -28,7 +28,13 @@ Collapse it when the graph needs the width. Only the toggle stays visible while 
 
 ## Pan and zoom the graph
 
-Drag empty canvas to pan. Scroll to zoom. Both come straight from Cytoscape's defaults. The plugin adds nothing on top of them, and there is no zoom-to-fit control yet.
+Drag empty canvas to pan. Scroll to zoom. Both come straight from Cytoscape's defaults.
+
+A small toolbar in the top right of the graph adds three more: zoom out, zoom in, and fit-to-window, which brings the whole mindmap back into view when you have panned away from it or a node has drifted off the edge. Fitting changes only what you are looking at; it never moves a node or writes a position.
+
+## What the lines mean
+
+The same toolbar carries a legend toggle. The legend names every line and node style the graph can draw: a directional link, an undirected one, a link whose type is no longer in the vocabulary, the faint tie between a note and its parent item, and a node borrowed from another mindmap. Whether it is showing is remembered between sessions.
 
 ## Select several nodes
 
@@ -43,7 +49,7 @@ Zotero switches to the Library tab and selects that item. Your Mindmap tab stays
 
 Clicking a node never jumps to the library by itself. That's deliberate: being thrown out of the graph is something you should have to ask for, so it lives behind a button.
 
-If a node shows "(missing item)", the dock has no "Show in library" button, because the Zotero item behind that node is gone. Either remove the node from the mindmap through the [Connections panel](connections-panel-howto.md), or restore the item from the trash.
+If a node shows "(missing item)", the dock has no "Show in library" button, because the Zotero item behind that node is gone. Either remove the node from the mindmap through the [Mindmaps section](mindmaps-panel-howto.md), or restore the item from the trash.
 
 ## Close the tab
 

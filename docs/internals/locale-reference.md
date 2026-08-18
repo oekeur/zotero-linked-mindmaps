@@ -13,7 +13,7 @@ addon/locale/nl-NL/addon.ftl
 addon/locale/nl-NL/mainWindow.ftl
 ```
 
-`addon.ftl` carries startup strings, the preferences-pane strings, the container-trashed warnings, and the item context-menu labels. `mainWindow.ftl` carries the Connections panel, the add-link form, the mindmap tab and its sidebar, and the grouping menu entries.
+`addon.ftl` carries startup strings, the preferences-pane strings, the container-trashed warnings, and the item context-menu labels. `mainWindow.ftl` carries the Mindmaps section, the add-link form, the mindmap tab and its sidebar, and the grouping menu entries.
 
 No `zh-CN` locale ships. The template's version had two of forty-odd strings translated and nobody on the project can verify Chinese, so it was removed; a `zh-CN` profile falls back to `en-US`. `test/mindmap/locale.test.ts` asserts it stays removed.
 
@@ -89,7 +89,7 @@ Return value, in order:
 - with `branch` given and the pattern carrying attributes, the value of the attribute named by `branch`, falling back to the prefixed id;
 - otherwise `pattern.value`, falling back to the prefixed id.
 
-A message with no value of its own, only attributes such as `.label` or `.tooltiptext`, resolves to the raw id unless the branch is asked for. `connections-section-head-text` and `connections-add-link-header-button` are both of that shape.
+A message with no value of its own, only attributes such as `.label` or `.tooltiptext`, resolves to the raw id unless the branch is asked for. `item-mindmaps-section-head-text` and `item-mindmaps-add-link-header-button` are both of that shape.
 
 `args` feeds Fluent's own placeables and selectors. `add-to-mindmap-progress` takes `$count`; `mindmap-delete-confirm-message` takes `$title`; `preferences-delete-confirm-used` selects a plural form on `$count`.
 
@@ -97,7 +97,7 @@ A message with no value of its own, only attributes such as `.label` or `.toolti
 
 ## `getLocaleID(id: FluentMessageId): string`
 
-Returns `` `${config.addonRef}-${id}` ``. For passing an id to something that resolves Fluent itself, rather than resolving it here. Used for the `l10nID` fields of the Connections item-pane section.
+Returns `` `${config.addonRef}-${id}` ``. For passing an id to something that resolves Fluent itself, rather than resolving it here. Used for the `l10nID` fields of the Mindmaps item-pane section.
 
 ## The bundle-scope limit
 
@@ -132,6 +132,20 @@ Add the key to `addon/locale/en-US/<file>.ftl` and to `addon/locale/nl-NL/<file>
 Translations are added only in languages the project can verify, currently English and Dutch.
 
 If the string lands in a new `.ftl` file, add the filename to `LOCALE_FILES` as well.
+
+## Wording rules the suite enforces
+
+`test/mindmap/locale.test.ts` checks more than key parity. These are asserted per locale, so they cannot drift back silently:
+
+- No string stands a spaced hyphen in for punctuation. Use a colon or a semicolon.
+- No string uses the word "connection" or "verbinding" for a link, and none carries the `(plugin data)` parenthetical.
+- The add-to-mindmap confirmation renders differently for one and three, so it must be a Fluent count selector rather than an `item(s)` suffix, and it names the mindmap it added to.
+- The two direction options name both ends of the relation, using the type label as the verb, rather than saying forward or backward.
+
+Two conventions are not machine-checked and need care by hand:
+
+- An ellipsis marks a control that opens another window before anything happens. A control that acts immediately, or that reveals an inline form, does not get one. A confirmation prompt is not "more input" in this sense, so a destructive action that only asks you to confirm stays without one.
+- Case follows the host surface. The library context-menu entries are Title Case in `en-US` because Zotero's own item menu is; `nl-NL` keeps sentence case because Dutch Zotero does. Everywhere the plugin owns the surface, both locales use sentence case.
 
 ## See also
 

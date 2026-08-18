@@ -18,7 +18,7 @@ So: regular items and notes qualify, except the plugin's own container item and 
 
 The tag test is not redundant with hiding plugin data from the library. The container is a regular item and the storage notes are notes, so a type test alone lets a user add the plugin's data row, or a mindmap's own JSON, to a mindmap as a node. `hideMindmapNotes` is a preference the user can turn off, and the trash view is never filtered at all. See [library-filter-reference.md](library-filter-reference.md) and [storage-reference.md](storage-reference.md) for the tags themselves.
 
-Every surface that decides whether an item is linkable calls this: the library context menu, the Connections panel's render check, and the add-link target picker.
+Every surface that decides whether an item is linkable calls this: the library context menu, the Mindmaps section's render check, and the add-link target picker.
 
 ## `refFor`
 

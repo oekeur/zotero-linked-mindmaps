@@ -81,19 +81,21 @@ Async. Called from `bootstrap.js` for every main window opened after startup, an
 
 1. `createZToolkit()` produces a toolkit for this window. It goes into the module-level `windowToolkits: Map<Window, ZToolkit>` keyed by the window, and into `addon.data.ztoolkit`, which the bare `ztoolkit` global resolves through. Everything registered below therefore lands on this window's toolkit.
 2. `win.MozXULElement.insertFTLIfNeeded("zoterolinkedmindmaps-mainWindow.ftl")` adds the main-window Fluent file to that window's l10n context, which is what `data-l10n-id` attributes resolve against.
-3. `registerMindmapMenu()`. `ztoolkit.Menu.register("menuFile", …)` adds a File-menu item labelled from `menuitem-mindmap-open` whose command listener calls `openMindmapTab()`.
-4. `LibraryContextMenuFactory.register(win)`. Two `ztoolkit.Menu.register("item", …)` calls: "Add to mindmap" (`itemmenu-add-to-mindmap`) and "Add link…" (`itemmenu-add-link`). Both hide themselves when the window's selection contains no eligible item. See [library-menu-reference.md](../user-guide/library-menu-reference.md).
-5. Shows a `ztoolkit.ProgressWindow` reading `startup-begin`, waits 1000 ms via `Zotero.Promise.delay`, rewrites the line to `[100%] ` plus `startup-finish`, and starts a 5000 ms close timer. This is template scaffolding that has not been removed.
+3. `insertStylesheet(win)` appends a `<link id="zoterolinkedmindmaps-stylesheet" rel="stylesheet">` pointing at `content/zoteroPane.css` to the window's `documentElement`, unless one is already there. This is the only route the plugin's own CSS reaches a main window; the preferences window and the standalone Add link document each load their sheet separately.
+4. `registerMindmapMenu()`. `ztoolkit.Menu.register("menuFile", …)` adds a File-menu item labelled from `menuitem-mindmap-open` whose command listener calls `openMindmapTab()`.
+5. `LibraryContextMenuFactory.register(win)`. Two `ztoolkit.Menu.register("item", …)` calls, each carrying an icon and preceded by a separator: "Add to Mindmap" (`itemmenu-add-to-mindmap`) and "Add Link…" (`itemmenu-add-link`). Both hide themselves when the window's selection contains no eligible item. See [library-menu-reference.md](../user-guide/library-menu-reference.md).
+6. Shows a `ztoolkit.ProgressWindow` reading `startup-begin`, waits 1000 ms via `Zotero.Promise.delay`, rewrites the line to `[100%] ` plus `startup-finish`, and starts a 5000 ms close timer. This is template scaffolding that has not been removed.
 
-The registrations in steps 3 and 4 have no direct unregister call anywhere. They are torn down through `toolkit.unregisterAll()` in `onMainWindowUnload` and `onShutdown`.
+The registrations in steps 4 and 5 have no direct unregister call anywhere. They are torn down through `toolkit.unregisterAll()` in `onMainWindowUnload` and `onShutdown`. The stylesheet is not a toolkit registration and is removed explicitly, by id, in both.
 
 ## `onMainWindowUnload(win)`
 
 Async, though it awaits nothing.
 
-1. Looks the window's toolkit up in `windowToolkits`, deletes the entry, and calls `toolkit?.unregisterAll()`. That removes the File-menu item, both item context-menu items, and any other element that toolkit created in that window.
-2. If `addon.data.ztoolkit` was the toolkit just torn down, reassigns it to the first remaining value in `windowToolkits`, falling back to `startupToolkit`, falling back to leaving it as it was.
-3. `addon.data.dialog?.window?.close()`.
+1. `removeStylesheet(win)` drops the `<link>` added on load, by id.
+2. Looks the window's toolkit up in `windowToolkits`, deletes the entry, and calls `toolkit?.unregisterAll()`. That removes the File-menu item, both item context-menu items, and any other element that toolkit created in that window.
+3. If `addon.data.ztoolkit` was the toolkit just torn down, reassigns it to the first remaining value in `windowToolkits`, falling back to `startupToolkit`, falling back to leaving it as it was.
+4. `addon.data.dialog?.window?.close()`.
 
 ## `onShutdown()`
 

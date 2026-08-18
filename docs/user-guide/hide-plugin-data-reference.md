@@ -6,7 +6,7 @@ The plugin keeps its data in a Zotero item and its child notes (see [Plugin data
 
 |                |                                                                              |
 | -------------- | ---------------------------------------------------------------------------- |
-| Checkbox label | Hide the "Zotero Linked Mindmaps (plugin data)" item from the library        |
+| Checkbox label | Hide the Zotero Linked Mindmaps item from my library                         |
 | Location       | Zotero Settings, in the pane labelled Link Types, below the link types table |
 | Default        | on (checked)                                                                 |
 | Preference key | `extensions.zotero.zoterolinkedmindmaps.hideMindmapNotes`                    |

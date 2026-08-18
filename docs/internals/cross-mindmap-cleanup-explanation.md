@@ -24,7 +24,7 @@ The reference has two ends, and the far end can vanish without telling anyone.
 
 The referenced mindmap can be deleted. Its storage note is erased, nothing carries that document id any more, and every stub naming it is pointing at a mindmap that no longer exists.
 
-Or the referenced node can be removed from a mindmap that is still there. The user deletes a node from the Connections panel, or the item behind it is deleted from Zotero and `deletionCleanup` prunes the node. Either way the document id still resolves, but `homeNodeId` names nothing.
+Or the referenced node can be removed from a mindmap that is still there. The user deletes a node from the Mindmaps section, or the item behind it is deleted from Zotero and `deletionCleanup` prunes the node. Either way the document id still resolves, but `homeNodeId` names nothing.
 
 There is a third case that looks like staleness and isn't: a stub pointing at another mindmap's stub. That is dangling by design, because the rule is that a mindmap reaches into another mindmap's own membership, not into its borrowings. Following the chain would make a node's meaning depend on a path through several documents, any of which can break, and each hop would multiply the same problem. So only `member` nodes count as targets, and a chain gets one hop and no more.
 
@@ -34,7 +34,7 @@ The module reads every mindmap in the library, builds the set of `(mindmap id, m
 
 To that check, a deleted mindmap and a removed node are the same case. There is nothing to keep in step, nothing to invalidate, and no state that can go stale, because the answer gets recomputed from the documents every time.
 
-The care is in the write. The dangling set gets recomputed a second time inside `updateMindmapDocument`'s callback, against the document as it stands at write time rather than the copy read at the start, because the Connections panel may have changed it in between. A document with nothing left to drop returns `null` from the mutation, which skips the write entirely, and the same skip happens up front for a document whose read copy had nothing dangling. A no-op run writes nothing at all, and the returned list of changed ids is what lets a caller confirm that.
+The care is in the write. The dangling set gets recomputed a second time inside `updateMindmapDocument`'s callback, against the document as it stands at write time rather than the copy read at the start, because the Mindmaps section may have changed it in between. A document with nothing left to drop returns `null` from the mutation, which skips the write entirely, and the same skip happens up front for a document whose read copy had nothing dangling. A no-op run writes nothing at all, and the returned list of changed ids is what lets a caller confirm that.
 
 The availability map is the one thing built once and reused across the whole call. A mindmap deleted mid-run would leave it slightly stale, in the direction of pruning a stub that is genuinely dangling by then, so nothing is lost.
 

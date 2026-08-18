@@ -32,7 +32,7 @@ declare namespace _ZoteroTypes {
 }
 ```
 
-One entry, because the map is derived from `addon/prefs.js` and that file declares one default. `getPref` and `setPref` are keyed on this map, so they reach `hideMindmapNotes` and nothing else.
+One entry, because the map is derived from `addon/prefs.js` and that file declares one default. `getPref` and `setPref` are keyed on this map, so they reach `hideMindmapNotes` and nothing else. Three other keys are read and written directly through `Zotero.Prefs` and never appear here; they are listed below.
 
 ## `getPref<K extends keyof PluginPrefsMap>(key: K)`
 
@@ -101,6 +101,16 @@ See [link-types-reference.md](../user-guide/link-types-reference.md) and [link-t
 `src/modules/mindmap/mindmapTab.ts`, key `extensions.zotero.zoterolinkedmindmaps.sidebarCollapsed`.
 
 Boolean, read as `Zotero.Prefs.get(key, true) === true`, so an unset value means expanded. Written when the user toggles the mindmap tab's sidebar, and read at controller construction, which is what makes the collapsed state survive closing and reopening the tab.
+
+See [mindmap-tab-reference.md](../user-guide/mindmap-tab-reference.md).
+
+### `legendCollapsed`
+
+`src/modules/mindmap/graphRenderer.ts`, key `extensions.zotero.zoterolinkedmindmaps.legendCollapsed`.
+
+Boolean, read as `Zotero.Prefs.get(key, true) === true`, so an unset value means the graph legend is showing. Written when the user toggles the legend from the view toolbar, and read when the graph is built, which is what carries the choice across sessions.
+
+It is deliberately a preference rather than a field on the mindmap document: whether you want the legend on screen is a property of you, not of the mindmap, and writing it into the document would make reading a graph mutate it.
 
 See [mindmap-tab-reference.md](../user-guide/mindmap-tab-reference.md).
 
