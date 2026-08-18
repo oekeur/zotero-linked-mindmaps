@@ -1,0 +1,399 @@
+/*
+ * Plugin styles for the surfaces that live inside a Zotero main window - the
+ * Mindmaps item-pane section and the mindmap tab - and for the standalone Add
+ * link window, which loads this same sheet since it renders the same form.
+ *
+ * Every colour here comes from a Zotero variable. A literal would survive a
+ * theme switch unchanged, and on Linux the selection colour resolves to the
+ * OS accent, so it is never the plugin's to choose.
+ */
+
+/* ---------- Mindmaps item-pane section ---------- */
+
+.mindmap-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 4px;
+}
+
+.mindmap-current-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.mindmap-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mindmap-link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.mindmap-link-row:hover,
+.mindmap-link-row:focus-within {
+  background: var(--fill-quinary);
+}
+
+.mindmap-link-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 55%;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--fill-quinary);
+  color: var(--fill-secondary);
+  font-size: 0.9em;
+}
+
+.mindmap-link-type-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-link-arrow {
+  flex-shrink: 0;
+  color: var(--fill-tertiary);
+}
+
+.mindmap-link-target {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-icon-button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fill-secondary);
+}
+
+.mindmap-icon-button:hover {
+  background: var(--fill-quarternary);
+}
+
+.mindmap-icon-button > svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+/*
+ * Hidden until the row is hovered or something inside it takes focus, so the
+ * resting list is content rather than controls. Visibility rather than
+ * display keeps the row from reflowing as the pointer crosses it, and leaves
+ * the control reachable by keyboard.
+ */
+.mindmap-link-remove {
+  opacity: 0;
+}
+
+/*
+ * Opacity rather than visibility: an ancestor with visibility:hidden takes
+ * its descendants out of the tab order, so the control could never receive
+ * the focus that is supposed to reveal it, and a keyboard user could not
+ * reach it at all.
+ */
+.mindmap-link-row:hover .mindmap-link-remove,
+.mindmap-link-remove:focus-visible {
+  opacity: 1;
+}
+
+.mindmap-link-type > svg {
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+/* ---------- add-link form ---------- */
+
+.mindmap-dialog-context {
+  margin-bottom: 8px;
+  color: var(--fill-secondary);
+}
+
+.mindmap-add-link-form {
+  margin-top: 8px;
+  padding: 8px;
+  border: var(--material-border);
+  border-radius: 5px;
+  background: var(--fill-senary);
+}
+
+.mindmap-form-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.mindmap-form-grid > label {
+  color: var(--fill-secondary);
+  text-align: end;
+}
+
+.mindmap-form-direction {
+  display: contents;
+}
+
+.mindmap-form-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mindmap-form-target-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-form-target-value:empty::before {
+  content: attr(data-empty-label);
+  color: var(--fill-tertiary);
+}
+
+.mindmap-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mindmap-form-actions > .mindmap-form-spacer {
+  flex: 1;
+}
+
+.mindmap-link-external {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.mindmap-empty {
+  color: var(--fill-secondary);
+  padding-block: 4px;
+}
+
+/* ---------- mindmap tab: view toolbar, legend and node menu ---------- */
+
+.mindmap-graph-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-sidepane);
+  border: var(--material-border);
+  border-radius: 6px;
+}
+
+.mindmap-legend {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 5;
+  max-width: 220px;
+  padding: 8px;
+  background: var(--color-sidepane);
+  border: var(--material-border);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.mindmap-legend-heading {
+  margin-bottom: 6px;
+  color: var(--fill-primary);
+  font-weight: bold;
+}
+
+.mindmap-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mindmap-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fill-secondary);
+}
+
+.mindmap-legend-row svg {
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.mindmap-group-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--color-sidepane);
+  border: var(--material-border);
+  border-radius: 6px;
+}
+
+.mindmap-group-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.mindmap-group-menu > button:hover {
+  background: var(--fill-quinary);
+}
+
+.mindmap-menu-action svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+}
+
+/* ---------- mindmap tab: sidebar and node dock ---------- */
+
+.mindmap-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+.mindmap-sidebar-heading {
+  flex: 1;
+  min-width: 0;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-sidebar-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.mindmap-sidebar-row:hover {
+  background: var(--fill-quinary);
+}
+
+/*
+ * A tinted row plus an accent left bar rather than a full-bleed fill: on
+ * Linux the selection colour Highlight/HighlightText resolves to is the OS
+ * accent, different on every machine, so the row itself stays a Zotero
+ * variable and only the bar carries that colour.
+ */
+.mindmap-sidebar-row-selected {
+  background: var(--fill-quarternary);
+  border-left-color: var(--color-accent);
+}
+
+.mindmap-sidebar-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mindmap-sidebar-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-sidebar-row-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fill-secondary);
+  font-size: 0.85em;
+}
+
+/*
+ * Opacity rather than visibility: these buttons still need to be reachable by
+ * Tab from a resting row, and an ancestor with visibility: hidden takes its
+ * descendants out of the focus order entirely - a control that can never
+ * receive focus can also never satisfy the :focus-within meant to reveal it.
+ */
+.mindmap-sidebar-row-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+}
+
+.mindmap-sidebar-row:hover .mindmap-sidebar-row-actions,
+.mindmap-sidebar-row-actions:focus-within {
+  opacity: 1;
+}
+
+.mindmap-node-overview-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.mindmap-node-overview-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.mindmap-node-overview-title {
+  font-weight: bold;
+  overflow-wrap: break-word;
+}
+
+.mindmap-node-overview-type {
+  color: var(--fill-secondary);
+  font-size: 0.9em;
+}

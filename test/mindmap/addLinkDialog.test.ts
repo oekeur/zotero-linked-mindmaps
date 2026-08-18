@@ -2,6 +2,8 @@ import { assert } from "chai";
 import { config } from "../../package.json";
 import {
   ADD_LINK_DIALOG_CONTENT_ID,
+  CANCEL_BUTTON_CLASS,
+  DIALOG_CONTEXT_CLASS,
   openAddLinkDialog,
 } from "../../src/modules/mindmap/addLinkForm";
 import { clearStorageNotes } from "./storageNotes";
@@ -117,6 +119,31 @@ describe("mindmap/addLinkForm standalone dialog", function () {
     }
 
     win.close();
+    await closed;
+  });
+
+  it("names the item being linked, unlike the item-pane and docked forms", async function () {
+    this.timeout(45000);
+    const { content, win, closed } = await openDialog();
+
+    const context = content.querySelector(`.${DIALOG_CONTEXT_CLASS}`);
+    assert.isNotNull(context);
+    assert.include(context!.textContent ?? "", "Add Link Dialog Test Item");
+
+    win.close();
+    await closed;
+  });
+
+  it("gives the footer a Cancel button that closes the window", async function () {
+    this.timeout(45000);
+    const { content, closed } = await openDialog();
+
+    const cancelButton = content.querySelector(
+      `.${CANCEL_BUTTON_CLASS}`,
+    ) as HTMLButtonElement;
+    assert.isNotNull(cancelButton);
+    cancelButton.click();
+
     await closed;
   });
 

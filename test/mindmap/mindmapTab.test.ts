@@ -1,10 +1,13 @@
 import { assert } from "chai";
 import { config } from "../../package.json";
-import { getString } from "../../src/utils/locale";
+import { getLocaleID, getString } from "../../src/utils/locale";
 import {
   createMindmapTabController,
   SIDEBAR_DELETE_CLASS,
   SIDEBAR_EDIT_CLASS,
+  SIDEBAR_HEADER_CLASS,
+  SIDEBAR_NEW_BUTTON_ID,
+  SIDEBAR_ROW_ACTIONS_CLASS,
   SIDEBAR_ROW_CLASS,
   SIDEBAR_ROW_SELECTED_CLASS,
   SIDEBAR_TOGGLE_ID,
@@ -18,7 +21,7 @@ import {
 } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
 
-const NEW = "#zoterolinkedmindmaps-mindmap-new";
+const NEW = `#${SIDEBAR_NEW_BUTTON_ID}`;
 const SAVE = "#zoterolinkedmindmaps-mindmap-save";
 const TITLE_INPUT = "#zoterolinkedmindmaps-mindmap-title-input";
 const DESCRIPTION_INPUT = "#zoterolinkedmindmaps-mindmap-description-input";
@@ -124,7 +127,7 @@ describe("mindmap/mindmapTab", function () {
     assert.isNotNull(surfaces.sidebar.querySelector(NEW));
   });
 
-  it("offers edit and delete on each row rather than on one shared selection (AC #3)", async function () {
+  it("keeps Edit and Delete on every row rather than on one shared selection", async function () {
     this.timeout(30000);
     await createMindmap("Chapter one");
     await createMindmap("Methods");
@@ -135,6 +138,98 @@ describe("mindmap/mindmapTab", function () {
       assert.isNotNull(row.querySelector(`.${SIDEBAR_EDIT_CLASS}`));
       assert.isNotNull(row.querySelector(`.${SIDEBAR_DELETE_CLASS}`));
     }
+  });
+
+  it("hides row actions by default and wires their reveal to hover and keyboard focus (AC #2)", async function () {
+    this.timeout(30000);
+    await createMindmap("Chapter one");
+    await controller.refresh();
+
+    const row = rows()[0];
+    const actions = row.querySelector(
+      `.${SIDEBAR_ROW_ACTIONS_CLASS}`,
+    ) as HTMLElement;
+    assert.isNotNull(actions, "expected an actions container on the row");
+    const win = surfaces.sidebar.ownerDocument!.defaultView as Window;
+
+    assert.equal(win.getComputedStyle(actions).opacity, "0");
+
+    // The live test harness never gives the Zotero window real OS focus, so
+    // :focus-within never matches even though .focus() does move
+    // document.activeElement - checked here against the shipped stylesheet
+    // text instead. The actual reveal is on the manual verification pass.
+    const { AddonManager } = ChromeUtils.importESModule(
+      "resource://gre/modules/AddonManager.sys.mjs",
+    ) as any;
+    const installed = await AddonManager.getAddonByID(config.addonID);
+    const rootURI = installed.getResourceURI().spec.replace(/\/?$/, "/");
+    const css = await Zotero.File.getContentsFromURLAsync(
+      `${rootURI}content/zoteroPane.css`,
+    );
+    assert.match(
+      css,
+      /\.mindmap-sidebar-row-actions:focus-within\s*{[^}]*opacity:\s*1/,
+      "no rule reveals row actions on keyboard focus",
+    );
+    assert.match(
+      css,
+      /\.mindmap-sidebar-row:hover \.mindmap-sidebar-row-actions[^{]*{[^}]*opacity:\s*1/,
+      "no rule reveals row actions on hover",
+    );
+  });
+
+  it("marks the selected row with a tinted background and an accent bar rather than a full-bleed fill (AC #3)", async function () {
+    this.timeout(30000);
+    const first = await createMindmap("Chapter one");
+    await createMindmap("Methods");
+    await controller.refresh();
+
+    const selected = rowFor(first.id);
+    const other = rows().find((row) => row !== selected)!;
+    const win = surfaces.sidebar.ownerDocument!.defaultView as Window;
+    const selectedStyle = win.getComputedStyle(selected);
+    const otherStyle = win.getComputedStyle(other);
+
+    assert.notEqual(
+      selectedStyle.borderLeftColor,
+      "rgba(0, 0, 0, 0)",
+      "the selected row carries no accent bar",
+    );
+    assert.notEqual(
+      selectedStyle.borderLeftColor,
+      otherStyle.borderLeftColor,
+      "the accent bar does not distinguish the selected row",
+    );
+    assert.notEqual(
+      selectedStyle.backgroundColor,
+      otherStyle.backgroundColor,
+      "the selected row reads the same as an unselected one",
+    );
+  });
+
+  it("offers a plus control in the sidebar header to create a mindmap, with a tooltip naming the object (AC #4)", async function () {
+    this.timeout(30000);
+    await controller.refresh();
+
+    const newButton = pick<HTMLButtonElement>(NEW);
+    const header = surfaces.sidebar.querySelector(`.${SIDEBAR_HEADER_CLASS}`);
+    assert.isNotNull(header, "expected a sidebar header");
+    assert.isTrue(
+      header!.contains(newButton),
+      "creation is not in the sidebar header",
+    );
+    assert.equal(
+      newButton.getAttribute("data-l10n-id"),
+      getLocaleID("mindmap-sidebar-new-button"),
+    );
+    const tooltip = getString("mindmap-sidebar-new-button", "title");
+    assert.include(
+      tooltip.toLowerCase(),
+      "mindmap",
+      "the tooltip does not name the object it creates",
+    );
+    // A plus control, not a bare verb: no visible text on the button itself.
+    assert.equal(newButton.textContent, "");
   });
 
   it("creates a mindmap with a title and description, and selects it (AC #1)", async function () {
@@ -156,7 +251,7 @@ describe("mindmap/mindmapTab", function () {
     assert.equal(selectedRowId(), listed[0].id);
   });
 
-  it("renames a mindmap and updates its description from its row (AC #3)", async function () {
+  it("renames a mindmap and updates its description from its row", async function () {
     this.timeout(30000);
     const created = await createMindmap("Working title", "first pass");
     await controller.refresh();

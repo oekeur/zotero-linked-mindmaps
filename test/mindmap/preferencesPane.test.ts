@@ -8,14 +8,6 @@ import {
 
 const PANE_ID = "zoterolinkedmindmaps-link-types-pane";
 
-function buttonWithText(root: Element, text: string): HTMLButtonElement {
-  const button = Array.from(root.querySelectorAll("button")).find(
-    (candidate) => candidate.textContent === text,
-  );
-  assert.isDefined(button, `expected a button labeled "${text}"`);
-  return button as HTMLButtonElement;
-}
-
 describe("mindmap preferences pane", function () {
   let win: Window;
   let root: Element;
@@ -57,36 +49,99 @@ describe("mindmap preferences pane", function () {
     rerender();
   });
 
-  it("renders real localized heading and toolbar text, not raw locale ids", function () {
-    rerender();
-    const heading = root.querySelector("h2");
-    assert.isNotNull(heading);
-    assert.notInclude(heading!.textContent ?? "", "zoterolinkedmindmaps-");
-    buttonWithText(root, "Add");
-    buttonWithText(root, "Edit");
-    buttonWithText(root, "Delete");
+  it("resolves the pane's group headings through Fluent, not raw locale ids", function () {
+    const linkTypesHeading = win.document.getElementById(
+      "zoterolinkedmindmaps-link-types-heading",
+    );
+    const libraryHeading = win.document.getElementById(
+      "zoterolinkedmindmaps-library-heading",
+    );
+    assert.isNotNull(linkTypesHeading);
+    assert.isNotNull(libraryHeading);
+    assert.notInclude(
+      linkTypesHeading!.textContent ?? "",
+      "zoterolinkedmindmaps-",
+    );
+    assert.notInclude(
+      libraryHeading!.textContent ?? "",
+      "zoterolinkedmindmaps-",
+    );
   });
 
-  it("lists current link types with their directional flag", function () {
-    setLinkTypes([{ id: "test-type", label: "test type", directional: false }]);
+  it("renders add, edit and remove controls in the list's own footer", function () {
     rerender();
-    const rows = root.querySelectorAll("tbody tr");
-    assert.equal(rows.length, 1);
-    assert.include(rows[0].textContent ?? "", "test type");
-    assert.include(rows[0].textContent ?? "", "No");
+    const footer = root.querySelector(".zoterolinkedmindmaps-type-footer");
+    assert.isNotNull(footer);
+    assert.isNotNull(footer!.querySelector(".zoterolinkedmindmaps-type-add"));
+    assert.isNotNull(footer!.querySelector(".zoterolinkedmindmaps-type-edit"));
+    assert.isNotNull(
+      footer!.querySelector(".zoterolinkedmindmaps-type-remove"),
+    );
+  });
+
+  it("disables edit and remove until a row is selected, and enables them on click", function () {
+    setLinkTypes([{ id: "test-type", label: "test type", directional: true }]);
+    rerender();
+    const editButton = root.querySelector(
+      ".zoterolinkedmindmaps-type-edit",
+    ) as HTMLButtonElement;
+    const removeButton = root.querySelector(
+      ".zoterolinkedmindmaps-type-remove",
+    ) as HTMLButtonElement;
+    assert.isTrue(editButton.disabled);
+    assert.isTrue(removeButton.disabled);
+
+    const row = root.querySelector(
+      ".zoterolinkedmindmaps-type-row",
+    ) as HTMLElement;
+    row.click();
+
+    const rerenderedEdit = root.querySelector(
+      ".zoterolinkedmindmaps-type-edit",
+    ) as HTMLButtonElement;
+    const rerenderedRemove = root.querySelector(
+      ".zoterolinkedmindmaps-type-remove",
+    ) as HTMLButtonElement;
+    const rerenderedRow = root.querySelector(".zoterolinkedmindmaps-type-row");
+    assert.isFalse(rerenderedEdit.disabled);
+    assert.isFalse(rerenderedRemove.disabled);
+    assert.isTrue(rerenderedRow!.classList.contains("selected"));
+  });
+
+  it("shows the line the graph draws for a type beside its label", function () {
+    setLinkTypes([
+      { id: "directional-type", label: "directional type", directional: true },
+      { id: "undirected-type", label: "undirected type", directional: false },
+    ]);
+    rerender();
+    const rows = root.querySelectorAll(".zoterolinkedmindmaps-type-row");
+    assert.equal(rows.length, 2);
+    for (const row of Array.from(rows)) {
+      assert.include(row.textContent ?? "", "type");
+      assert.isNotNull(
+        row.querySelector(".zoterolinkedmindmaps-type-line svg"),
+      );
+      assert.isNotNull(
+        row.querySelector(".zoterolinkedmindmaps-type-line-label"),
+      );
+    }
   });
 
   it("adds a new type through the inline form", function () {
     setLinkTypes([]);
     rerender();
-    buttonWithText(root, "Add").click();
+    (
+      root.querySelector(".zoterolinkedmindmaps-type-add") as HTMLButtonElement
+    ).click();
 
     const labelInput = root.querySelector(
       "input[type=text]",
     ) as HTMLInputElement;
     assert.isNotNull(labelInput);
     labelInput.value = "new type";
-    buttonWithText(root, "Save").click();
+    (
+      root.querySelector(".zoterolinkedmindmaps-type-save") as HTMLButtonElement
+    ).click();
 
     const types = getLinkTypes();
     assert.equal(types.length, 1);
@@ -98,9 +153,15 @@ describe("mindmap preferences pane", function () {
       { id: "unused-type", label: "unused type", directional: true },
     ]);
     rerender();
-    const row = root.querySelector("tbody tr") as HTMLElement;
+    const row = root.querySelector(
+      ".zoterolinkedmindmaps-type-row",
+    ) as HTMLElement;
     row.click();
-    buttonWithText(root, "Delete").click();
+    (
+      root.querySelector(
+        ".zoterolinkedmindmaps-type-remove",
+      ) as HTMLButtonElement
+    ).click();
     await Zotero.Promise.delay(500);
 
     assert.equal(getLinkTypes().length, 0);

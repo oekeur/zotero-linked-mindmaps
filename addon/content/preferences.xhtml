@@ -1,4 +1,8 @@
+<linkset>
+  <html:link rel="localization" href="zoterolinkedmindmaps-addon.ftl" />
+</linkset>
 <groupbox
+  aria-labelledby="zoterolinkedmindmaps-link-types-heading"
   onload="
     Zotero.ZoteroLinkedMindmaps.hooks.onPrefsEvent('link-types-pane-load', {
       container: this.querySelector(
@@ -7,17 +11,28 @@
     })
   "
 >
+  <label>
+    <html:h2
+      id="zoterolinkedmindmaps-link-types-heading"
+      data-l10n-id="zoterolinkedmindmaps-preferences-heading"
+    />
+  </label>
   <html:div class="zoterolinkedmindmaps-link-types-container"></html:div>
 </groupbox>
-<groupbox
-  onload="
-    Zotero.ZoteroLinkedMindmaps.hooks.onPrefsEvent('library-pane-load', {
-      checkbox: this.querySelector('.zoterolinkedmindmaps-hide-mindmap-notes'),
-    })
-  "
->
+<groupbox aria-labelledby="zoterolinkedmindmaps-library-heading">
+  <label>
+    <html:h2
+      id="zoterolinkedmindmaps-library-heading"
+      data-l10n-id="zoterolinkedmindmaps-preferences-library-heading"
+    />
+  </label>
   <checkbox
     class="zoterolinkedmindmaps-hide-mindmap-notes"
     preference="hideMindmapNotes"
+    data-l10n-id="zoterolinkedmindmaps-preferences-hide-mindmap-notes"
+  />
+  <description
+    class="zoterolinkedmindmaps-hide-mindmap-notes-help description-deemphasized"
+    data-l10n-id="zoterolinkedmindmaps-preferences-hide-mindmap-notes-help"
   />
 </groupbox>

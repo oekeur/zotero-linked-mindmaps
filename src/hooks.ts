@@ -63,6 +63,7 @@ async function onStartup() {
     src: rootURI + "content/preferences.xhtml",
     label: getString("preferences-pane-label"),
     image: `${rootURI}content/icons/favicon.png`,
+    stylesheets: [`${rootURI}content/preferences.css`],
   });
 
   startupToolkit = addon.data.ztoolkit;
@@ -93,6 +94,8 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     `${addon.data.config.addonRef}-mainWindow.ftl`,
   );
 
+  insertStylesheet(win);
+
   registerMindmapMenu();
   LibraryContextMenuFactory.register(win);
 
@@ -116,7 +119,36 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   popupWin.startCloseTimer(5000);
 }
 
+/**
+ * The plugin's own styles, scoped to one <link> per main window so the same
+ * element can be found and dropped again when that window closes. Every rule
+ * in the sheet is written against Zotero's CSS variables: a hardcoded colour
+ * would survive a theme switch, and on Linux the selection colour resolves to
+ * the OS accent rather than to anything the plugin picks.
+ */
+const STYLESHEET_ID = "zoterolinkedmindmaps-stylesheet";
+
+function insertStylesheet(win: Window): void {
+  const doc = win.document;
+  if (doc.getElementById(STYLESHEET_ID)) {
+    return;
+  }
+  const link = doc.createElementNS(
+    "http://www.w3.org/1999/xhtml",
+    "link",
+  ) as HTMLLinkElement;
+  link.id = STYLESHEET_ID;
+  link.rel = "stylesheet";
+  link.href = `${rootURI}content/zoteroPane.css`;
+  doc.documentElement?.appendChild(link);
+}
+
+function removeStylesheet(win: Window): void {
+  win.document.getElementById(STYLESHEET_ID)?.remove();
+}
+
 async function onMainWindowUnload(win: Window): Promise<void> {
+  removeStylesheet(win);
   const toolkit = windowToolkits.get(win);
   windowToolkits.delete(win);
   toolkit?.unregisterAll();
@@ -132,6 +164,9 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  for (const win of Zotero.getMainWindows()) {
+    removeStylesheet(win);
+  }
   ConnectionsPanelFactory.unregister();
   if (deletionObserverID) {
     unregisterDeletionObserver(deletionObserverID);
@@ -172,15 +207,6 @@ async function onPrefsEvent(type: string, data: { [key: string]: any }) {
       if (data.container) {
         renderLinkTypesSettings(data.container as HTMLElement);
       }
-      break;
-    // Labelled from here rather than through data-l10n-id: the preferences
-    // window has no l10n context for the plugin's .ftl files, so the same
-    // getString path the link-types pane uses is the one that resolves.
-    case "library-pane-load":
-      (data.checkbox as Element | null)?.setAttribute(
-        "label",
-        getString("preferences-hide-mindmap-notes"),
-      );
       break;
     default:
       break;

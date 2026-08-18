@@ -3,6 +3,7 @@ import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import type { MindmapDocument } from "../../src/modules/mindmap/schema";
 import {
   appendLink,
+  CANCEL_BUTTON_CLASS,
   completeExternalLink,
   completeLink,
   EXTERNAL_TARGET_BUTTON_CLASS,
@@ -290,6 +291,37 @@ describe("mindmap/addLinkForm", function () {
       ) as HTMLButtonElement;
       assert.isDefined(saveButton);
       assert.isTrue(saveButton.disabled);
+    });
+
+    it("renders no Cancel button when the caller doesn't ask for one", function () {
+      renderAddLinkForm(container, item, emptyDoc(), () => {});
+
+      assert.isNull(container.querySelector(`.${CANCEL_BUTTON_CLASS}`));
+    });
+
+    it("renders a Cancel button that calls back and doesn't save", function () {
+      let cancelled = false;
+      let saved = false;
+      renderAddLinkForm(
+        container,
+        item,
+        emptyDoc(),
+        () => {
+          saved = true;
+        },
+        () => {
+          cancelled = true;
+        },
+      );
+
+      const cancelButton = container.querySelector(
+        `.${CANCEL_BUTTON_CLASS}`,
+      ) as HTMLButtonElement;
+      assert.isNotNull(cancelButton);
+      cancelButton.click();
+
+      assert.isTrue(cancelled);
+      assert.isFalse(saved);
     });
 
     describe("choosing a target in another mindmap", function () {

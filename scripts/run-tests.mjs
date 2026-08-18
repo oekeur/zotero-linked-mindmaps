@@ -11,7 +11,7 @@ const DONE_PATTERN = /Test run completed - (\d+) passed(?:, (\d+) failed)?/;
 // whole suite. Several tests wait on Zotero's own notification timing and
 // cannot be made instant, so this is generous on purpose: it exists to catch a
 // plugin that never initialises, not to police how long the suite takes.
-const HANG_TIMEOUT_MS = 240_000;
+const HANG_TIMEOUT_MS = 900_000;
 
 const child = spawn("npx", ["zotero-plugin", "test"], {
   stdio: ["ignore", "pipe", "pipe"],
