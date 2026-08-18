@@ -1,6 +1,7 @@
 /*
- * Plugin styles for the surfaces that live inside a Zotero main window: the
- * Mindmaps item-pane section and the mindmap tab.
+ * Plugin styles for the surfaces that live inside a Zotero main window - the
+ * Mindmaps item-pane section and the mindmap tab - and for the standalone Add
+ * link window, which loads this same sheet since it renders the same form.
  *
  * Every colour here comes from a Zotero variable. A literal would survive a
  * theme switch unchanged, and on Linux the selection colour resolves to the
@@ -123,6 +124,11 @@
 }
 
 /* ---------- add-link form ---------- */
+
+.mindmap-dialog-context {
+  margin-bottom: 8px;
+  color: var(--fill-secondary);
+}
 
 .mindmap-add-link-form {
   margin-top: 8px;

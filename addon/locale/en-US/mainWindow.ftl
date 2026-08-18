@@ -20,6 +20,7 @@ mindmap-tab-title = Mindmap
 add-link-button = Add link
 add-link-window =
     .title = Add link
+add-link-dialog-context = Linking "{ $item }" in "{ $mindmap }"
 add-link-type-label = Type
 add-link-name-label = Name (optional)
 add-link-direction-label = Direction
