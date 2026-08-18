@@ -105,20 +105,18 @@
 
 /*
  * Hidden until the row is hovered or something inside it takes focus, so the
- * resting list is content rather than controls. Visibility rather than
- * display keeps the row from reflowing as the pointer crosses it, and leaves
- * the control reachable by keyboard.
+ * resting list is content rather than controls.
+ *
+ * Opacity rather than visibility or display: an ancestor with
+ * visibility:hidden takes its descendants out of the tab order, so the
+ * control could never receive the focus that is supposed to reveal it, and a
+ * keyboard user could not reach it at all. Opacity also keeps the row from
+ * reflowing as the pointer crosses it.
  */
 .mindmap-link-remove {
   opacity: 0;
 }
 
-/*
- * Opacity rather than visibility: an ancestor with visibility:hidden takes
- * its descendants out of the tab order, so the control could never receive
- * the focus that is supposed to reveal it, and a keyboard user could not
- * reach it at all.
- */
 .mindmap-link-row:hover .mindmap-link-remove,
 .mindmap-link-remove:focus-visible {
   opacity: 1;
