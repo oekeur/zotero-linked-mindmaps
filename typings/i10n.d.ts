@@ -6,6 +6,7 @@ export type FluentMessageId =
   | 'add-link-button'
   | 'add-link-choose-external-button'
   | 'add-link-choose-target-button'
+  | 'add-link-dialog-context'
   | 'add-link-direction-backward'
   | 'add-link-direction-forward'
   | 'add-link-direction-label'

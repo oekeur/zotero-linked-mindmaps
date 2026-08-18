@@ -189,6 +189,7 @@ export function completeLink(
 }
 
 export const SAVE_BUTTON_CLASS = "mindmap-form-save";
+export const CANCEL_BUTTON_CLASS = "mindmap-form-cancel";
 
 export const EXTERNAL_TARGET_BUTTON_CLASS = "mindmap-choose-external-target";
 export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
@@ -197,12 +198,17 @@ export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
  * Renders the "Add link" form into `container`: Type/Name/Direction fields,
  * a target-item picker, and a Save action that's enabled once a valid
  * target is chosen.
+ *
+ * `onCancel`, when given, adds a Cancel button ahead of Save in the footer.
+ * The item pane and docked mounts leave it out - dismissing the form there
+ * just means collapsing it again, not closing a window.
  */
 export function renderAddLinkForm(
   container: HTMLElement,
   item: Zotero.Item,
   doc: MindmapDocument,
   onSaved: () => void,
+  onCancel?: () => void,
 ): void {
   const sourceRef = refFor(item);
   type ChosenTarget =
@@ -345,6 +351,15 @@ export function renderAddLinkForm(
   externalWrapper.classList.add(EXTERNAL_TARGET_CLASS);
   externalWrapper.style.display = "none";
   container.appendChild(externalWrapper);
+
+  if (onCancel) {
+    const cancelButton = appendL10nButton(
+      actions,
+      "mindmap-form-cancel-button",
+      onCancel,
+    );
+    cancelButton.classList.add(CANCEL_BUTTON_CLASS);
+  }
 
   const saveButton = appendL10nButton(actions, "add-link-save-button");
   // A stable hook for the save action. Its Fluent id is not one: the disabled
@@ -600,6 +615,30 @@ async function fitDialogToContent(
   }
 }
 
+export const DIALOG_CONTEXT_CLASS = "mindmap-dialog-context";
+
+/**
+ * A line naming the item being linked and the mindmap it is being linked in,
+ * shown above the form in the standalone window only - the item pane and
+ * docked mounts already carry that context on screen (the panel is already
+ * on the item, and shows which mindmap it belongs to), so repeating it there
+ * would be redundant.
+ */
+function renderDialogContext(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapTitle: string,
+): void {
+  const context = container.ownerDocument!.createElement("div");
+  context.classList.add(DIALOG_CONTEXT_CLASS);
+  context.setAttribute("data-l10n-id", getLocaleID("add-link-dialog-context"));
+  context.setAttribute(
+    "data-l10n-args",
+    JSON.stringify({ item: targetTitle(item), mindmap: mindmapTitle }),
+  );
+  container.appendChild(context);
+}
+
 /**
  * Standalone entry point for opening the "Add link" form outside the item
  * pane (e.g. from a library right-click menu). Resolves once the dialog
@@ -647,9 +686,21 @@ export function openAddLinkDialog(
               mindmapId,
               item.libraryID,
             );
-            renderAddLinkForm(contentEl, item, mindmapDoc, () => {
-              dialog.close();
-            });
+            contentEl.textContent = "";
+            renderDialogContext(contentEl, item, mindmapDoc.title);
+            const formContainer = dialog.document.createElement("div");
+            contentEl.appendChild(formContainer);
+            renderAddLinkForm(
+              formContainer,
+              item,
+              mindmapDoc,
+              () => {
+                dialog.close();
+              },
+              () => {
+                dialog.close();
+              },
+            );
           } catch (err) {
             contentEl.textContent = `Failed to load mindmap: ${
               (err as Error).message

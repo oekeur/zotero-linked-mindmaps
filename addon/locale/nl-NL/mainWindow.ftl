@@ -20,6 +20,7 @@ mindmap-tab-title = Mindmap
 add-link-button = Koppeling toevoegen
 add-link-window =
     .title = Koppeling toevoegen
+add-link-dialog-context = Koppelen van "{ $item }" in "{ $mindmap }"
 add-link-type-label = Type
 add-link-name-label = Naam (optioneel)
 add-link-direction-label = Richting

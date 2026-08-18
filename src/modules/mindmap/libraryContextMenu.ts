@@ -21,6 +21,22 @@ import { refsMatch } from "./schema";
 
 const ADD_TO_MINDMAP_MENU_ID = "zotero-linked-mindmaps-itemmenu-add-to-mindmap";
 const ADD_LINK_MENU_ID = "zotero-linked-mindmaps-itemmenu-add-link";
+const SEPARATOR_ID = "zotero-linked-mindmaps-itemmenu-separator";
+
+// Rendered via -moz-context-properties/fill: currentColor (set by Zotero's
+// own menuitem-iconic styling), so each tracks light and dark on its own.
+//
+// Built lazily rather than as a module-level constant: `addon` isn't set on
+// the global until index.ts's own top-level code runs, which happens after
+// this module - one of its importers - has already been evaluated.
+function addToMindmapIcon(): string {
+  return `chrome://${addon.data.config.addonRef}/content/icons/mindmaps-16.svg`;
+}
+const ADD_LINK_ICON = "chrome://zotero/skin/16/universal/link.svg";
+
+// Only the entry that opens a dialog earns the ellipsis - see
+// registerMindmapAction.
+const DIALOG_ELLIPSIS = "…";
 
 function eligibleSelection(win: _ZoteroTypes.MainWindow): Zotero.Item[] {
   return win.ZoteroPane.getSelectedItems().filter(canBeMindmapNode);
@@ -102,6 +118,7 @@ async function rebuildMindmapSubmenu(
   menu: Element,
   mindmaps: MindmapSummary[],
   onPick: (mindmapId: string) => void,
+  itemSuffix: string,
 ): Promise<void> {
   const popup = menu.querySelector("menupopup");
   if (!popup) {
@@ -115,7 +132,7 @@ async function rebuildMindmapSubmenu(
 
   for (const mindmap of mindmaps) {
     const menuitem = doc.createXULElement("menuitem");
-    menuitem.setAttribute("label", mindmap.title);
+    menuitem.setAttribute("label", `${mindmap.title}${itemSuffix}`);
     if (mindmap.description) {
       menuitem.setAttribute("tooltiptext", mindmap.description);
     }
@@ -166,6 +183,8 @@ function registerMindmapAction(
   win: _ZoteroTypes.MainWindow,
   id: string,
   labels: { flat: string; submenu: string },
+  icon: string,
+  submenuItemSuffix: string,
   act: (mindmapId?: string) => void,
 ): void {
   async function count(event: Event): Promise<number> {
@@ -183,6 +202,7 @@ function registerMindmapAction(
     tag: "menuitem",
     id,
     label: labels.flat,
+    icon,
     commandListener: () => act(),
     isHidden: async (_elem, event) => (await count(event)) > 1,
   });
@@ -192,6 +212,7 @@ function registerMindmapAction(
     id: `${id}-submenu`,
     popupId: `${id}-popup`,
     label: labels.submenu,
+    icon,
     isHidden: async (elem, event) => {
       const selection = eligibleSelection(win);
       if (selection.length === 0) {
@@ -201,7 +222,12 @@ function registerMindmapAction(
       if (mindmaps.length <= 1) {
         return true;
       }
-      await rebuildMindmapSubmenu(elem as unknown as Element, mindmaps, act);
+      await rebuildMindmapSubmenu(
+        elem as unknown as Element,
+        mindmaps,
+        act,
+        submenuItemSuffix,
+      );
       return false;
     },
   });
@@ -216,6 +242,8 @@ export class LibraryContextMenuFactory {
         flat: getString("itemmenu-add-to-mindmap"),
         submenu: getString("itemmenu-add-to-mindmap"),
       },
+      addToMindmapIcon(),
+      "",
       (mindmapId) => {
         void addToMindmap(eligibleSelection(win), mindmapId).then(
           ({ added, mindmapTitle }) => {
@@ -240,9 +268,23 @@ export class LibraryContextMenuFactory {
         flat: getString("itemmenu-add-link"),
         submenu: getString("itemmenu-add-link-submenu"),
       },
+      ADD_LINK_ICON,
+      DIALOG_ELLIPSIS,
       (mindmapId) => {
         void addLinkForSelection(win, eligibleSelection(win), mindmapId);
       },
+    );
+
+    // Groups the plugin's two entries apart from Zotero's own, which sit
+    // above them in the item menu. Anchored to the flat Add-to-mindmap entry,
+    // which is always in the DOM (hidden, not removed, when the submenu form
+    // shows instead), so the separator lands above whichever of the two forms
+    // is visible.
+    ztoolkit.Menu.register(
+      "item",
+      { tag: "menuseparator", id: SEPARATOR_ID },
+      "before",
+      win.document.querySelector(`#${ADD_TO_MINDMAP_MENU_ID}`) as XUL.Element,
     );
   }
 }
