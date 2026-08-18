@@ -55,6 +55,41 @@ describe("mindmap/addLinkForm standalone dialog", function () {
     closed: Promise<void>;
   }
 
+  /**
+   * True once every label and button carries text. Both are what the tests
+   * below assert on, and both are written by Fluent rather than by the code
+   * that builds the form.
+   */
+  function isLocalized(content: HTMLElement): boolean {
+    const filled = (el: Element) => (el.textContent?.trim() ?? "") !== "";
+    const labels = Array.from(content.querySelectorAll("label"));
+    const buttons = Array.from(content.querySelectorAll("button"));
+    return (
+      labels.length > 0 &&
+      buttons.length > 0 &&
+      labels.every(filled) &&
+      buttons.every(filled)
+    );
+  }
+
+  /**
+   * Resolves once the window's height has held steady across two checks, so a
+   * measurement taken afterwards is where the dialog ended up rather than a
+   * frame on the way there. innerHeight rather than outerHeight: the outer
+   * value lags behind on this window.
+   */
+  async function settled(win: Window): Promise<void> {
+    let previous = -1;
+    for (let i = 0; i < 40; i++) {
+      const height = win.innerHeight;
+      if (height === previous && height > 0) {
+        return;
+      }
+      previous = height;
+      await Zotero.Promise.delay(100);
+    }
+  }
+
   /** Opens the dialog and waits until the form inside it has been filled in. */
   async function openDialog(): Promise<OpenDialog> {
     const closed = openAddLinkDialog(Zotero.getMainWindow(), item);
@@ -62,14 +97,26 @@ describe("mindmap/addLinkForm standalone dialog", function () {
       await Zotero.Promise.delay(100);
       const win = dialogWindows()[0];
       const content = win?.document.getElementById(CONTENT_ID);
-      if (content?.querySelector("button")) {
-        // Past the resize and Fluent's fill-in, so what is measured here is
-        // where the dialog settles rather than a frame on the way there.
-        await Zotero.Promise.delay(1000);
-        return { content: content as HTMLElement, win, closed };
+      if (!content?.querySelector("button")) {
+        continue;
       }
+      // Existing markup is not a filled-in form: Fluent applies its
+      // translations asynchronously after the elements are in the document,
+      // and the resize waits on that too. Wait for the condition the tests
+      // actually assert on rather than for a fixed delay, which held on an
+      // idle machine and lost the race under load.
+      if (!isLocalized(content as HTMLElement)) {
+        continue;
+      }
+      // Localised is not yet settled: fitDialogToContent resizes after
+      // awaiting l10n.ready and a frame, so the sizing test needs the height
+      // to have stopped moving, not merely the text to have arrived.
+      await settled(win);
+      return { content: content as HTMLElement, win, closed };
     }
-    throw new Error("the Add link dialog never opened");
+    throw new Error(
+      "the Add link dialog never opened, or Fluent never filled it in",
+    );
   }
 
   beforeEach(async function () {
