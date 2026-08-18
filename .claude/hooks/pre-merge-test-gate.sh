@@ -107,9 +107,12 @@ before=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
 ( cd "$work" && npm test >"$log" 2>&1 ) &
 test_pid=$!
 
-# Wait up to 4 minutes for the summary line to appear, polling every 2s.
+# Wait up to 12 minutes for the summary line to appear, polling every 2s.
+# The suite takes about 2 minutes in isolation but stretches several-fold
+# when other Zotero instances are running on the same machine, so a tighter
+# ceiling blocks merges that would have passed.
 elapsed=0
-while [ "$elapsed" -lt 240 ]; do
+while [ "$elapsed" -lt 720 ]; do
   if grep -q "Test run completed" "$log" 2>/dev/null; then
     break
   fi
