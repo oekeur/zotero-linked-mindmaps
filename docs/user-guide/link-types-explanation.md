@@ -20,7 +20,7 @@ The price is that identity becomes invisible in the interface. Two types can sha
 
 The alternatives would be to delete the links that use the type, or to rewrite them to some fallback. Both destroy authored work in response to what was only a vocabulary edit. Someone tidying up a dropdown does not expect to lose relationships they recorded months ago, and a link's real content (which two items, which direction, what name) survives the loss of its type perfectly well.
 
-So a delete removes the type and stops there. The links keep pointing at an id that no longer resolves, and every surface that draws them handles the miss instead of throwing. The graph labels the edge "(unknown type)" and draws it as a grey dotted line, distinct from both the dashed directional style and the solid non-directional one. The Connections panel prints the same label. The link stays visible, stays selectable, and stays removable.
+So a delete removes the type and stops there. The links keep pointing at an id that no longer resolves, and every surface that draws them handles the miss instead of throwing. The graph labels the edge "(unknown type)" and draws it as a grey dotted line, distinct from both the dashed directional style and the solid non-directional one. The Mindmaps section prints the same label. The link stays visible, stays selectable, and stays removable.
 
 One label, used everywhere. The delete confirmation promises the user those links "will show as (unknown type)", so a surface that printed the raw type id instead would be quietly breaking a promise made seconds earlier. The label lives with the type vocabulary and both surfaces read it from there.
 

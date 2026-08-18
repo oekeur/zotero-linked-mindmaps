@@ -38,14 +38,14 @@ There's no undo, though. To get the group back you select the nodes, group them 
 
 ## Take one node out of a group
 
-The graph's own menu has no per-node ungroup, so use the Connections panel:
+The graph's own menu has no per-node ungroup, so use the Mindmaps section:
 
 1. Click the node on the graph. The dock opens on the right of the tab.
 2. Click "Remove from group".
 
 That button only appears when the node is actually in a group. The group and its remaining members are left alone, and the region reshapes itself to fit what's left.
 
-You'll find the same button in the item pane's Connections section, so you can do this from the library without opening the mindmap at all. See [the Connections panel](connections-panel-howto.md).
+You'll find the same button in the item pane's Mindmaps section, so you can do this from the library without opening the mindmap at all. See [the Mindmaps section](mindmaps-panel-howto.md).
 
 ## Move a node into a different group
 

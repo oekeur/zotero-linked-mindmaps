@@ -55,9 +55,9 @@ One request: leave this as the only mindmap in the library until you finish. Ste
 2. Select two items, holding Ctrl (Cmd on macOS) to pick the second one.
 3. Right-click the selection and choose "Add to mindmap".
 
-A popup confirms with "Added 2 item(s) to mindmap". Both items are now nodes.
+A popup confirms with "Added 2 items to Chapter one", naming the mindmap. Both items are now nodes.
 
-Here is the reason for step 5's request. With one mindmap in the library there is nothing to choose between, so "Add to mindmap" is a single click that writes straight to it. Once you have several, that same entry opens a submenu and you pick the target by name. Neither behaviour is hard, but the one-click version is a cleaner first experience. The [library right-click menu](library-menu-howto.md) covers both, and you can do the same job from [the Connections panel](connections-panel-howto.md).
+Here is the reason for step 5's request. With one mindmap in the library there is nothing to choose between, so "Add to mindmap" is a single click that writes straight to it. Once you have several, that same entry opens a submenu and you pick the target by name. Neither behaviour is hard, but the one-click version is a cleaner first experience. The [library right-click menu](library-menu-howto.md) covers both, and you can do the same job from [the Mindmaps section](mindmaps-panel-howto.md).
 
 ## 7. Look at the graph
 
@@ -81,14 +81,14 @@ For now the links section reads "No links yet." Leave the panel open.
 2. Click "Add link". The panel on the right switches to the link form.
 3. Pick a value in "Type". The list ships with `cites`, `supports`, `contradicts`, `primary source for` and `related to`.
 4. Type something into "Name (optional)" if you want this one link labelled beyond its type, for example `chapter 3`.
-5. If the type you picked is directional, a "Direction" field appears. "Forward" means the link runs from the node you right-clicked to the target you are about to pick.
+5. If the type you picked is directional, a "Direction" field appears. Each option names both ends using the type as the verb, so the first one means the link runs from the node you right-clicked to the target you are about to pick.
 6. Click "Choose target". Zotero's item picker opens.
 7. Pick the other item and confirm. Its title appears next to the button, and "Save" becomes clickable.
 8. Click "Save".
 
 The graph redraws with a line between the two nodes, labelled with the type (or `type: name` if you filled in a name). Directional types draw as a dashed line with an arrowhead, non-directional ones as a plain solid line.
 
-You may have noticed the form never asked which mindmap to put the link on. It uses the one the graph is drawing, which is the one in front of you. The "Add to mindmap:" question only turns up where the plugin genuinely cannot work it out: the item pane's Connections section, in a library that holds several mindmaps.
+You may have noticed the form never asked which mindmap to put the link on. It uses the one the graph is drawing, which is the one in front of you. The "Add to mindmap:" question only turns up where the plugin genuinely cannot work it out: the item pane's Mindmaps section, in a library that holds several mindmaps.
 
 The form does more than this, including linking to a node that lives in a different mindmap. See [adding links](links-add-howto.md) and [link types](link-types-reference.md).
 

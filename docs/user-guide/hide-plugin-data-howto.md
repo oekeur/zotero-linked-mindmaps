@@ -6,7 +6,7 @@ The plugin stores your mindmaps in a Zotero item called `Zotero Linked Mindmaps 
 
 1. Open Zotero's settings: Edit > Settings on Linux and Windows, Zotero > Settings on macOS.
 2. Select the Link Types pane in the list on the left. The checkbox sits below the link types table.
-3. Clear the checkbox labelled: Hide the "Zotero Linked Mindmaps (plugin data)" item from the library
+3. Clear the checkbox labelled: Hide the Zotero Linked Mindmaps item from my library
 4. Close the settings window. The open item tree refreshes on the spot and keeps your selection, so there's no restart involved.
 
 The container item now shows up in the library, and under Unfiled Items too, since it belongs to no collection. Expand it and you'll find one child note per mindmap.

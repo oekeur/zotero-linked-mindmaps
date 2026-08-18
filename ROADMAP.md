@@ -12,7 +12,7 @@ Confirmed Cytoscape.js renders inside Zotero's plugin window. It works, but not 
 
 - Data model and storage: one JSON document per mindmap, held in a Zotero note item's content, riding Zotero's own sync. See [storage internals](./docs/internals/storage-explanation.md).
 - Link types: a default set, editable in a preferences pane.
-- Connections panel: item-pane surface for defining links, plus entry points from the library and from an open mindmap.
+- Mindmaps section: item-pane surface for defining links, plus entry points from the library and from an open mindmap.
 - Mindmap tab: renders the graph, link type shown as a label and a line-style cue, not color alone.
 - Link-target picker: uses Zotero's native item-selector dialog rather than a custom one.
 

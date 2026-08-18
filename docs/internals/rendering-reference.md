@@ -8,7 +8,7 @@ For the reasoning behind the visual encoding and the refresh mechanism, see [ren
 
 ## Exported constants
 
-`UNKNOWN_TYPE_LABEL` (`"(unknown type)"`) is not one of them. It lives in `linkTypes.ts` and is imported here. `resolveLinkVisual` returns it as the label when a link's `typeId` has no entry in the link-type vocabulary: alone when the link has no `name`, and as the prefix `"(unknown type): <name>"` when it does. The Connections panel imports the same constant for its own link rows, so a link whose type was deleted reads identically on the graph and in the item pane, which is what the type-deletion confirmation ("... will show as \"(unknown type)\" there") promises.
+`UNKNOWN_TYPE_LABEL` (`"(unknown type)"`) is not one of them. It lives in `linkTypes.ts` and is imported here. `resolveLinkVisual` returns it as the label when a link's `typeId` has no entry in the link-type vocabulary: alone when the link has no `name`, and as the prefix `"(unknown type): <name>"` when it does. The Mindmaps section imports the same constant for its own link rows, so a link whose type was deleted reads identically on the graph and in the item pane, which is what the type-deletion confirmation ("... will show as \"(unknown type)\" there") promises.
 
 ### `EXTERNAL_NODE_CLASS`
 
@@ -131,7 +131,7 @@ Fills the docked panel beside the graph with one node's item.
 
 Sets `dockContainer.style.display = ""` and clears its content. Resolves `ref` through `resolveZoteroItem`. When the item is gone, calls `renderMissingItem(dockContainer)` and returns, so a stale ref shows the missing-item state rather than leaving whatever the dock last held. Otherwise calls `renderNodeOverview` with a "show in library" callback (`Zotero.getActiveZoteroPane().selectItem(item.id)`, awaited) and a close callback that hides and empties the dock, then appends a fresh `div` and starts `renderConnectionsContent(connections, item, mindmapId, openAddLink)` without awaiting it.
 
-`mindmapId` pins the Connections content to one mindmap, so a node that appears in several shows this graph's links. `openAddLink` reveals the add-link form as part of the same render.
+`mindmapId` pins the Mindmaps content to one mindmap, so a node that appears in several shows this graph's links. `openAddLink` reveals the add-link form as part of the same render.
 
 Returns nothing. The DOM it produces comes from [`renderNodeOverview`](../user-guide/node-overview-reference.md) and carries `OVERVIEW_CLASS` (`mindmap-node-overview`), `SHOW_IN_LIBRARY_CLASS` (`mindmap-show-in-library`) and `CLOSE_CLASS` (`mindmap-dock-close`), all exported from `nodeOverview.ts`.
 
@@ -223,6 +223,14 @@ Every mutation runs through a shared `apply` helper that closes the menu, calls 
 The menu element stops `mousedown` from propagating. Without that, Cytoscape's container `mousedown` handler calls `preventDefault` (the rename field can then never take focus) and arms the capture flag its window-level `mouseup` handler needs to emit `tap`, and the `tap` handler above would remove the menu during `mouseup`, before the button's own `click` is dispatched.
 
 Returns nothing.
+
+## View toolbar and legend
+
+Both are DOM overlays positioned inside the graph container, not Cytoscape elements, so neither is part of the graph model and neither can be selected, dragged or exported with it.
+
+The toolbar sits top right and carries zoom out, zoom in, fit-to-window, and a legend toggle. Zoom and fit act on the Cytoscape viewport only (`cy.zoom`, `cy.fit`); nothing here writes a node position, and a test asserts that fitting leaves every stored position untouched. That matters because the layout is `preset` and the arrangement belongs to the user.
+
+The legend sits bottom left and lists every line and node style the stylesheet can produce, each drawn as a small inline SVG sample rather than described in words: a directional link, an undirected link, an unknown-type link, the parent-child tie, and an external node. It is built from the same three-case encoding the stylesheet applies, so a style added there needs a row added here. Its shown state persists in the `legendCollapsed` preference (see [prefs-reference.md](prefs-reference.md)) and is never written to the mindmap document.
 
 ## Rendering and refresh
 

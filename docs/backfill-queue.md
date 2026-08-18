@@ -29,7 +29,7 @@ Everything an end user touches. Document these first; the whole tier is currentl
 | Entity                                    | Source                                                          | Missing                        |
 | ----------------------------------------- | --------------------------------------------------------------- | ------------------------------ |
 | Add-link workflow                         | `modules/mindmap/addLinkForm.ts`, `targetPicker.ts`             | reference, how-to, tutorial    |
-| Connections panel (item pane)             | `modules/mindmap/connectionsPanel.ts`                           | reference, how-to              |
+| Mindmaps section (item pane)              | `modules/mindmap/connectionsPanel.ts`                           | reference, how-to              |
 | Cross-mindmap (external) links            | `addLinkForm.ts:completeExternalLink`, `crossMindmapCleanup.ts` | reference, how-to, explanation |
 | Library "Add to mindmap" context menu     | `modules/mindmap/libraryContextMenu.ts`                         | reference, how-to              |
 | Library filtering of plugin data          | `modules/mindmap/libraryFilter.ts`                              | reference, how-to              |

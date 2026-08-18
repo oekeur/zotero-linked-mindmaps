@@ -42,6 +42,6 @@ Numeric item ids are local to one database. The same article synced to a second 
 
 `libraryID` rides along because keys are unique per library rather than globally. Two libraries can hold the same key for different objects, which is why `refsMatch` compares all three fields instead of just the key. `libraryID` is numeric and therefore local, which looks like the same problem all over again, but a mindmap and the items it references live in the same library, and the plugin never resolves a ref against a library it didn't read the document from.
 
-`kind` separates a regular item from a note. Zotero's own item id space covers both, so you don't need the distinction to look an object up. You need it to decide what to draw and what the Connections panel offers. See [node-labels-reference.md](node-labels-reference.md).
+`kind` separates a regular item from a note. Zotero's own item id space covers both, so you don't need the distinction to look an object up. You need it to decide what to draw and what the Mindmaps section offers. See [node-labels-reference.md](node-labels-reference.md).
 
 Keying by key costs you a loud failure when the target is gone. `Zotero.Items.getByLibraryAndKey` just returns false, and a stale ref sits in the document rendering as a node with nothing behind it. Pruning those is what [deletion cleanup](deletion-cleanup-explanation.md) exists for, and it is why that module reconciles against current state instead of trusting a delete notification.

@@ -1,12 +1,12 @@
-# Work with the Connections panel
+# Work with the Mindmaps section
 
-The panel lives in the item pane under the heading "Connections", and again in the docked panel beside the graph in the mindmap tab. States and controls are listed in [connections-panel-reference.md](connections-panel-reference.md).
+The panel lives in the item pane under the heading "Mindmaps", and again in the docked panel beside the graph in the mindmap tab. States and controls are listed in [mindmaps-panel-reference.md](mindmaps-panel-reference.md).
 
 ## Put an item on a mindmap
 
 An item joins a mindmap as a side effect of its first link. There's no "add me" button in the panel.
 
-1. Select the item and open the Connections section. It reads "Not in any mindmap yet."
+1. Select the item and open the Mindmaps section. It reads "Not in a mindmap yet. Add it to one to start linking."
 2. Click the "+" in the section header.
 3. Choose the mindmap under "Add to mindmap:" and click "Continue". This is the one moment you get asked, and only when the library holds more than one mindmap.
 4. Fill in the add-link form and click "Save".

@@ -15,25 +15,25 @@ The tab closes like any Zotero tab, with its close button or Zotero's own tab sh
 
 Opening the tab in a library that holds no mindmap creates one, titled "Mindmap", so the tab lands on a usable graph rather than on an empty state.
 
-With one exception: when the library's plugin data is in the trash, the tab creates nothing. A trashed storage note, or a trashed "Zotero Linked Mindmaps (plugin data)" container that took its notes down with it, drops out of the plugin's search, so a library that still holds mindmaps looks empty. Rather than build a second set on top of the first, the tab shows a warning that stays on screen until you click it: "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back." Restore the item from Zotero's trash and reopen the tab. See [plugin data](plugin-data-reference.md).
+With one exception: when the library's plugin data is in the trash, the tab creates nothing. A trashed storage note, or a trashed "Zotero Linked Mindmaps (plugin data)" container that took its notes down with it, drops out of the plugin's search, so a library that still holds mindmaps looks empty. Rather than build a second set on top of the first, the tab shows a warning that stays on screen until you click it: "Mindmap data for this library is in the trash. Nothing new was created; restore it to get your mindmaps back." Restore the item from Zotero's trash and reopen the tab. See [plugin data](plugin-data-reference.md).
 
 ## Sidebar (mindmap list)
 
 Headed "Mindmaps". Lists every mindmap in the library, ordered by the Zotero item id of the storage note behind each one. On the device where they were created that is creation order, oldest first; a mindmap arriving by sync takes an id from when it was downloaded, so the order can differ between devices.
 
-Each row shows the mindmap's title, its description underneath in smaller grey text when it has one, and two buttons:
+Each row shows the mindmap's title with its description underneath in smaller secondary text when it has one. The per-row controls stay out of the way until you need them: they appear when the row is hovered or when something inside it takes keyboard focus.
 
 | Control          | Effect                                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Row body (click) | Loads that mindmap into the graph. The row is highlighted while it is the loaded one.                                               |
+| Row body (click) | Loads that mindmap into the graph. The loaded row is tinted and carries an accent bar down its leading edge.                        |
 | "Edit"           | Replaces the list with the title/description form for that row. Does not load the mindmap.                                          |
 | "Delete"         | Asks for confirmation, then erases that mindmap. See [managing mindmaps](mindmaps-manage-howto.md).                                 |
-| "New"            | Below the last row. Replaces the list with an empty title/description form.                                                         |
+| "+"              | In the sidebar header beside the heading, tooltip "New mindmap". Replaces the list with an empty title/description form.            |
 | `‹` / `›`        | Collapses the sidebar to a 28px bar, or expands it back to 220px. Tooltip reads "Hide the mindmap list" or "Show the mindmap list". |
 
 Edit and Delete act on the row they sit in, not on the mindmap currently loaded in the graph. Editing a mindmap you are not looking at leaves the graph where it was.
 
-The collapsed state is stored in the preference `extensions.zotero.zoterolinkedmindmaps.sidebarCollapsed` and survives restarts. With no preference set, the sidebar starts expanded. Collapsed, the sidebar shows only the toggle; the rows, the "New" button and the heading are all gone until you expand it again.
+The collapsed state is stored in the preference `extensions.zotero.zoterolinkedmindmaps.sidebarCollapsed` and survives restarts. With no preference set, the sidebar starts expanded. Collapsed, the sidebar shows only the toggle; the rows, the "+" and the heading are all gone until you expand it again.
 
 ### Mindmap form
 
@@ -84,12 +84,13 @@ Two or more links between the same pair of nodes are fanned out around each othe
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Click a node                                             | Opens that node in the dock.                                                                  |
 | Drag a node                                              | Moves it and saves the new position. See [node layout](node-layout-reference.md).             |
-| Right-click a node                                       | Opens a one-entry menu, "Add link", which docks the node and opens the link form in one step. |
+| Right-click a node                                       | Opens the node menu beside the node. "Add link" docks it and opens the link form in one step. |
 | Right-click empty canvas with two or more nodes selected | Opens a menu with "Group selected nodes".                                                     |
 | Right-click a group's region                             | Opens a menu with a name field, "Rename group" and "Ungroup".                                 |
-| Click anywhere                                           | Closes an open menu.                                                                          |
+| Click anywhere, or press Escape                          | Closes an open menu.                                                                          |
 | Shift-click, or Shift-drag on empty canvas               | Cytoscape's own selection: adds nodes to the selection, or box-selects several.               |
 | Drag empty canvas, scroll wheel                          | Cytoscape's own pan and zoom.                                                                 |
+| View toolbar, top right                                  | Zoom out, zoom in, fit-to-window, and a legend toggle. Fitting moves the viewport only.       |
 
 A drag never also counts as a click, so repositioning a node does not open it in the dock.
 
@@ -101,13 +102,13 @@ Nothing here has a keyboard equivalent. Grouping, linking and inspection are mou
 
 Hidden until you click or right-click a node. Fixed 320px wide on the right of the tab, scrolls independently.
 
-It holds a read-only overview of the node's item on top of the Connections content for that item. Full field list and controls: [node overview reference](node-overview-reference.md). The links half is the same component as the item pane's Connections section: [Connections panel reference](connections-panel-reference.md).
+It holds a read-only overview of the node's item on top of the Mindmaps content for that item. Full field list and controls: [node overview reference](node-overview-reference.md). The links half is the same component as the item pane's Mindmaps section: [Mindmaps section reference](mindmaps-panel-reference.md).
 
-The dock is pinned to the mindmap the graph is showing, so an item that appears in several mindmaps shows this graph's links rather than another mindmap's. The link form opened from here inherits that mindmap and writes to it. It does not ask "Add to mindmap:" the way the item pane's Connections section does in a library with several, since the graph already answered the question.
+The dock is pinned to the mindmap the graph is showing, so an item that appears in several mindmaps shows this graph's links rather than another mindmap's. The link form opened from here inherits that mindmap and writes to it. It does not ask "Add to mindmap:" the way the item pane's Mindmaps section does in a library with several, since the graph already answered the question.
 
 ## Live refresh
 
-The graph watches the Zotero note its mindmap is stored in and redraws when that note changes, whether the change came from this tab, the Connections panel, the library right-click menu, or a sync landing an edit from another device. The redraw is a full rebuild, not a partial update.
+The graph watches the Zotero note its mindmap is stored in and redraws when that note changes, whether the change came from this tab, the Mindmaps section, the library right-click menu, or a sync landing an edit from another device. The redraw is a full rebuild, not a partial update.
 
 Redraws are skipped when the stored mindmap already matches what is on screen, which is why dragging a node does not make the graph flash.
 

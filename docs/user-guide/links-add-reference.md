@@ -1,6 +1,6 @@
 # Add link form reference
 
-The form that creates a link between two Zotero objects. It appears in the Connections item-pane section, in the docked panel beside the graph in the mindmap tab, and in a standalone dialog titled "Add link" opened from the library context menu. All three render the same fields.
+The form that creates a link between two Zotero objects. It appears in the Mindmaps item-pane section, in the docked panel beside the graph in the mindmap tab, and in a standalone dialog titled "Add link" opened from the library context menu. All three render the same fields.
 
 The source of the link is always the item the form was opened for. It is never a field.
 
@@ -20,9 +20,9 @@ The name is a per-link label. It is independent of the type: two links can share
 
 ### Direction
 
-A dropdown with two options, "Forward" and "Backward", under the label "Direction". It is present only while the selected type is directional, and it is shown or hidden again each time the Type dropdown changes. Choosing a non-directional type hides it, and the link is then saved with no direction at all.
+A dropdown with two options under the label "Direction". Each names both ends of the relation and uses the chosen type as the verb, so for a type called `cites` they read "This item cites the target" and "The target cites this item". It is present only while the selected type is directional, and it is shown or hidden again each time the Type dropdown changes. Choosing a non-directional type hides it, and the link is then saved with no direction at all.
 
-"Forward" means the link runs from the item the form was opened for to the target. "Backward" means it runs the other way. Both are stored on the same link record; the source and target node ids do not swap.
+The first option means the link runs from the item the form was opened for to the target; the second means it runs the other way. Both are stored on the same link record; the source and target node ids do not swap.
 
 ### Target
 
@@ -82,7 +82,7 @@ Saving never modifies or removes an existing node or link. Adding a second link 
 
 The answer comes from whatever opened the form, and the form only asks when nothing gave it one.
 
-In the Connections panel, the mindmap the panel is showing is the mindmap the link is written to. That covers the docked panel in the mindmap tab (the graph on screen), the item pane once the panel has resolved a mindmap for the item, and a redraw straight after a save (the mindmap just written to). Both of the panel's add-link controls use it: the header "+" and the in-body "Add link" button. Right-clicking a node on the graph and choosing "Add link" lands on the mindmap that graph is drawing.
+In the Mindmaps section, the mindmap the panel is showing is the mindmap the link is written to. That covers the docked panel in the mindmap tab (the graph on screen), the item pane once the panel has resolved a mindmap for the item, and a redraw straight after a save (the mindmap just written to). Both of the panel's add-link controls use it: the header "+" and the in-body "Add link" button. Right-clicking a node on the graph and choosing "Add link" lands on the mindmap that graph is drawing.
 
 The chooser appears only when the panel has no mindmap to pass on, which means the item is a node in none yet and the library holds more than one. It is the label "Add to mindmap:", a dropdown of every mindmap in the library, and a "Continue" button. With exactly one mindmap that mindmap is used without asking. With none, the library's default mindmap is created on save, titled "Mindmap".
 
@@ -91,5 +91,5 @@ The standalone dialog opened from the library context menu is told which mindmap
 ## Related
 
 - [links-add-howto.md](links-add-howto.md) for the steps at each entry point
-- [connections-panel-reference.md](connections-panel-reference.md) for where links are listed and removed
+- [mindmaps-panel-reference.md](mindmaps-panel-reference.md) for where links are listed and removed
 - [link-types-reference.md](link-types-reference.md) for the type vocabulary
