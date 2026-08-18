@@ -3,12 +3,21 @@
  * edit, and delete types on top of linkTypes.ts's Zotero.Prefs-backed
  * storage. Renders with direct DOM creation into a container the pane's
  * XHTML fragment hands over on load - no separate dialog window.
+ *
+ * The container is rebuilt from scratch on every state change (selection,
+ * add, edit, delete), so its text can't go through data-l10n-id: Zotero
+ * translates a plugin pane's static fragment once, when the pane first
+ * loads, and never revisits nodes inserted afterward. getString sidesteps
+ * that - it reads the plugin's own Fluent bundle directly rather than
+ * relying on any window's l10n context, so it resolves the same way here as
+ * everywhere else in the plugin.
  */
 import { getString } from "../../utils/locale";
 import { findAllMindmapNotes, readDocumentFromNote } from "./storage";
 import { getLinkTypes, setLinkTypes, type LinkType } from "./linkTypes";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 type Mode = { kind: "list" } | { kind: "add" } | { kind: "edit"; id: string };
 
@@ -26,87 +35,115 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /**
+ * The line the graph draws for a directional or undirected type, at row
+ * scale. Same shapes graphRenderer.ts's edge stylesheet draws on the graph
+ * itself, so a type reads the same way here as it does once drawn.
+ */
+function appendLineGlyph(
+  parent: Element,
+  doc: Document,
+  directional: boolean,
+): void {
+  const svg = doc.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "6");
+  svg.setAttribute("viewBox", "0 0 16 6");
+  svg.setAttribute("aria-hidden", "true");
+
+  const line = doc.createElementNS(SVG_NS, "path");
+  line.setAttribute("stroke-width", "1.4");
+  line.setAttribute("fill", "none");
+
+  if (directional) {
+    line.setAttribute("d", "M0 3h9");
+    line.setAttribute("stroke-dasharray", "3 2");
+    svg.appendChild(line);
+    const head = doc.createElementNS(SVG_NS, "path");
+    head.setAttribute("d", "M9 0.8L13 3l-4 2.2z");
+    head.setAttribute("fill", "currentColor");
+    head.setAttribute("stroke", "none");
+    svg.appendChild(head);
+  } else {
+    line.setAttribute("d", "M0 3h14");
+    svg.appendChild(line);
+  }
+
+  parent.appendChild(svg);
+}
+
+/** A stroked path in its own 16x16 box, sized and coloured by the sheet. */
+function appendGlyph(parent: Element, doc: Document, path: string): void {
+  const svg = doc.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  const glyphPath = doc.createElementNS(SVG_NS, "path");
+  glyphPath.setAttribute("d", path);
+  svg.appendChild(glyphPath);
+  parent.appendChild(svg);
+}
+
+function appendIconButton(
+  parent: HTMLElement,
+  doc: Document,
+  className: string,
+  path: string,
+  title: string,
+  onClick: () => void,
+): HTMLButtonElement {
+  const button = el(doc, "button");
+  button.classList.add("zoterolinkedmindmaps-type-icon-button", className);
+  button.title = title;
+  button.addEventListener("click", onClick);
+  appendGlyph(button, doc, path);
+  parent.appendChild(button);
+  return button;
+}
+
+/**
  * Renders (or re-renders) the link-types settings UI into `container`. Safe
  * to call repeatedly - each call clears and rebuilds from current storage
- * and module state, which is how every state transition below redraws.
+ * and module state, which is how every state transition below redraws. The
+ * container's own heading lives in the pane's XHTML, not here.
  */
 export function renderLinkTypesSettings(container: HTMLElement): void {
-  const doc = container.ownerDocument!;
   container.textContent = "";
-
-  const heading = el(doc, "h2");
-  heading.textContent = getString("preferences-heading");
-  container.appendChild(heading);
 
   if (mode.kind !== "list") {
     renderForm(container, mode.kind === "edit" ? mode.id : null);
     return;
   }
 
-  renderToolbar(container);
-  renderTable(container);
+  renderList(container);
 }
 
-function renderToolbar(container: HTMLElement): void {
+function renderList(container: HTMLElement): void {
   const doc = container.ownerDocument!;
   const types = getLinkTypes();
   const hasSelection =
     selectedTypeId !== null && types.some((type) => type.id === selectedTypeId);
 
-  const toolbar = el(doc, "div");
-  container.appendChild(toolbar);
-
-  const addButton = el(doc, "button");
-  addButton.textContent = getString("preferences-add-button");
-  addButton.addEventListener("click", () => {
-    mode = { kind: "add" };
-    renderLinkTypesSettings(container);
-  });
-  toolbar.appendChild(addButton);
-
-  const editButton = el(doc, "button");
-  editButton.textContent = getString("preferences-edit-button");
-  editButton.disabled = !hasSelection;
-  editButton.addEventListener("click", () => {
-    if (!selectedTypeId) return;
-    mode = { kind: "edit", id: selectedTypeId };
-    renderLinkTypesSettings(container);
-  });
-  toolbar.appendChild(editButton);
-
-  const deleteButton = el(doc, "button");
-  deleteButton.textContent = getString("preferences-delete-button");
-  deleteButton.disabled = !hasSelection;
-  deleteButton.addEventListener("click", () => {
-    if (!selectedTypeId) return;
-    void handleDelete(container, selectedTypeId);
-  });
-  toolbar.appendChild(deleteButton);
-}
-
-function renderTable(container: HTMLElement): void {
-  const doc = container.ownerDocument!;
   const table = el(doc, "table");
+  table.classList.add("zoterolinkedmindmaps-type-table");
   container.appendChild(table);
 
+  const head = el(doc, "thead");
   const headRow = el(doc, "tr");
   const labelHead = el(doc, "th");
   labelHead.textContent = getString("preferences-column-label");
   const directionalHead = el(doc, "th");
   directionalHead.textContent = getString("preferences-column-directional");
   headRow.append(labelHead, directionalHead);
-  const head = el(doc, "thead");
   head.appendChild(headRow);
   table.appendChild(head);
 
   const body = el(doc, "tbody");
   table.appendChild(body);
 
-  for (const type of getLinkTypes()) {
+  for (const type of types) {
     const row = el(doc, "tr");
-    row.style.cursor = "pointer";
+    row.classList.add("zoterolinkedmindmaps-type-row");
     if (type.id === selectedTypeId) {
-      row.style.fontWeight = "bold";
+      row.classList.add("selected");
     }
     row.addEventListener("click", () => {
       selectedTypeId = type.id;
@@ -115,15 +152,64 @@ function renderTable(container: HTMLElement): void {
 
     const labelCell = el(doc, "td");
     labelCell.textContent = type.label;
-    const directionalCell = el(doc, "td");
-    directionalCell.textContent = getString(
+
+    const lineCell = el(doc, "td");
+    const line = el(doc, "span");
+    line.classList.add("zoterolinkedmindmaps-type-line");
+    appendLineGlyph(line, doc, type.directional);
+    const lineLabel = el(doc, "span");
+    lineLabel.classList.add("zoterolinkedmindmaps-type-line-label");
+    lineLabel.textContent = getString(
       type.directional
-        ? "preferences-directional-yes"
-        : "preferences-directional-no",
+        ? "preferences-type-directional"
+        : "preferences-type-undirected",
     );
-    row.append(labelCell, directionalCell);
+    line.appendChild(lineLabel);
+    lineCell.appendChild(line);
+
+    row.append(labelCell, lineCell);
     body.appendChild(row);
   }
+
+  const footer = el(doc, "div");
+  footer.classList.add("zoterolinkedmindmaps-type-footer");
+  container.appendChild(footer);
+
+  appendIconButton(
+    footer,
+    doc,
+    "zoterolinkedmindmaps-type-add",
+    "M8 4v8M4 8h8",
+    getString("preferences-add-button"),
+    () => {
+      mode = { kind: "add" };
+      renderLinkTypesSettings(container);
+    },
+  );
+
+  const editButton = el(doc, "button");
+  editButton.classList.add("zoterolinkedmindmaps-type-edit");
+  editButton.textContent = getString("preferences-edit-button");
+  editButton.disabled = !hasSelection;
+  editButton.addEventListener("click", () => {
+    if (!selectedTypeId) return;
+    mode = { kind: "edit", id: selectedTypeId };
+    renderLinkTypesSettings(container);
+  });
+  footer.appendChild(editButton);
+
+  const removeButton = appendIconButton(
+    footer,
+    doc,
+    "zoterolinkedmindmaps-type-remove",
+    "M4 8h8",
+    getString("preferences-delete-button"),
+    () => {
+      if (!selectedTypeId) return;
+      void handleDelete(container, selectedTypeId);
+    },
+  );
+  removeButton.disabled = !hasSelection;
 }
 
 function renderForm(container: HTMLElement, editId: string | null): void {
@@ -154,6 +240,7 @@ function renderForm(container: HTMLElement, editId: string | null): void {
   form.appendChild(directionalField);
 
   const saveButton = el(doc, "button");
+  saveButton.classList.add("zoterolinkedmindmaps-type-save");
   saveButton.textContent = getString("preferences-save-button");
   saveButton.addEventListener("click", () => {
     const label = labelInput.value.trim();
@@ -184,6 +271,7 @@ function renderForm(container: HTMLElement, editId: string | null): void {
   form.appendChild(saveButton);
 
   const cancelButton = el(doc, "button");
+  cancelButton.classList.add("zoterolinkedmindmaps-type-cancel");
   cancelButton.textContent = getString("preferences-cancel-button");
   cancelButton.addEventListener("click", () => {
     mode = { kind: "list" };

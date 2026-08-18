@@ -1,0 +1,87 @@
+/*
+ * Plugin styles for the link-types preferences pane. Registered through
+ * Zotero.PreferencePanes.register's stylesheets option: the preferences
+ * window is not a main window, so zoteroPane.css (scoped to those) never
+ * loads here.
+ *
+ * Every colour here comes from a Zotero variable. A literal would survive a
+ * theme switch unchanged, and on Linux the selection colour resolves to the
+ * OS accent, so it is never the plugin's to choose.
+ */
+
+.zoterolinkedmindmaps-type-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.zoterolinkedmindmaps-type-table th,
+.zoterolinkedmindmaps-type-table td {
+  text-align: left;
+  padding: 4px 8px;
+}
+
+.zoterolinkedmindmaps-type-table thead th {
+  color: var(--fill-secondary);
+  font-weight: normal;
+  border-bottom: var(--material-border);
+}
+
+.zoterolinkedmindmaps-type-row {
+  cursor: pointer;
+}
+
+.zoterolinkedmindmaps-type-row:hover {
+  background: var(--fill-quinary);
+}
+
+.zoterolinkedmindmaps-type-row.selected {
+  background: var(--fill-quarternary);
+}
+
+.zoterolinkedmindmaps-type-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoterolinkedmindmaps-type-line > svg {
+  flex-shrink: 0;
+  color: var(--fill-secondary);
+}
+
+.zoterolinkedmindmaps-type-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.zoterolinkedmindmaps-type-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: var(--material-border);
+  border-radius: 4px;
+  background: var(--fill-senary);
+  color: var(--fill-secondary);
+}
+
+.zoterolinkedmindmaps-type-icon-button:hover:not(:disabled) {
+  background: var(--fill-quinary);
+}
+
+.zoterolinkedmindmaps-type-icon-button:disabled {
+  color: var(--fill-tertiary);
+  cursor: default;
+}
+
+.zoterolinkedmindmaps-type-icon-button > svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}

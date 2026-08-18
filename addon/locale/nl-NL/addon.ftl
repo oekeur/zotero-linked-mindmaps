@@ -3,10 +3,11 @@ startup-finish = Gereed
 
 preferences-pane-label = Mindmaps
 preferences-heading = Koppelingstypen
+preferences-library-heading = Bibliotheek
 preferences-column-label = Label
 preferences-column-directional = Gericht
-preferences-directional-yes = Ja
-preferences-directional-no = Nee
+preferences-type-directional = Gericht
+preferences-type-undirected = Ongericht
 preferences-add-button = Toevoegen
 preferences-edit-button = Bewerken
 preferences-delete-button = Verwijderen
@@ -21,7 +22,8 @@ preferences-delete-confirm-used =
        *[other] Dit koppelingstype verwijderen? { $count } koppelingen gebruiken het en tonen daar "(onbekend type)".
     }
 preferences-delete-confirm-unknown = Kon niet nagaan hoeveel koppelingen dit type gebruiken: de mindmapgegevens waren niet te lezen. Toch verwijderen?
-preferences-hide-mindmap-notes = Het item Zotero Linked Mindmaps verbergen in mijn bibliotheek
+preferences-hide-mindmap-notes =
+    .label = Het item Zotero Linked Mindmaps verbergen in mijn bibliotheek
 preferences-hide-mindmap-notes-help = Je mindmaps staan in één Zotero-item. Verbergen houdt dat item uit de itemlijst en uit de zoekresultaten; er wordt niets verwijderd.
 container-trashed-now = Het item Zotero Linked Mindmaps is naar de prullenbak verplaatst. Alle mindmaps in die bibliotheek blijven verborgen totdat je het item terugzet.
 container-trashed-startup = Het item Zotero Linked Mindmaps staat in de prullenbak. Alle mindmaps in die bibliotheek blijven verborgen totdat je het item terugzet.

@@ -3,10 +3,11 @@ startup-finish = Ready
 
 preferences-pane-label = Mindmaps
 preferences-heading = Link types
+preferences-library-heading = Library
 preferences-column-label = Label
 preferences-column-directional = Directional
-preferences-directional-yes = Yes
-preferences-directional-no = No
+preferences-type-directional = Directional
+preferences-type-undirected = Undirected
 preferences-add-button = Add
 preferences-edit-button = Edit
 preferences-delete-button = Delete
@@ -21,7 +22,8 @@ preferences-delete-confirm-used =
        *[other] Delete this link type? { $count } links use it and will show as "(unknown type)" there.
     }
 preferences-delete-confirm-unknown = Could not check how many links use this type: its mindmap data could not be read. Delete anyway?
-preferences-hide-mindmap-notes = Hide the Zotero Linked Mindmaps item from my library
+preferences-hide-mindmap-notes =
+    .label = Hide the Zotero Linked Mindmaps item from my library
 preferences-hide-mindmap-notes-help = Your mindmaps are stored in one Zotero item. Hiding it keeps that item out of the item list and out of search; nothing is deleted.
 container-trashed-now = The Zotero Linked Mindmaps item was moved to the trash. Every mindmap in that library stays hidden until you restore it.
 container-trashed-startup = The Zotero Linked Mindmaps item is in the trash. Every mindmap in that library stays hidden until you restore it.

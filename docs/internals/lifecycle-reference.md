@@ -69,7 +69,7 @@ Async. Called once, from `bootstrap.js` `startup()`.
 4. `registerDeletionObserver()`. `Zotero.Notifier.registerObserver` on type `item` with observer id `zoterolinkedmindmaps-deletion-cleanup`. The returned id is stored in the module-level `deletionObserverID` in `hooks.ts`.
 5. `registerContainerObserver()`. `Zotero.Notifier.registerObserver` on type `item` with observer id `zoterolinkedmindmaps-container-guard`, stored in `containerObserverID`.
 6. `registerLibraryFilter()`. Replaces `Zotero.CollectionTreeRow.prototype.getSearchObject` and registers a `Zotero.Prefs` observer on `extensions.zotero.zoterolinkedmindmaps.hideMindmapNotes`. See [library-filter-reference.md](library-filter-reference.md).
-7. `await Zotero.PreferencePanes.register({ pluginID, id: "zoterolinkedmindmaps-link-types-pane", src: rootURI + "content/preferences.xhtml", label: getString("preferences-pane-label"), image: rootURI + "content/icons/favicon.png" })`.
+7. `await Zotero.PreferencePanes.register({ pluginID, id: "zoterolinkedmindmaps-link-types-pane", src: rootURI + "content/preferences.xhtml", label: getString("preferences-pane-label"), image: rootURI + "content/icons/favicon.png", stylesheets: [rootURI + "content/preferences.css"] })`.
 8. `startupToolkit = addon.data.ztoolkit`, then `registerMindmapShortcut()`, which calls `ztoolkit.Keyboard.register` on that toolkit and opens the mindmap tab on `Shift+G` unless the event target is an input, textarea, or contenteditable element.
 9. `await Promise.all(Zotero.getMainWindows().map((win) => onMainWindowLoad(win)))`. Zotero does not replay `onMainWindowLoad` for windows already open when the plugin starts, so startup drives them itself.
 10. `await reconcileContainers()`. Runs after step 9 on purpose; see [lifecycle-explanation.md](lifecycle-explanation.md).
@@ -119,11 +119,11 @@ Live-refresh observers registered by `attachLiveRefresh` in the graph renderer a
 
 ## `onPrefsEvent(type, data)`
 
-Async. Not called by Zotero: `addon/content/preferences.xhtml` calls it from two `onload` attributes, and `test/mindmap/preferencesPane.test.ts` calls it directly to re-render the pane without a fresh load.
+Async. Not called by Zotero: `addon/content/preferences.xhtml` calls it from its link-types groupbox's `onload` attribute, and `test/mindmap/preferencesPane.test.ts` calls it directly to re-render the pane without a fresh load.
 
 `"link-types-pane-load"` with `data.container` renders the link-type editor into that element through `renderLinkTypesSettings`. See [link-types-reference.md](../user-guide/link-types-reference.md).
 
-`"library-pane-load"` with `data.checkbox` sets the checkbox's `label` attribute from `getString("preferences-hide-mindmap-notes")`. The label is set from code rather than through `data-l10n-id` because the preferences window has no l10n context for the plugin's `.ftl` files; see [locale-reference.md](locale-reference.md).
+The library groupbox's checkbox and help text no longer go through this hook: they carry `data-l10n-id` directly and resolve through the pane's own `<linkset>`; see [locale-reference.md](locale-reference.md).
 
 Any other `type` falls through the `default` branch and does nothing.
 
