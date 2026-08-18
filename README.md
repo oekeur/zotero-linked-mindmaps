@@ -1,8 +1,8 @@
+![Zotero Linked Mindmaps](./docs/images/logo-hero.svg)
+
 # Zotero Linked Mindmaps
 
 A Zotero 7 plugin for organizing and visualizing interconnected sources as one or more mindmaps, with typed, named links between items and notes.
-
-![The Mindmap tab in Zotero: three nodes on a canvas joined by a dashed "cites: test" arrow and a solid "related to" line, one node dashed to mark it as borrowed from another mindmap, with the mindmap list on the left and the node dock on the right](./docs/images/mindmap-tab.png)
 
 ## Why
 
@@ -15,6 +15,9 @@ An existing plugin, [samreading/zotero-mindmap](https://github.com/samreading/zo
 - Typed, named links between items and notes, with an optional direction, so "critiques" and "primary source for chapter 3" mean something more specific than a generic "related." Link types are a vocabulary you edit, not a fixed list.
 - Multiple named mindmaps instead of one flat graph, since most people's sources split by topic rather than one global structure.
 - A rendered graph per mindmap in its own Zotero tab, with link type shown as a label plus a line-style cue, not color alone (color stops being readable past 8-10 types). Parallel links between the same two nodes are offset so each stays readable and separately labeled.
+
+  ![The Mindmap tab in Zotero: three nodes on a canvas joined by a dashed "cites: test" arrow and a solid "related to" line, one node dashed to mark it as borrowed from another mindmap, with the mindmap list on the left and the node dock on the right](./docs/images/mindmap-tab.png)
+
 - Link creation from wherever you're actually working: a "Mindmaps" section in the item pane while reading, a right-click in the library, or a right-click on a node in an open mindmap.
 
   ![The Mindmaps section in Zotero's item pane, showing one existing link row and the add-link form with Type, Name, Direction and Target fields](./docs/images/item-pane-mindmaps-section.png)
