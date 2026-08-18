@@ -55,7 +55,7 @@ npm run docs:preview  # serve the built site
 
 ## Development
 
-Requires a local Zotero 7 install and a dev profile. [Full setup guide](./docs/contributing/development-setup.md).
+Requires a local Zotero 7 install and a dev profile. [Full setup guide](./docs/contributing/development-setup.md). [CONTRIBUTING.md](./CONTRIBUTING.md) covers filing an issue, the verification gate, and the commit convention.
 
 ```sh
 cp .env.example .env
