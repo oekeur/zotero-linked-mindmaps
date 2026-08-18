@@ -48,3 +48,20 @@ export function appendMindmapOptions(
     select.appendChild(option as unknown as Node);
   }
 }
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** A stroked path in its own 16x16 box, sized and coloured by the sheet. */
+export function appendGlyph(
+  parent: Element,
+  doc: Document,
+  path: string,
+): void {
+  const svg = doc.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  const line = doc.createElementNS(SVG_NS, "path");
+  line.setAttribute("d", path);
+  svg.appendChild(line);
+  parent.appendChild(svg);
+}

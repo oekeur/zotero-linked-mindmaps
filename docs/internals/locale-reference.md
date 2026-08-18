@@ -13,7 +13,7 @@ addon/locale/nl-NL/addon.ftl
 addon/locale/nl-NL/mainWindow.ftl
 ```
 
-`addon.ftl` carries startup strings, the preferences-pane strings, the container-trashed warnings, and the item context-menu labels. `mainWindow.ftl` carries the Connections panel, the add-link form, the mindmap tab and its sidebar, and the grouping menu entries.
+`addon.ftl` carries startup strings, the preferences-pane strings, the container-trashed warnings, and the item context-menu labels. `mainWindow.ftl` carries the Mindmaps section, the add-link form, the mindmap tab and its sidebar, and the grouping menu entries.
 
 No `zh-CN` locale ships. The template's version had two of forty-odd strings translated and nobody on the project can verify Chinese, so it was removed; a `zh-CN` profile falls back to `en-US`. `test/mindmap/locale.test.ts` asserts it stays removed.
 
@@ -89,7 +89,7 @@ Return value, in order:
 - with `branch` given and the pattern carrying attributes, the value of the attribute named by `branch`, falling back to the prefixed id;
 - otherwise `pattern.value`, falling back to the prefixed id.
 
-A message with no value of its own, only attributes such as `.label` or `.tooltiptext`, resolves to the raw id unless the branch is asked for. `connections-section-head-text` and `connections-add-link-header-button` are both of that shape.
+A message with no value of its own, only attributes such as `.label` or `.tooltiptext`, resolves to the raw id unless the branch is asked for. `item-mindmaps-section-head-text` and `item-mindmaps-add-link-header-button` are both of that shape.
 
 `args` feeds Fluent's own placeables and selectors. `add-to-mindmap-progress` takes `$count`; `mindmap-delete-confirm-message` takes `$title`; `preferences-delete-confirm-used` selects a plural form on `$count`.
 
@@ -97,30 +97,21 @@ A message with no value of its own, only attributes such as `.label` or `.toolti
 
 ## `getLocaleID(id: FluentMessageId): string`
 
-Returns `` `${config.addonRef}-${id}` ``. For passing an id to something that resolves Fluent itself, rather than resolving it here. Used for the `l10nID` fields of the Connections item-pane section.
+Returns `` `${config.addonRef}-${id}` ``. For passing an id to something that resolves Fluent itself, rather than resolving it here. Used for the `l10nID` fields of the Mindmaps item-pane section.
 
 ## The bundle-scope limit
 
 `initLocale()`'s bundle belongs to the plugin scope. It does not add the plugin's `.ftl` files to any window's l10n context, and `insertFTLIfNeeded` only reaches the main windows the plugin loads into.
 
-Zotero's preferences window is neither. It has no l10n context for the plugin's files, so a `data-l10n-id` attribute in `addon/content/preferences.xhtml` does not resolve, and the element renders with no text at all.
+Zotero's preferences window is a partial exception, scoped per pane rather than window-wide. `Zotero.PreferencePanes.register` loads each pane's `src` as an XHTML fragment and, once, the first time that pane is opened, awaits `document.l10n.ready` and calls `document.l10n.translateFragment(pane.container)` (see `chrome/content/zotero/preferences/preferences.js` in Zotero's own source). That resolves `data-l10n-id` against whatever the fragment's own `<linkset>` declares, the same declarative pattern `addon/content/addLink.xhtml` uses (below) and the one the community plugin-dev docs document for preference panes. `addon/content/preferences.xhtml` declares one for `zoterolinkedmindmaps-addon.ftl`, and both groupbox headings plus the hide-plugin-data checkbox and its help text carry `data-l10n-id` and resolve for real.
 
-The workaround is to set the text from code, through the same `getString` path everything else uses. `addon/content/preferences.xhtml` carries the hide-plugin-data checkbox with no label attribute and an `onload` handler that calls `hooks.onPrefsEvent("library-pane-load", { checkbox })`; the hook does:
-
-```ts
-(data.checkbox as Element | null)?.setAttribute(
-  "label",
-  getString("preferences-hide-mindmap-notes"),
-);
-```
-
-The link-types pane in the same file is built entirely from code for the same reason, which is why `renderLinkTypesSettings` calls `getString` for its heading, its column headers, and every button.
+The link-types list is the one part of that pane still built from code, through `getString`, and the reason is not a missing l10n context: it is that `translateFragment` runs exactly once, when the pane's static fragment is first inserted. `renderLinkTypesSettings` tears its container down and rebuilds it from scratch on every selection, add, edit, and delete, and none of those later insertions gets a translation pass. `getString` sidesteps that because it reads the plugin's own Fluent bundle directly, independent of any window's l10n context, so it resolves the same way on every rebuild.
 
 The pane's own label, the one Zotero shows in the preferences sidebar, goes through `getString("preferences-pane-label")` at `Zotero.PreferencePanes.register` time.
 
-`test/mindmap/preferencesPane.test.ts` guards this by asserting the rendered heading does not contain `zoterolinkedmindmaps-`, which is what a raw id would look like.
+`test/mindmap/preferencesPane.test.ts` guards the static half by asserting the two group headings resolve to real text, not a raw id, and guards the dynamic half by exercising selection, add, edit and delete through the rendered controls.
 
-A `ztoolkit.Dialog` window is neither one either. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id.
+A `ztoolkit.Dialog` window has no l10n context at all. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id.
 
 The standalone "Add link" window used to be one, and worked around that by naming the file in `dialogData.l10nFiles`. It no longer is: `addon/content/addLink.xhtml` is the plugin's own chrome document, opened through `openDialog` at `chrome://zoterolinkedmindmaps/content/addLink.xhtml`, and it registers the file the same declarative way Zotero's own dialogs do:
 
@@ -141,6 +132,20 @@ Add the key to `addon/locale/en-US/<file>.ftl` and to `addon/locale/nl-NL/<file>
 Translations are added only in languages the project can verify, currently English and Dutch.
 
 If the string lands in a new `.ftl` file, add the filename to `LOCALE_FILES` as well.
+
+## Wording rules the suite enforces
+
+`test/mindmap/locale.test.ts` checks more than key parity. These are asserted per locale, so they cannot drift back silently:
+
+- No string stands a spaced hyphen in for punctuation. Use a colon or a semicolon.
+- No string uses the word "connection" or "verbinding" for a link, and none carries the `(plugin data)` parenthetical.
+- The add-to-mindmap confirmation renders differently for one and three, so it must be a Fluent count selector rather than an `item(s)` suffix, and it names the mindmap it added to.
+- The two direction options name both ends of the relation, using the type label as the verb, rather than saying forward or backward.
+
+Two conventions are not machine-checked and need care by hand:
+
+- An ellipsis marks a control that opens another window before anything happens. A control that acts immediately, or that reveals an inline form, does not get one. A confirmation prompt is not "more input" in this sense, so a destructive action that only asks you to confirm stays without one.
+- Case follows the host surface. The library context-menu entries are Title Case in `en-US` because Zotero's own item menu is; `nl-NL` keeps sentence case because Dutch Zotero does. Everywhere the plugin owns the surface, both locales use sentence case.
 
 ## See also
 

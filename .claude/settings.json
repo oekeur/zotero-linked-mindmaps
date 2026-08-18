@@ -8,7 +8,7 @@
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-merge-test-gate.sh\"",
             "if": "Bash(git merge *)",
-            "timeout": 300,
+            "timeout": 780,
             "statusMessage": "Running full test suite before merge to main..."
           }
         ]

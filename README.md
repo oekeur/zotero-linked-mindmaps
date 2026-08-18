@@ -13,7 +13,7 @@ An existing plugin, [samreading/zotero-mindmap](https://github.com/samreading/zo
 - Typed, named links between items and notes, with an optional direction, so "critiques" and "primary source for chapter 3" mean something more specific than a generic "related." Link types are a vocabulary you edit, not a fixed list.
 - Multiple named mindmaps instead of one flat graph, since most people's sources split by topic rather than one global structure.
 - A rendered graph per mindmap in its own Zotero tab, with link type shown as a label plus a line-style cue, not color alone (color stops being readable past 8-10 types). Parallel links between the same two nodes are offset so each stays readable and separately labeled.
-- Link creation from wherever you're actually working: a "Connections" section in the item pane while reading, a right-click in the library, or a right-click on a node in an open mindmap.
+- Link creation from wherever you're actually working: a "Mindmaps" section in the item pane while reading, a right-click in the library, or a right-click on a node in an open mindmap.
 - Node positions you set by dragging, persisted with the mindmap. Nodes you haven't placed get laid out on a grid.
 - Node grouping, for marking a cluster as belonging together without inventing a link between every pair.
 - Cross-mindmap links, reaching from one mindmap into a node whose membership lives in another, styled to flag it as external.
@@ -49,7 +49,7 @@ npm run docs:preview  # serve the built site
 ```
 
 - [Getting started](./docs/user-guide/getting-started.md) walks from an empty install to a first linked mindmap.
-- [User guide](./docs/user-guide/) covers the mindmap tab, the Connections panel, link types, grouping, cross-mindmap links, and recovering plugin data from the trash.
+- [User guide](./docs/user-guide/) covers the mindmap tab, the Mindmaps section, link types, grouping, cross-mindmap links, and recovering plugin data from the trash.
 - [Contributing](./docs/contributing/) covers dev setup, the npm scripts, testing against a live Zotero instance, and configuration.
 - [Internals](./docs/internals/) documents the storage layer, the document schema, graph rendering, and the plugin lifecycle, including the Zotero integration constraints that shaped them.
 

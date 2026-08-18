@@ -28,7 +28,7 @@ Full symbol details are in [polyfills-reference.md](polyfills-reference.md).
 
 Cytoscape absolutely positions its canvases inside the container element, so the container has to establish a positioning context. `position: relative` on the graph container is a hard requirement and not a styling preference. Without it the canvases resolve against some ancestor further up the XUL tree, and the graph renders somewhere other than where its container is, or not visibly at all.
 
-The mindmap tab sets it on `#zoterolinkedmindmaps-mindmap-container`, together with `flex: 1 1 0` and `min-width: 0`. That `min-width: 0` is a separate trap hiding in the same line. A flex item defaults to `min-width: auto`, its content-based minimum, and Cytoscape's container carries enough of one that the graph refuses to shrink, the row overflows, and the Connections dock gets pushed off the right edge of the tab, where it renders happily but can't be seen or reached.
+The mindmap tab sets it on `#zoterolinkedmindmaps-mindmap-container`, together with `flex: 1 1 0` and `min-width: 0`. That `min-width: 0` is a separate trap hiding in the same line. A flex item defaults to `min-width: auto`, its content-based minimum, and Cytoscape's container carries enough of one that the graph refuses to shrink, the row overflows, and the node dock gets pushed off the right edge of the tab, where it renders happily but can't be seen or reached.
 
 Every test that renders a real graph sets `position: relative; width: ...; height: ...` on its container for the same reason. A test that forgets it doesn't fail loudly.
 

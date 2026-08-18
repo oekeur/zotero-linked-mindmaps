@@ -12,7 +12,8 @@
  * a second tab - without two of them sharing one selection.
  */
 import { config } from "../../../package.json";
-import { getString } from "../../utils/locale";
+import { getLocaleID, getString } from "../../utils/locale";
+import type { FluentMessageId } from "../../../typings/i10n";
 import {
   createMindmap,
   deleteMindmap,
@@ -34,6 +35,7 @@ import {
   type RenderedState,
 } from "./graphRenderer";
 import { layoutUnplacedNodes } from "./layout";
+import { appendGlyph } from "./uiElements";
 import type { MindmapDocument } from "./schema";
 
 const TAB_TYPE = "zoterolinkedmindmaps-mindmap";
@@ -59,9 +61,14 @@ export interface TabSurfaces {
 
 export const SIDEBAR_ROW_CLASS = "mindmap-sidebar-row";
 export const SIDEBAR_ROW_SELECTED_CLASS = "mindmap-sidebar-row-selected";
+export const SIDEBAR_ROW_TITLE_CLASS = "mindmap-sidebar-row-title";
+export const SIDEBAR_ROW_DESCRIPTION_CLASS = "mindmap-sidebar-row-description";
+export const SIDEBAR_ROW_ACTIONS_CLASS = "mindmap-sidebar-row-actions";
 export const SIDEBAR_EDIT_CLASS = "mindmap-sidebar-edit";
 export const SIDEBAR_DELETE_CLASS = "mindmap-sidebar-delete";
 export const SIDEBAR_TOGGLE_ID = "zoterolinkedmindmaps-mindmap-sidebar-toggle";
+export const SIDEBAR_HEADER_CLASS = "mindmap-sidebar-header";
+export const SIDEBAR_NEW_BUTTON_ID = "zoterolinkedmindmaps-mindmap-new";
 
 const SIDEBAR_WIDTH = "220px";
 const SIDEBAR_COLLAPSED_WIDTH = "28px";
@@ -201,16 +208,33 @@ export function createMindmapTabController(
   /**
    * Collapsed, the sidebar keeps its toggle and drops everything else, so the
    * graph gets the width back without losing the way to bring the list back.
+   * Creation sits beside the heading rather than below the list, the way
+   * Zotero's own collections pane puts "New Collection" in its header.
    */
   function renderSidebarHeader(doc: Document): void {
     const header = el(doc, "div");
-    header.style.cssText = "display: flex; align-items: center; gap: 4px;";
+    header.classList.add(SIDEBAR_HEADER_CLASS);
 
     if (!sidebarCollapsed) {
       const heading = el(doc, "span");
       heading.textContent = getString("mindmap-sidebar-heading");
-      heading.style.cssText = "flex: 1; font-weight: bold;";
+      heading.classList.add("mindmap-sidebar-heading");
       header.appendChild(heading as unknown as Node);
+
+      const newButton = el(doc, "button");
+      newButton.id = SIDEBAR_NEW_BUTTON_ID;
+      newButton.classList.add("mindmap-icon-button");
+      newButton.setAttribute(
+        "data-l10n-id",
+        getLocaleID("mindmap-sidebar-new-button"),
+      );
+      appendGlyph(newButton, doc, "M8 3v10M3 8h10");
+      newButton.addEventListener("click", () => {
+        formMode = "new";
+        formTarget = undefined;
+        void refresh();
+      });
+      header.appendChild(newButton as unknown as Node);
     }
 
     const toggle = el(doc, "button");
@@ -240,9 +264,6 @@ export function createMindmapTabController(
       row.classList.add(SIDEBAR_ROW_SELECTED_CLASS);
     }
     row.setAttribute("data-mindmap-id", mindmap.id);
-    row.style.cssText = `padding: 4px; cursor: pointer; ${
-      isSelected ? "background: Highlight; color: HighlightText;" : ""
-    }`;
     row.addEventListener("click", () => {
       void (async () => {
         await load(mindmap.id);
@@ -250,24 +271,30 @@ export function createMindmapTabController(
       })();
     });
 
+    const text = el(doc, "div");
+    text.classList.add("mindmap-sidebar-row-text");
+
     const title = el(doc, "div");
+    title.classList.add(SIDEBAR_ROW_TITLE_CLASS);
     title.textContent = mindmap.title;
-    row.appendChild(title as unknown as Node);
+    text.appendChild(title as unknown as Node);
 
     if (mindmap.description) {
       const description = el(doc, "div");
+      description.classList.add(SIDEBAR_ROW_DESCRIPTION_CLASS);
       description.textContent = mindmap.description;
-      description.style.cssText = "font-size: 0.85em; opacity: 0.75;";
-      row.appendChild(description as unknown as Node);
+      text.appendChild(description as unknown as Node);
     }
+    row.appendChild(text as unknown as Node);
 
     const actions = el(doc, "div");
-    actions.style.cssText = "display: flex; gap: 4px;";
+    actions.classList.add(SIDEBAR_ROW_ACTIONS_CLASS);
     appendRowAction(
       doc,
       actions,
       SIDEBAR_EDIT_CLASS,
       "mindmap-edit-button",
+      "M10.5 2.5l3 3L6 13l-4 1 1-4z",
       () => {
         formMode = "edit";
         formTarget = mindmap;
@@ -279,6 +306,7 @@ export function createMindmapTabController(
       actions,
       SIDEBAR_DELETE_CLASS,
       "mindmap-delete-button",
+      "M3.5 5h9M6.5 5V3.2h3V5M4.5 5l0.7 8h5.6l0.7-8",
       () => {
         void handleDelete(mindmap);
       },
@@ -291,18 +319,22 @@ export function createMindmapTabController(
   /**
    * A row action stops its click at the button: the row itself loads the
    * mindmap on click, and editing a row should not also switch the graph to
-   * it.
+   * it. Hidden until the row is hovered or a control inside it gets focus (see
+   * .mindmap-sidebar-row-actions in zoteroPane.css), so the resting list is
+   * two rows of content rather than four rows of buttons.
    */
   function appendRowAction(
     doc: Document,
     parent: HTMLElement,
     className: string,
-    label: "mindmap-edit-button" | "mindmap-delete-button",
+    localeId: FluentMessageId,
+    glyphPath: string,
     onClick: () => void,
   ): void {
     const button = el(doc, "button");
-    button.classList.add(className);
-    button.textContent = getString(label);
+    button.classList.add("mindmap-icon-button", className);
+    button.setAttribute("data-l10n-id", getLocaleID(localeId));
+    appendGlyph(button, doc, glyphPath);
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       onClick();
@@ -329,16 +361,6 @@ export function createMindmapTabController(
         ) as unknown as Node,
       );
     }
-
-    const newButton = el(doc, "button");
-    newButton.id = "zoterolinkedmindmaps-mindmap-new";
-    newButton.textContent = getString("mindmap-new-button");
-    newButton.addEventListener("click", () => {
-      formMode = "new";
-      formTarget = undefined;
-      void refresh();
-    });
-    surfaces.sidebar.appendChild(newButton as unknown as Node);
   }
 
   /**

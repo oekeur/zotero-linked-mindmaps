@@ -32,13 +32,13 @@ Editing anything in the settings pane writes the whole list, defaults included. 
 
 ## What "directional" means
 
-A directional type adds a "Direction" dropdown to the add-link form, with the options "Forward" and "Backward". The choice is stored on the link. A non-directional type hides that field and the link is saved with no direction at all.
+A directional type adds a "Direction" dropdown to the add-link form, whose two options name both ends of the relation using the type label as the verb. The choice is stored on the link. A non-directional type hides that field and the link is saved with no direction at all.
 
 Direction is a property of the link, not of the node order: the link always records its source and target as authored, and the direction says which way to read it.
 
-On the graph, a directional link is drawn as a dashed line with a triangular arrowhead; a non-directional one as a solid line with no arrowhead. In the Connections panel, a link with a stored direction gets an arrow pointing away from or toward the current item.
+On the graph, a directional link is drawn as a dashed line with a triangular arrowhead; a non-directional one as a solid line with no arrowhead. In the Mindmaps section, a link with a stored direction gets an arrow pointing away from or toward the current item.
 
-Flipping an existing type from directional to non-directional does not strip the direction already stored on its links. The graph stops drawing the arrowhead, but the Connections panel keeps showing the arrow, because it reads the link's own direction field rather than the type.
+Flipping an existing type from directional to non-directional does not strip the direction already stored on its links. The graph stops drawing the arrowhead, but the Mindmaps section keeps showing the arrow, because it reads the link's own direction field rather than the type.
 
 ## Where types are stored
 
@@ -50,7 +50,7 @@ A consequence worth knowing: opening a synced mindmap on a second machine whose 
 
 Deleting a type does not touch any link. The link keeps its `typeId`, which now matches nothing.
 
-Such a link still renders. On the graph it is labelled "(unknown type)", or `(unknown type): <name>` when it has a name, and drawn as a grey dotted line with no arrowhead, distinct from both the dashed directional and solid non-directional styles. The Connections panel lists it under the same "(unknown type)" label, which is also the wording the delete confirmation promises.
+Such a link still renders. On the graph it is labelled "(unknown type)", or `(unknown type): <name>` when it has a name, and drawn as a grey dotted line with no arrowhead, distinct from both the dashed directional and solid non-directional styles. The Mindmaps section lists it under the same "(unknown type)" label, which is also the wording the delete confirmation promises.
 
 Recreating a type with the same label does not reattach those links: a new type gets a new generated id. Restoring a deleted default (`cites`, `supports`, `contradicts`, `primary-source-for`, `related-to`) by hand is only possible by editing the preference directly, since the settings pane cannot set an id.
 

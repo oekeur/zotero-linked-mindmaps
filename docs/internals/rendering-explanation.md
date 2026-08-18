@@ -28,7 +28,7 @@ Self-links are the honest gap here. A link whose source and target are the same 
 
 ## Parent-child ties are not links
 
-Zotero already knows that a note belongs to an item. When both are on the mindmap, drawing nothing between them makes the graph contradict the library. Drawing a link between them would be worse. It would claim someone authored a relationship that nobody did, it would need a type from a vocabulary about scholarly relations, and it would sit in `doc.links` where deletion, editing and the Connections panel would all have to cope with a link the user can't meaningfully change.
+Zotero already knows that a note belongs to an item. When both are on the mindmap, drawing nothing between them makes the graph contradict the library. Drawing a link between them would be worse. It would claim someone authored a relationship that nobody did, it would need a type from a vocabulary about scholarly relations, and it would sit in `doc.links` where deletion, editing and the Mindmaps section would all have to cope with a link the user can't meaningfully change.
 
 So ties are a separate element kind, with a deliberately weaker presence. They get recomputed on every render from `item.parentItemID` and never written to the document, so there is no persisted state to go stale. Add the parent to the mindmap and the tie appears. Remove it and the tie is gone. Reparent the note in Zotero and the next render follows along. Their ids are prefixed `tie:` so nothing can confuse one with a link id when selecting or styling.
 
@@ -38,7 +38,7 @@ A child note whose parent isn't on the mindmap gets no tie. There is nothing to 
 
 ## Live refresh, and the three things it guards against
 
-The graph has to answer edits made elsewhere: a link added from the Connections panel in the item pane, a node pruned by deletion cleanup, a group created in another window. `attachLiveRefresh` registers a Zotero notifier observer, filters for a `modify` on the storage note's own item id, and rebuilds.
+The graph has to answer edits made elsewhere: a link added from the Mindmaps section in the item pane, a node pruned by deletion cleanup, a group created in another window. `attachLiveRefresh` registers a Zotero notifier observer, filters for a `modify` on the storage note's own item id, and rebuilds.
 
 The rebuild is a full destroy-and-recreate, not an in-place diff. For v1's expected corpus (dozens to low hundreds of nodes) recreating is fast enough, and it has no reconciliation logic to get wrong. That is a deliberate simplicity choice with a known ceiling, not a shortcut waiting to be tidied up.
 
@@ -58,7 +58,7 @@ Two smaller decisions round it out. The rebuild reads the note by the item id it
 
 A group is drawn as a Cytoscape compound node with its members pointing at it as their parent. Cytoscape sizes a compound node to fit its children, so the region is derived from where the members already are. Nothing gets repositioned, which is what keeps grouping from fighting the persisted layout. The container is given no position of its own (under a preset layout that would override the auto-fit) and is not grabbable (dragging it would carry every member along and rewrite coordinates the user set deliberately). A group with no members is skipped instead of being drawn as an empty region.
 
-The grouping and add-link menus are DOM popups drawn into the graph container rather than native XUL context menus, for the same reason the Connections dock is a panel: a DOM popup doesn't block, and it can hold an inline text field for renaming. That choice comes with one piece of required plumbing, a `mousedown` stopPropagation on the menu. Without it, Cytoscape treats a click on the menu as a click on its own canvas and removes the menu on `mouseup`, before the button's `click` ever fires.
+The grouping and add-link menus are DOM popups drawn into the graph container rather than native XUL context menus, for the same reason the node dock is a panel: a DOM popup doesn't block, and it can hold an inline text field for renaming. That choice comes with one piece of required plumbing, a `mousedown` stopPropagation on the menu. Without it, Cytoscape treats a click on the menu as a click on its own canvas and removes the menu on `mouseup`, before the button's `click` ever fires.
 
 ## Related
 

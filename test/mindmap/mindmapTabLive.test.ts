@@ -50,10 +50,22 @@ describe("mindmap/mindmapTab live tab", function () {
     assert.isNotNull(sidebar, "the tab did not build a sidebar");
     const text = sidebar!.textContent ?? "";
     assert.include(text, getString("mindmap-sidebar-heading"));
-    assert.include(text, getString("mindmap-new-button"));
-    assert.include(text, getString("mindmap-edit-button"));
-    assert.include(text, getString("mindmap-delete-button"));
     assert.include(text, "Live tab check");
+    // Edit, Delete and the header's plus control are icon-only, translated
+    // through their title attribute rather than through visible text - the
+    // bug this guards against would show up there instead of in textContent.
+    const editButton = sidebar!.querySelector(".mindmap-sidebar-edit");
+    const deleteButton = sidebar!.querySelector(".mindmap-sidebar-delete");
+    const newButton = sidebar!.querySelector(
+      "#zoterolinkedmindmaps-mindmap-new",
+    );
+    assert.isNotNull(editButton);
+    assert.isNotNull(deleteButton);
+    assert.isNotNull(newButton);
+    for (const button of [editButton, newButton, deleteButton]) {
+      const l10nId = button!.getAttribute("data-l10n-id") ?? "";
+      assert.isNotEmpty(l10nId);
+    }
     // The bug this guards: every getString key rendered as its own prefixed
     // id, because initLocale loaded only addon.ftl.
     assert.notInclude(text, `${config.addonRef}-`);

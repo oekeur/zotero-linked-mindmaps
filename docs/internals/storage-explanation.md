@@ -56,7 +56,7 @@ Neither of these throws, and neither was found by reading Zotero's source. They 
 
 A `Zotero.Item`'s cached note text can lag behind its own committed write, because Zotero reloads the object asynchronously after a save. Read the cache immediately after writing and you get the document as it used to be.
 
-`refreshNote` forces `item.reload(["note"], true)` before parsing. Only the paths that might be reading back their own recent write bother with it: `resolveMindmap`, the id-matching walk behind it, the Connections panel, and the graph's live refresh. That last one is the clearest case, since it runs on a notification about a write that may have landed a fraction of a second ago, which is precisely when the cache is stale. Enumerating the registry through `readAllMindmaps` skips the refresh, because listing mindmaps isn't reading back a write.
+`refreshNote` forces `item.reload(["note"], true)` before parsing. Only the paths that might be reading back their own recent write bother with it: `resolveMindmap`, the id-matching walk behind it, the Mindmaps section, and the graph's live refresh. That last one is the clearest case, since it runs on a notification about a write that may have landed a fraction of a second ago, which is precisely when the cache is stale. Enumerating the registry through `readAllMindmaps` skips the refresh, because listing mindmaps isn't reading back a write.
 
 ## Why `whenStorageIdle` exists
 

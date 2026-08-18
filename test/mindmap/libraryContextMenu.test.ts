@@ -40,7 +40,7 @@ describe("mindmap/libraryContextMenu", function () {
     });
 
     it("adds every selected item as a node, in a single write", async function () {
-      const addedCount = await addToMindmap([article, note]);
+      const { added: addedCount } = await addToMindmap([article, note]);
       assert.equal(addedCount, 2);
 
       const doc = await readMindmapDocument();
@@ -70,7 +70,7 @@ describe("mindmap/libraryContextMenu", function () {
         links: [],
       });
 
-      const addedCount = await addToMindmap([article, note]);
+      const { added: addedCount } = await addToMindmap([article, note]);
       assert.equal(addedCount, 1);
 
       const doc = await readMindmapDocument();
@@ -82,7 +82,7 @@ describe("mindmap/libraryContextMenu", function () {
     });
 
     it("does nothing when no eligible items are given", async function () {
-      const addedCount = await addToMindmap([]);
+      const { added: addedCount } = await addToMindmap([]);
       assert.equal(addedCount, 0);
       assert.isNull(await findMindmapNote());
     });
@@ -92,8 +92,12 @@ describe("mindmap/libraryContextMenu", function () {
       const first = await createMindmap("Chapter one");
       const second = await createMindmap("Methods");
 
-      const addedCount = await addToMindmap([article, note], second.id);
+      const { added: addedCount, mindmapTitle } = await addToMindmap(
+        [article, note],
+        second.id,
+      );
       assert.equal(addedCount, 2);
+      assert.equal(mindmapTitle, "Methods");
 
       assert.lengthOf((await readMindmapDocument(second.id)).nodes, 2);
       assert.isEmpty((await readMindmapDocument(first.id)).nodes);

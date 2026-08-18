@@ -34,11 +34,11 @@ So instead of tracking removals, the cleanup reconciles. It reads every mindmap 
 
 Zotero's deletion notifications are part of why it works this way. When a mindmap's storage note is deleted the notification carries a key, and the document that key named is already gone by the time the observer runs, so there is nothing left to look up. Reconciling against what still exists sidesteps having to identify what was removed.
 
-The pass recomputes which stubs are dangling against the document as it stands at write time, not against the copy it read a moment earlier, because the Connections panel may have changed it in between. A mindmap with nothing to drop never gets written, so a routine pass costs reads and no writes.
+The pass recomputes which stubs are dangling against the document as it stands at write time, not against the copy it read a moment earlier, because the Mindmaps section may have changed it in between. A mindmap with nothing to drop never gets written, so a routine pass costs reads and no writes.
 
 ## When it runs, and what that misses
 
-There are two triggers: after you remove a node through the Connections panel, and after Zotero reports an item deletion the plugin already cleans up for, which is what covers a deleted mindmap.
+There are two triggers: after you remove a node through the Mindmaps section, and after Zotero reports an item deletion the plugin already cleans up for, which is what covers a deleted mindmap.
 
 Nothing runs it on opening a mindmap, on a timer, or after a sync. So a stub whose home node was removed on another machine will sit on your graph until something local triggers a pass, and until then it draws like any other external node, with nothing to indicate it points at nothing. Its links draw normally too.
 

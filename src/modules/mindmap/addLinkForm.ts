@@ -188,6 +188,9 @@ export function completeLink(
   return { ok: true, link };
 }
 
+export const SAVE_BUTTON_CLASS = "mindmap-form-save";
+export const CANCEL_BUTTON_CLASS = "mindmap-form-cancel";
+
 export const EXTERNAL_TARGET_BUTTON_CLASS = "mindmap-choose-external-target";
 export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
 
@@ -195,12 +198,17 @@ export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
  * Renders the "Add link" form into `container`: Type/Name/Direction fields,
  * a target-item picker, and a Save action that's enabled once a valid
  * target is chosen.
+ *
+ * `onCancel`, when given, adds a Cancel button ahead of Save in the footer.
+ * The item pane and docked mounts leave it out - dismissing the form there
+ * just means collapsing it again, not closing a window.
  */
 export function renderAddLinkForm(
   container: HTMLElement,
   item: Zotero.Item,
   doc: MindmapDocument,
   onSaved: () => void,
+  onCancel?: () => void,
 ): void {
   const sourceRef = refFor(item);
   type ChosenTarget =
@@ -216,9 +224,13 @@ export function renderAddLinkForm(
   const ownerDoc = container.ownerDocument!;
   container.textContent = "";
 
+  const grid = ownerDoc.createElement("div");
+  grid.classList.add("mindmap-form-grid");
+  container.appendChild(grid);
+
   const typeLabel = ownerDoc.createElement("label");
   typeLabel.setAttribute("data-l10n-id", getLocaleID("add-link-type-label"));
-  container.appendChild(typeLabel);
+  grid.appendChild(typeLabel);
 
   const typeSelect = ownerDoc.createElement("select");
   for (const type of getLinkTypes()) {
@@ -227,17 +239,21 @@ export function renderAddLinkForm(
     option.textContent = type.label;
     typeSelect.appendChild(option);
   }
-  container.appendChild(typeSelect);
+  grid.appendChild(typeSelect);
 
   const nameLabel = ownerDoc.createElement("label");
   nameLabel.setAttribute("data-l10n-id", getLocaleID("add-link-name-label"));
-  container.appendChild(nameLabel);
+  grid.appendChild(nameLabel);
 
   const nameInput = ownerDoc.createElement("input");
   nameInput.type = "text";
-  container.appendChild(nameInput);
+  grid.appendChild(nameInput);
 
+  // display:contents in the sheet, so the label and the select sit in the
+  // grid's own two columns rather than as one cell - and hiding the wrapper
+  // still hides both.
   const directionWrapper = ownerDoc.createElement("div");
+  directionWrapper.classList.add("mindmap-form-direction");
   const directionLabel = ownerDoc.createElement("label");
   directionLabel.setAttribute(
     "data-l10n-id",
@@ -261,34 +277,72 @@ export function renderAddLinkForm(
   directionSelect.appendChild(forwardOption);
   directionSelect.appendChild(backwardOption);
   directionWrapper.appendChild(directionSelect);
-  container.appendChild(directionWrapper);
+  grid.appendChild(directionWrapper);
 
-  function updateDirectionVisibility() {
+  // Both options name the two ends of the relation and use the selected type
+  // as the verb ("This item cites the target"), so the argument is rewritten
+  // whenever the type changes and Fluent re-resolves the two labels. The
+  // argument goes through data-l10n-args rather than a getString call, which
+  // would reach for the addon global during render.
+  function updateDirectionField() {
     const selectedType = getLinkTypeById(typeSelect.value);
     directionWrapper.style.display = selectedType?.directional ? "" : "none";
+    const args = JSON.stringify({ type: selectedType?.label ?? "" });
+    forwardOption.setAttribute("data-l10n-args", args);
+    backwardOption.setAttribute("data-l10n-args", args);
   }
-  typeSelect.addEventListener("change", updateDirectionVisibility);
-  updateDirectionVisibility();
+  typeSelect.addEventListener("change", updateDirectionField);
+  updateDirectionField();
+
+  const targetFieldLabel = ownerDoc.createElement("label");
+  targetFieldLabel.setAttribute(
+    "data-l10n-id",
+    getLocaleID("add-link-target-label"),
+  );
+  grid.appendChild(targetFieldLabel);
 
   const targetWrapper = ownerDoc.createElement("div");
+  targetWrapper.classList.add("mindmap-form-target");
+  grid.appendChild(targetWrapper);
+
+  // Shows what was picked rather than leaving the choice invisible behind a
+  // button. Its own placeholder until then, swapped by id so Fluent is never
+  // fighting a textContent write.
+  const targetLabel = ownerDoc.createElement("span");
+  targetLabel.classList.add("mindmap-form-target-value");
+  targetLabel.setAttribute(
+    "data-l10n-id",
+    getLocaleID("add-link-target-empty"),
+  );
+  targetWrapper.appendChild(targetLabel);
+
   const chooseTargetButton = appendL10nButton(
     targetWrapper,
     "add-link-choose-target-button",
   );
 
-  const chooseExternalButton = appendL10nButton(
-    targetWrapper,
-    "add-link-choose-external-button",
-  );
-  chooseExternalButton.classList.add(EXTERNAL_TARGET_BUTTON_CLASS);
-
-  const targetLabel = ownerDoc.createElement("span");
-  targetLabel.style.display = "none";
-  targetWrapper.appendChild(targetLabel);
-
   const targetValidationMessage = ownerDoc.createElement("span");
   targetValidationMessage.style.display = "none";
-  targetWrapper.appendChild(targetValidationMessage);
+  container.appendChild(targetValidationMessage);
+
+  const actions = ownerDoc.createElement("div");
+  actions.classList.add("mindmap-form-actions");
+  container.appendChild(actions);
+
+  // The rarer case, so it reads as an action rather than competing with the
+  // picker above for the same weight.
+  const chooseExternalButton = appendL10nButton(
+    actions,
+    "add-link-choose-external-button",
+  );
+  chooseExternalButton.classList.add(
+    EXTERNAL_TARGET_BUTTON_CLASS,
+    "mindmap-link-external",
+  );
+
+  const spacer = ownerDoc.createElement("span");
+  spacer.classList.add("mindmap-form-spacer");
+  actions.appendChild(spacer);
 
   // Where the other-mindmap pickers land once that button is used. Kept empty
   // until then, so the common case of linking within the library never has to
@@ -296,12 +350,38 @@ export function renderAddLinkForm(
   const externalWrapper = ownerDoc.createElement("div");
   externalWrapper.classList.add(EXTERNAL_TARGET_CLASS);
   externalWrapper.style.display = "none";
-  targetWrapper.appendChild(externalWrapper);
+  container.appendChild(externalWrapper);
 
-  container.appendChild(targetWrapper);
+  if (onCancel) {
+    const cancelButton = appendL10nButton(
+      actions,
+      "mindmap-form-cancel-button",
+      onCancel,
+    );
+    cancelButton.classList.add(CANCEL_BUTTON_CLASS);
+  }
 
-  const saveButton = appendL10nButton(container, "add-link-save-button");
-  saveButton.disabled = true;
+  const saveButton = appendL10nButton(actions, "add-link-save-button");
+  // A stable hook for the save action. Its Fluent id is not one: the disabled
+  // state swaps the id to carry a tooltip, so anything keyed on the id would
+  // be keyed on the button's copy.
+  saveButton.classList.add(SAVE_BUTTON_CLASS);
+
+  /**
+   * A disabled Save that says what it is still waiting for. The two states are
+   * separate messages rather than a title written at render time, because
+   * reaching for getString here would reach for the addon global with it.
+   */
+  function setSaveEnabled(enabled: boolean): void {
+    saveButton.disabled = !enabled;
+    saveButton.setAttribute(
+      "data-l10n-id",
+      getLocaleID(
+        enabled ? "add-link-save-button" : "add-link-save-button-disabled",
+      ),
+    );
+  }
+  setSaveEnabled(false);
 
   chooseTargetButton.addEventListener("click", () => {
     void (async () => {
@@ -334,10 +414,10 @@ export function renderAddLinkForm(
 
       selectedTarget = { kind: "local", ref };
       externalWrapper.style.display = "none";
+      targetLabel.removeAttribute("data-l10n-id");
       targetLabel.textContent = targetTitle(targetItem);
-      targetLabel.style.display = "";
       targetValidationMessage.style.display = "none";
-      saveButton.disabled = false;
+      setSaveEnabled(true);
     })();
   });
 
@@ -380,7 +460,7 @@ export function renderAddLinkForm(
       // two nodes with a link between them.
       async function loadNodes() {
         nodeSelect.textContent = "";
-        saveButton.disabled = true;
+        setSaveEnabled(false);
         const target = await readMindmapDocument(
           mindmapSelect.value,
           item.libraryID,
@@ -408,8 +488,12 @@ export function renderAddLinkForm(
         const node = target && offered.get(target.value);
         if (!target || !node) {
           selectedTarget = null;
-          saveButton.disabled = true;
-          targetLabel.style.display = "none";
+          setSaveEnabled(false);
+          targetLabel.textContent = "";
+          targetLabel.setAttribute(
+            "data-l10n-id",
+            getLocaleID("add-link-target-empty"),
+          );
           return;
         }
         selectedTarget = {
@@ -418,12 +502,12 @@ export function renderAddLinkForm(
           homeMindmapId: mindmapSelect.value,
           homeNodeId: node.id,
         };
+        targetLabel.removeAttribute("data-l10n-id");
         targetLabel.textContent = `${target.textContent} (${
           mindmapSelect.selectedOptions[0]?.textContent ?? ""
         })`;
-        targetLabel.style.display = "";
         targetValidationMessage.style.display = "none";
-        saveButton.disabled = false;
+        setSaveEnabled(true);
       }
 
       mindmapSelect.addEventListener("change", () => void loadNodes());
@@ -531,6 +615,30 @@ async function fitDialogToContent(
   }
 }
 
+export const DIALOG_CONTEXT_CLASS = "mindmap-dialog-context";
+
+/**
+ * A line naming the item being linked and the mindmap it is being linked in,
+ * shown above the form in the standalone window only - the item pane and
+ * docked mounts already carry that context on screen (the panel is already
+ * on the item, and shows which mindmap it belongs to), so repeating it there
+ * would be redundant.
+ */
+function renderDialogContext(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapTitle: string,
+): void {
+  const context = container.ownerDocument!.createElement("div");
+  context.classList.add(DIALOG_CONTEXT_CLASS);
+  context.setAttribute("data-l10n-id", getLocaleID("add-link-dialog-context"));
+  context.setAttribute(
+    "data-l10n-args",
+    JSON.stringify({ item: targetTitle(item), mindmap: mindmapTitle }),
+  );
+  container.appendChild(context);
+}
+
 /**
  * Standalone entry point for opening the "Add link" form outside the item
  * pane (e.g. from a library right-click menu). Resolves once the dialog
@@ -578,9 +686,21 @@ export function openAddLinkDialog(
               mindmapId,
               item.libraryID,
             );
-            renderAddLinkForm(contentEl, item, mindmapDoc, () => {
-              dialog.close();
-            });
+            contentEl.textContent = "";
+            renderDialogContext(contentEl, item, mindmapDoc.title);
+            const formContainer = dialog.document.createElement("div");
+            contentEl.appendChild(formContainer);
+            renderAddLinkForm(
+              formContainer,
+              item,
+              mindmapDoc,
+              () => {
+                dialog.close();
+              },
+              () => {
+                dialog.close();
+              },
+            );
           } catch (err) {
             contentEl.textContent = `Failed to load mindmap: ${
               (err as Error).message

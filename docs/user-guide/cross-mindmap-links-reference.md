@@ -41,7 +41,7 @@ Reconciliation reads every mindmap in the library, works out which (mindmap, nod
 
 It runs at two moments:
 
-- After "Remove from mindmap" in the Connections panel, scoped to that item's library.
+- After "Remove from mindmap" in the Mindmaps section, scoped to that item's library.
 - After Zotero reports an item deletion the plugin cleans up for, which is also what covers a deleted mindmap, since a mindmap is deleted by deleting its storage note.
 
 It does not run on opening a mindmap or on a timer. Between the change and the next trigger, a stale stub stays on the graph and is drawn like any other external node.

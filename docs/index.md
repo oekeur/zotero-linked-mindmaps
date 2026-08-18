@@ -51,7 +51,7 @@ The documentation here follows [Diataxis](https://diataxis.fr/). Tutorials teach
 
 ## The three sections
 
-The [user guide](./user-guide/getting-started.md) covers the mindmap tab, the Connections panel, link types, grouping, cross-mindmap links, and what to do when the plugin's data ends up in the trash.
+The [user guide](./user-guide/getting-started.md) covers the mindmap tab, the Mindmaps section, link types, grouping, cross-mindmap links, and what to do when the plugin's data ends up in the trash.
 
 [Contributing](./contributing/development-setup.md) covers dev setup, the npm scripts, testing against a live Zotero instance, and the configuration fields that fail silently when they're wrong.
 

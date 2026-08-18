@@ -15,15 +15,19 @@ Submenu entries carry the mindmap's title as their label and its description, wh
 
 If the list cannot be read at all, the plugin logs the reason to the debug output and treats the library as holding no mindmaps, which shows the plain entry.
 
+## How the entries look
+
+Both entries carry a 16px icon in Zotero's own line-art style and sit in their own group, separated from Zotero's entries above them. In English they are Title Case, matching the rest of Zotero's item menu; the Dutch build uses sentence case, because Dutch Zotero does.
+
 ## Eligibility
 
 Regular items and notes count, standalone or child. Attachments do not, and produce no message of their own.
 
 The plugin's own bookkeeping is excluded: the "Zotero Linked Mindmaps (plugin data)" container item and every mindmap storage note under it. The check is by tag, not by visibility, so it holds in the trash view and whether or not the plugin-data row is hidden ([hide-plugin-data-reference.md](hide-plugin-data-reference.md)).
 
-The plain entry stays visible for a selection with nothing eligible in it, so a selection of only attachments, or only plugin data, still shows "Add to mindmap" and "Add link…". Clicking them acts on an empty selection: "Add to mindmap" writes nothing and reports 0, "Add link…" opens no dialog. The submenu shape is hidden in that case.
+The plain entry stays visible for a selection with nothing eligible in it, so a selection of only attachments, or only plugin data, still shows "Add to Mindmap" and "Add Link…". Clicking them acts on an empty selection: "Add to Mindmap" writes nothing and reports 0, "Add Link…" opens no dialog. The submenu shape is hidden in that case.
 
-## "Add to mindmap"
+## "Add to Mindmap"
 
 Adds every selected item that can be a node, and is not one already, in one write.
 
@@ -37,7 +41,7 @@ The library is taken from the first eligible item in the selection. A selection 
 
 A progress popup headed with the plugin name, reading
 
-> Added 3 item(s) to mindmap
+> Added 3 items to Chapter one
 
 and closing itself after three seconds. The count is nodes actually added, so items already on the mindmap are not counted. A selection where everything was already a node reports 0 and writes nothing.
 
@@ -49,17 +53,17 @@ Trashing a single mindmap's storage note takes that mindmap out of the submenu. 
 
 > A mindmap's data note was moved to the trash. That mindmap stays hidden until you restore it.
 
-## "Add link…"
+## "Add Link…"
 
 Opens the standalone add-link dialog for each eligible selected item in turn, waiting for each dialog to close before opening the next.
 
-The submenu shape drops the ellipsis and reads "Add link", since a submenu parent opens nothing by itself.
+The submenu shape reads "Add Link in", and the ellipsis moves onto the submenu items, since those are what open a window. The parent opens nothing by itself.
 
-The dialog is titled "Add link" and holds the same form as the Connections panel ([links-add-reference.md](links-add-reference.md)). It writes to the mindmap picked from the submenu, or the library's default when the plain entry was used; the form itself has no mindmap field. A dialog that cannot read that mindmap shows `Failed to load mindmap:` and the error in place of the form.
+The dialog is titled "Add link" and holds the same form as the Mindmaps section, with a line at the top naming the item being linked and the mindmap it is being linked in ([links-add-reference.md](links-add-reference.md)). It writes to the mindmap picked from the submenu, or the library's default when the plain entry was used; the form itself has no mindmap field. A dialog that cannot read that mindmap shows `Failed to load mindmap:` and the error in place of the form.
 
 Closing a dialog without saving skips that item and moves on to the next.
 
 ## Related
 
 - [library-menu-howto.md](library-menu-howto.md)
-- [connections-panel-reference.md](connections-panel-reference.md) for the item-pane alternative
+- [mindmaps-panel-reference.md](mindmaps-panel-reference.md) for the item-pane alternative

@@ -71,7 +71,7 @@ The plugin warns through a popup in the corner of the main window. The popup has
 
 When you move the container to the trash:
 
-> "Zotero Linked Mindmaps (plugin data)" was moved to the trash. Every mindmap in that library stays hidden until you restore it.
+> The Zotero Linked Mindmaps item was moved to the trash. Every mindmap in that library stays hidden until you restore it.
 
 When you move a single storage note to the trash:
 
@@ -81,7 +81,7 @@ A batch that trashes both the container and notes under it gets only the contain
 
 At the next startup, while the container is still in the trash:
 
-> "Zotero Linked Mindmaps (plugin data)" is in the trash. Every mindmap in that library stays hidden until you restore it.
+> The Zotero Linked Mindmaps item is in the trash. Every mindmap in that library stays hidden until you restore it.
 
 There is no startup equivalent for a trashed storage note. A note trashed in an earlier session goes unreported until you notice its mindmap missing.
 

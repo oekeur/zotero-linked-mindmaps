@@ -121,12 +121,12 @@ export default defineConfig({
               link: "/user-guide/links-add-reference",
             },
             {
-              text: "Using the Connections panel",
-              link: "/user-guide/connections-panel-howto",
+              text: "Using the Mindmaps section",
+              link: "/user-guide/mindmaps-panel-howto",
             },
             {
-              text: "Connections panel reference",
-              link: "/user-guide/connections-panel-reference",
+              text: "Mindmaps section reference",
+              link: "/user-guide/mindmaps-panel-reference",
             },
             {
               text: "Adding items from the library",

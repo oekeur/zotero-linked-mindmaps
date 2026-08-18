@@ -1,8 +1,8 @@
 # UI elements reference
 
-`src/modules/mindmap/uiElements.ts` holds the two bits of DOM building the mindmap UI does everywhere: a button whose text comes from Fluent, and a dropdown over the library's mindmaps.
+`src/modules/mindmap/uiElements.ts` holds the three bits of DOM building the mindmap UI does everywhere: a button whose text comes from Fluent, a dropdown over the library's mindmaps, and an SVG glyph for an icon-only control.
 
-Neither function creates the element it appends into, and neither picks a namespace of its own. The mindmap tab builds its controls in the XHTML namespace because it renders into a XUL document, while the item-pane surfaces use plain `createElement`; hard-coding a namespace here would silently change what one of them produces.
+None of them creates the element it appends into, and none picks a namespace of its own. The mindmap tab builds its controls in the XHTML namespace because it renders into a XUL document, while the item-pane surfaces use plain `createElement`; hard-coding a namespace here would silently change what one of them produces.
 
 ## `appendL10nButton`
 
@@ -38,6 +38,20 @@ Each option is created with `createElementNS(select.namespaceURI, "option")`, so
 Returns nothing. Appends to `select` without clearing it first; a caller re-rendering a picker has to empty it.
 
 `MindmapSummary` comes from [storage-reference.md](storage-reference.md) and carries `id`, `title`, optional `description`, and `noteItemID`. Callers: `connectionsPanel.ts` (the mindmap picker in the add-node form) and `addLinkForm.ts` (the other-mindmap picker for cross-mindmap links).
+
+## `appendGlyph`
+
+```ts
+export function appendGlyph(parent: Element, doc: Document, path: string): void;
+```
+
+Appends an `<svg>` in the SVG namespace carrying a single `<path>` with `d` set to `path`, sized by the caller's stylesheet rather than by an attribute. The `viewBox` is fixed at `0 0 16 16`, so a caller writes path data against a 16x16 box, and the element is marked `aria-hidden="true"` because these glyphs sit inside controls that already carry their own accessible name from a Fluent `.title` attribute.
+
+This is what makes an icon-only control possible at all. A Fluent message that has a value overwrites its element's `textContent`, so a button whose label comes from Fluent cannot also hold a child element; the controls that use this take their name from an attribute-only message instead, leaving the glyph untouched.
+
+Callers: `nodeOverview.ts` (the dock's close control) and `mindmapTab.ts` (the sidebar's new-mindmap button and its per-row actions).
+
+Two private copies of the same function still sit in `connectionsPanel.ts` and `linkTypesSettings.ts`, written before this one was extracted. They are identical in behaviour and are candidates for consolidation onto this helper.
 
 ## Related
 

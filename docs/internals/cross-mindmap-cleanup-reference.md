@@ -25,7 +25,7 @@ Only member nodes count as a target. An external stub pointing at another mindma
 
 Reads every mindmap in the library with `readAllMindmaps`, which skips notes that fail to parse. Builds a map from each document id to the set of its member node ids.
 
-Then, per document: skips it entirely when no node in the copy just read is dangling, so a mindmap with nothing to drop is not written at all. Otherwise it calls `updateMindmapDocument` for that document id, and inside the mutation recomputes the dangling ids against the document as it stands at write time (the Connections panel can have changed it since the read). The mutation returns `null` when that recomputation finds nothing, so the write is skipped and the document id is left out of the return value.
+Then, per document: skips it entirely when no node in the copy just read is dangling, so a mindmap with nothing to drop is not written at all. Otherwise it calls `updateMindmapDocument` for that document id, and inside the mutation recomputes the dangling ids against the document as it stands at write time (the Mindmaps section can have changed it since the read). The mutation returns `null` when that recomputation finds nothing, so the write is skipped and the document id is left out of the return value.
 
 Removal goes through `withoutNodes`, which drops the stubs and every link touching them. See [mutations-reference.md](mutations-reference.md).
 

@@ -10,15 +10,15 @@ It is pinned to the mindmap the graph is showing. An item that is a node in seve
 
 Top to bottom:
 
-| Element             | Content                                                                                                                                                                                                                                                                              |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| "Close"             | Button. Hides the panel and clears it.                                                                                                                                                                                                                                               |
-| Title               | The item's display title, in bold. For a note, the first 60 characters of its text instead, ending in an ellipsis when longer, or "(empty note)" when the note has no text.                                                                                                          |
-| Item type           | Zotero's localized name for the item type, for example "Journal Article". Not shown for notes.                                                                                                                                                                                       |
-| Creator             | The item's first creator, as Zotero's item list shows it. Omitted when the item has none. Not shown for notes.                                                                                                                                                                       |
-| Date                | The item's date field, as stored. Omitted when empty. Not shown for notes.                                                                                                                                                                                                           |
-| "Show in library"   | Button. Selects the item in the Library tab, which switches Zotero away from the Mindmap tab.                                                                                                                                                                                        |
-| Connections content | The same component as the item pane's Connections section: the mindmap's title, "Remove from mindmap", "Remove from group" when the node is in one, the node's links each with a "Remove" button, and "Add link". See [Connections panel reference](connections-panel-reference.md). |
+| Element           | Content                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Title             | Leads the panel. The item's display title, in bold. For a note, the first 60 characters of its text instead, ending in an ellipsis when longer, or "(empty note)" when the note has no text.                                                                                                                     |
+| Item type         | Zotero's localized name for the item type, for example "Journal Article". Not shown for notes.                                                                                                                                                                                                                   |
+| Creator           | The item's first creator, as Zotero's item list shows it. Omitted when the item has none. Not shown for notes.                                                                                                                                                                                                   |
+| Date              | The item's date field, as stored. Omitted when empty. Not shown for notes.                                                                                                                                                                                                                                       |
+| "Close"           | Icon control trailing the title row, tooltip "Close". Hides the panel and clears it.                                                                                                                                                                                                                             |
+| "Show in library" | Button. Selects the item in the Library tab, which switches Zotero away from the Mindmap tab.                                                                                                                                                                                                                    |
+| Mindmaps content  | The same component as the item pane's Mindmaps section: the mindmap's title, "Remove from mindmap", "Remove from group" when the node is in one, the node's links each with a remove control revealed on hover or keyboard focus, and "Add link". See [Mindmaps section reference](mindmaps-panel-reference.md). |
 
 The three fields are the ones Zotero's own item list shows as columns (type, creator, date), chosen for telling nodes apart rather than for reading the item. The full item pane is one "Show in library" click away.
 
@@ -26,11 +26,11 @@ Clicking a node opens the panel without opening the link form. Right-clicking a 
 
 ## For a node whose item is missing
 
-When the Zotero item or note behind the node no longer exists, the panel shows one line reading "(missing item)" and nothing else. No title, no fields, no "Show in library", no "Close", and no link controls.
+When the Zotero item or note behind the node no longer exists, the panel shows one line reading "(missing item)" and nothing else. No title, no fields, no "Show in library", no close control, and no link controls.
 
 That is the same wording the node itself carries on the graph, so the two read as one situation rather than two failures.
 
-Reaching this state means the item was deleted or erased while the node stayed behind. Remove the node from the mindmap through the item pane's Connections section, or restore the item from Zotero's trash and reopen the mindmap.
+Reaching this state means the item was deleted or erased while the node stayed behind. Remove the node from the mindmap through the item pane's Mindmaps section, or restore the item from Zotero's trash and reopen the mindmap.
 
 ## Closing
 

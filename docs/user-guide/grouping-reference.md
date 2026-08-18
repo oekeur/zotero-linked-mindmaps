@@ -43,7 +43,7 @@ Clicking a group's region does nothing: there is no Zotero item behind it, so it
 | Right-click on empty canvas, two or more nodes selected | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
 | Right-click on a group's region                         | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
 | Right-click on a group's region                         | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
-| Connections panel, for a node in a group                | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
+| Mindmaps section, for a node in a group                 | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
 
 Everything above is mouse-driven; there are no keyboard equivalents.
 
@@ -55,4 +55,4 @@ A grouping change is saved immediately and the graph redraws from what was store
 
 [Node layout](node-layout-reference.md) for why grouping leaves positions alone.
 
-[Connections panel](connections-panel-reference.md) for the "Remove from group" control.
+[Mindmaps section](mindmaps-panel-reference.md) for the "Remove from group" control.

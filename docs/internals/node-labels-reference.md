@@ -1,6 +1,6 @@
 # Node labels reference
 
-`src/modules/mindmap/nodeLabels.ts` names a node reference wherever one is shown: on the graph, in the Connections panel, and in the add-link form's target lists. It sits apart from the renderer so a form can label a node without pulling the graph library in behind it.
+`src/modules/mindmap/nodeLabels.ts` names a node reference wherever one is shown: on the graph, in the Mindmaps section, and in the add-link form's target lists. It sits apart from the renderer so a form can label a node without pulling the graph library in behind it.
 
 ## Exported constants
 
