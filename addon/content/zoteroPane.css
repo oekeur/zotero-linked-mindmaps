@@ -110,12 +110,18 @@
  * the control reachable by keyboard.
  */
 .mindmap-link-remove {
-  visibility: hidden;
+  opacity: 0;
 }
 
+/*
+ * Opacity rather than visibility: an ancestor with visibility:hidden takes
+ * its descendants out of the tab order, so the control could never receive
+ * the focus that is supposed to reveal it, and a keyboard user could not
+ * reach it at all.
+ */
 .mindmap-link-row:hover .mindmap-link-remove,
 .mindmap-link-remove:focus-visible {
-  visibility: visible;
+  opacity: 1;
 }
 
 .mindmap-link-type > svg {
