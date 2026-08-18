@@ -34,11 +34,76 @@ jobs:
           name: build-result
           path: .scaffold/build
 
+  # One job per Zotero major the manifest claims support for
+  # (addon/manifest.json: strict_min_version 6.999, strict_max_version 10.*).
+  #
+  # The versions are pinned rather than pulled from the beta channel. Left to
+  # itself the scaffold downloads `channel=beta` un-pinned, so CI would test a
+  # moving target and a passing run would not record what it passed against.
+  # `installZoteroLinux` returns early when ZOTERO_PLUGIN_ZOTERO_BIN_PATH is
+  # already set, which is the seam these jobs use; Xvfb and the Ubuntu deps are
+  # still installed by the scaffold as before.
+  #
+  # Zotero 7 ships .tar.bz2 and 8+ ship .tar.xz. `tar -xf` detects both, so the
+  # compression only varies in the URL.
   test:
+    name: test (Zotero ${{ matrix.zotero }})
     runs-on: ubuntu-latest
     needs:
       - build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - zotero: "7"
+            url: "https://download.zotero.org/client/release/7.0.32/Zotero-7.0.32_linux-x86_64.tar.bz2"
+          - zotero: "8"
+            url: "https://download.zotero.org/client/release/8.0.4/Zotero-8.0.4_linux-x86_64.tar.xz"
+          - zotero: "9"
+            url: "https://download.zotero.org/client/release/9.0.4/Zotero-9.0.4_linux-x86_64.tar.xz"
+          - zotero: "10"
+            url: "https://download.zotero.org/client/release/10.0/Zotero-10.0_linux-x86_64.tar.xz"
+    env:
+      GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@main
-      - run: npm run test
+
+      - name: Cache Zotero
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/zotero-${{ matrix.zotero }}
+          key: zotero-${{ matrix.zotero }}-${{ matrix.url }}
+
+      - name: Download and extract Zotero
+        shell: bash
+        run: |
+          set -euo pipefail
+          zotero_dir="${{ runner.temp }}/zotero-${{ matrix.zotero }}"
+          if [ ! -x "$zotero_dir/Zotero_linux-x86_64/zotero" ]; then
+            mkdir -p "$zotero_dir"
+            curl -fL --retry 3 --output "$zotero_dir/zotero.tar" "${{ matrix.url }}"
+            tar -xf "$zotero_dir/zotero.tar" -C "$zotero_dir"
+            rm "$zotero_dir/zotero.tar"
+          fi
+          echo "ZOTERO_PLUGIN_ZOTERO_BIN_PATH=$zotero_dir/Zotero_linux-x86_64/zotero" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: npm run test
+
+  # Early warning for the next Zotero. Deliberately un-pinned: it downloads
+  # whatever the beta channel serves that day, which is what the pinned jobs
+  # above stopped doing. It must never gate the build, hence continue-on-error.
+  test-beta:
+    name: test (Zotero beta, non-blocking)
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    continue-on-error: true
+    env:
+      GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
+    steps:
+      - name: Setup JS
+        uses: zotero-plugin-dev/workflows/setup-js@main
+      - name: Run tests
+        run: npm run test
