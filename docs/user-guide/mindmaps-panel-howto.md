@@ -2,6 +2,8 @@
 
 The panel lives in the item pane under the heading "Mindmaps", and again in the docked panel beside the graph in the mindmap tab. States and controls are listed in [mindmaps-panel-reference.md](mindmaps-panel-reference.md).
 
+![The Mindmaps section in the item pane, showing the mindmap name, one existing link row, and the add-link form with Type, Name, Direction and Target fields](../images/item-pane-mindmaps-section.png)
+
 ## Put an item on a mindmap
 
 An item joins a mindmap as a side effect of its first link. There's no "add me" button in the panel.

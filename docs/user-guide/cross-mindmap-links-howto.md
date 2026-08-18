@@ -7,10 +7,12 @@ Use this when the item you want to point at already belongs to a different mindm
 1. Open the add-link form for the item the link starts from, from any of its entry points ([links-add-howto.md](links-add-howto.md)).
 2. Check which mindmap the form is writing to, because both the link and the stub land there. It's the mindmap named after "Mindmap:" at the top of the panel, or the one you picked from the library context menu. The form only asks you, under "Add to mindmap:", when the item isn't in a mindmap yet; pick one and click "Continue".
 3. Choose the link type, and fill in Name and Direction if you want them.
-4. Click "Choose from another mindmap" instead of "Choose target".
+4. Click "Link to another mindmap…" instead of "Choose target…".
 5. Pick the other mindmap in the first dropdown. Its member nodes load into the second one.
 6. Pick the node in the second dropdown. The chosen target appears next to the buttons as the node's name with the mindmap's title in parentheses, and "Save" becomes available.
 7. Click "Save".
+
+![The add-link form with the two cross-mindmap dropdowns open below it, one naming Mindmap 2 and one naming the node To, and Target reading "To (Mindmap 2)"](../images/cross-mindmap-picker.png)
 
 The graph for the mindmap you were editing now shows the borrowed node with a dashed border, connected by the link you authored.
 

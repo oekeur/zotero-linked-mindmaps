@@ -63,6 +63,8 @@ Here is the reason for step 5's request. With one mindmap in the library there i
 
 Switch back to the Mindmap tab. Your two items are sitting on the canvas as labelled circles. Notice you did not have to reopen anything: the graph watches the mindmap it is showing and redraws itself when the mindmap changes.
 
+![Two items on the canvas as labelled circles, joined by a dashed arrow reading "cites: test", with the mindmap list on the left and the node dock on the right](../images/mindmap-tab-first-link.png)
+
 Each node carries the item's title. Notes are the exception, because a note's title is usually some truncated first line that tells you nothing, so a note node shows the first 60 characters of the text instead.
 
 Now drag a node somewhere else. Where you drop it is saved immediately, and it will be in that spot next time you open the tab. Nodes that have never been dragged get placed automatically; [node layout](node-layout-reference.md) explains how.

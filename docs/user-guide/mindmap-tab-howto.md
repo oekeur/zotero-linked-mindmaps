@@ -36,6 +36,8 @@ A small toolbar in the top right of the graph adds three more: zoom out, zoom in
 
 The same toolbar carries a legend toggle. The legend names every line and node style the graph can draw: a directional link, an undirected one, a link whose type is no longer in the vocabulary, the faint tie between a note and its parent item, and a node borrowed from another mindmap. Whether it is showing is remembered between sessions.
 
+![The graph legend, listing directional link, undirected link, unknown type, parent-child tie and node from another mindmap, each beside the line or border style that draws it](../images/graph-legend.png)
+
 ## Select several nodes
 
 Shift-click each node in turn, or hold Shift and drag a box across empty canvas. The selection is what the grouping menu acts on. See [grouping](grouping-howto.md).
