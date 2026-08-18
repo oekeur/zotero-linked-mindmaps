@@ -471,13 +471,16 @@ async function renderPanelBody(
     if (link.name) {
       parts.push(`"${link.name}"`);
     }
+    // The separator carries the direction, so an arrow on a row always means
+    // an authored one. An undirected link gets a neutral mark instead.
+    let separator = "·";
     if (link.direction) {
-      const forward = link.direction === "forward";
-      parts.push(forward === isSource ? "→" : "←");
+      const pointsAway = (link.direction === "forward") === isSource;
+      separator = pointsAway ? "→" : "←";
     }
 
     const li = doc.createElement("li");
-    li.textContent = `${parts.join(" ")} → ${otherTitle}`;
+    li.textContent = `${parts.join(" ")} ${separator} ${otherTitle}`;
 
     appendL10nButton(li, "connections-remove-link-button", () => {
       void handleRemoveLink(container, item, mindmapDoc, link.id);

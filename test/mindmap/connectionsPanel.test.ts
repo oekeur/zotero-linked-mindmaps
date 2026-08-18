@@ -229,5 +229,95 @@ describe("mindmap/connectionsPanel", function () {
       assert.include(entry.textContent!, UNKNOWN_TYPE_LABEL);
       assert.notInclude(entry.textContent!, "a-type-that-was-deleted");
     });
+
+    // The row label used to push a direction glyph next to a separator that
+    // was itself an arrow, so every directional link read "cites -> -> Target"
+    // and every undirected one claimed a direction it never had.
+    async function renderSeededLink(
+      title: string,
+      seeded: {
+        typeId: string;
+        direction?: "forward" | "backward";
+        articleIsTarget?: boolean;
+        name?: string;
+      },
+    ): Promise<string> {
+      const created = await createMindmap(title);
+      await updateMindmapDocument(
+        (doc) => {
+          const here = createMemberNode(refFor(article));
+          const other = createMemberNode({
+            kind: "item",
+            libraryID: article.libraryID,
+            key: "NOSUCH02",
+          });
+          doc.nodes.push(here, other);
+          doc.links.push({
+            id: "seeded-link",
+            typeId: seeded.typeId,
+            sourceNodeId: seeded.articleIsTarget ? other.id : here.id,
+            targetNodeId: seeded.articleIsTarget ? here.id : other.id,
+            ...(seeded.direction ? { direction: seeded.direction } : {}),
+            ...(seeded.name ? { name: seeded.name } : {}),
+          });
+          return doc;
+        },
+        created.id,
+        article.libraryID,
+      );
+
+      await renderConnectionsContent(container, article, created.id);
+      return container.querySelector("li")!.textContent!;
+    }
+
+    function countArrows(label: string): number {
+      return (label.match(/[\u2192\u2190]/g) ?? []).length;
+    }
+
+    it("draws one arrow, pointing away, on a forward link this item sources", async function () {
+      this.timeout(30000);
+      const label = await renderSeededLink("Forward from here", {
+        typeId: "cites",
+        direction: "forward",
+      });
+
+      assert.equal(countArrows(label), 1, `two arrows in "${label}"`);
+      assert.include(label, "\u2192");
+    });
+
+    it("draws one arrow, pointing back, on a forward link this item targets", async function () {
+      this.timeout(30000);
+      const label = await renderSeededLink("Forward to here", {
+        typeId: "cites",
+        direction: "forward",
+        articleIsTarget: true,
+      });
+
+      assert.equal(countArrows(label), 1, `two arrows in "${label}"`);
+      assert.include(label, "\u2190");
+    });
+
+    it("keeps a freeform name beside the type, still with one arrow", async function () {
+      this.timeout(30000);
+      const label = await renderSeededLink("Named link", {
+        typeId: "cites",
+        direction: "forward",
+        name: "see p.12",
+      });
+
+      assert.include(label, "cites");
+      assert.include(label, '"see p.12"');
+      assert.equal(countArrows(label), 1, `two arrows in "${label}"`);
+    });
+
+    it("draws no arrow on an undirected link", async function () {
+      this.timeout(30000);
+      const label = await renderSeededLink("Undirected", {
+        typeId: "related-to",
+      });
+
+      assert.equal(countArrows(label), 0, `an arrow in "${label}"`);
+      assert.include(label, "related to");
+    });
   });
 });
