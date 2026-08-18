@@ -188,6 +188,8 @@ export function completeLink(
   return { ok: true, link };
 }
 
+export const SAVE_BUTTON_CLASS = "mindmap-form-save";
+
 export const EXTERNAL_TARGET_BUTTON_CLASS = "mindmap-choose-external-target";
 export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
 
@@ -216,9 +218,13 @@ export function renderAddLinkForm(
   const ownerDoc = container.ownerDocument!;
   container.textContent = "";
 
+  const grid = ownerDoc.createElement("div");
+  grid.classList.add("mindmap-form-grid");
+  container.appendChild(grid);
+
   const typeLabel = ownerDoc.createElement("label");
   typeLabel.setAttribute("data-l10n-id", getLocaleID("add-link-type-label"));
-  container.appendChild(typeLabel);
+  grid.appendChild(typeLabel);
 
   const typeSelect = ownerDoc.createElement("select");
   for (const type of getLinkTypes()) {
@@ -227,17 +233,21 @@ export function renderAddLinkForm(
     option.textContent = type.label;
     typeSelect.appendChild(option);
   }
-  container.appendChild(typeSelect);
+  grid.appendChild(typeSelect);
 
   const nameLabel = ownerDoc.createElement("label");
   nameLabel.setAttribute("data-l10n-id", getLocaleID("add-link-name-label"));
-  container.appendChild(nameLabel);
+  grid.appendChild(nameLabel);
 
   const nameInput = ownerDoc.createElement("input");
   nameInput.type = "text";
-  container.appendChild(nameInput);
+  grid.appendChild(nameInput);
 
+  // display:contents in the sheet, so the label and the select sit in the
+  // grid's own two columns rather than as one cell - and hiding the wrapper
+  // still hides both.
   const directionWrapper = ownerDoc.createElement("div");
+  directionWrapper.classList.add("mindmap-form-direction");
   const directionLabel = ownerDoc.createElement("label");
   directionLabel.setAttribute(
     "data-l10n-id",
@@ -261,7 +271,7 @@ export function renderAddLinkForm(
   directionSelect.appendChild(forwardOption);
   directionSelect.appendChild(backwardOption);
   directionWrapper.appendChild(directionSelect);
-  container.appendChild(directionWrapper);
+  grid.appendChild(directionWrapper);
 
   // Both options name the two ends of the relation and use the selected type
   // as the verb ("This item cites the target"), so the argument is rewritten
@@ -278,25 +288,55 @@ export function renderAddLinkForm(
   typeSelect.addEventListener("change", updateDirectionField);
   updateDirectionField();
 
+  const targetFieldLabel = ownerDoc.createElement("label");
+  targetFieldLabel.setAttribute(
+    "data-l10n-id",
+    getLocaleID("add-link-target-label"),
+  );
+  grid.appendChild(targetFieldLabel);
+
   const targetWrapper = ownerDoc.createElement("div");
+  targetWrapper.classList.add("mindmap-form-target");
+  grid.appendChild(targetWrapper);
+
+  // Shows what was picked rather than leaving the choice invisible behind a
+  // button. Its own placeholder until then, swapped by id so Fluent is never
+  // fighting a textContent write.
+  const targetLabel = ownerDoc.createElement("span");
+  targetLabel.classList.add("mindmap-form-target-value");
+  targetLabel.setAttribute(
+    "data-l10n-id",
+    getLocaleID("add-link-target-empty"),
+  );
+  targetWrapper.appendChild(targetLabel);
+
   const chooseTargetButton = appendL10nButton(
     targetWrapper,
     "add-link-choose-target-button",
   );
 
-  const chooseExternalButton = appendL10nButton(
-    targetWrapper,
-    "add-link-choose-external-button",
-  );
-  chooseExternalButton.classList.add(EXTERNAL_TARGET_BUTTON_CLASS);
-
-  const targetLabel = ownerDoc.createElement("span");
-  targetLabel.style.display = "none";
-  targetWrapper.appendChild(targetLabel);
-
   const targetValidationMessage = ownerDoc.createElement("span");
   targetValidationMessage.style.display = "none";
-  targetWrapper.appendChild(targetValidationMessage);
+  container.appendChild(targetValidationMessage);
+
+  const actions = ownerDoc.createElement("div");
+  actions.classList.add("mindmap-form-actions");
+  container.appendChild(actions);
+
+  // The rarer case, so it reads as an action rather than competing with the
+  // picker above for the same weight.
+  const chooseExternalButton = appendL10nButton(
+    actions,
+    "add-link-choose-external-button",
+  );
+  chooseExternalButton.classList.add(
+    EXTERNAL_TARGET_BUTTON_CLASS,
+    "mindmap-link-external",
+  );
+
+  const spacer = ownerDoc.createElement("span");
+  spacer.classList.add("mindmap-form-spacer");
+  actions.appendChild(spacer);
 
   // Where the other-mindmap pickers land once that button is used. Kept empty
   // until then, so the common case of linking within the library never has to
@@ -304,12 +344,29 @@ export function renderAddLinkForm(
   const externalWrapper = ownerDoc.createElement("div");
   externalWrapper.classList.add(EXTERNAL_TARGET_CLASS);
   externalWrapper.style.display = "none";
-  targetWrapper.appendChild(externalWrapper);
+  container.appendChild(externalWrapper);
 
-  container.appendChild(targetWrapper);
+  const saveButton = appendL10nButton(actions, "add-link-save-button");
+  // A stable hook for the save action. Its Fluent id is not one: the disabled
+  // state swaps the id to carry a tooltip, so anything keyed on the id would
+  // be keyed on the button's copy.
+  saveButton.classList.add(SAVE_BUTTON_CLASS);
 
-  const saveButton = appendL10nButton(container, "add-link-save-button");
-  saveButton.disabled = true;
+  /**
+   * A disabled Save that says what it is still waiting for. The two states are
+   * separate messages rather than a title written at render time, because
+   * reaching for getString here would reach for the addon global with it.
+   */
+  function setSaveEnabled(enabled: boolean): void {
+    saveButton.disabled = !enabled;
+    saveButton.setAttribute(
+      "data-l10n-id",
+      getLocaleID(
+        enabled ? "add-link-save-button" : "add-link-save-button-disabled",
+      ),
+    );
+  }
+  setSaveEnabled(false);
 
   chooseTargetButton.addEventListener("click", () => {
     void (async () => {
@@ -342,10 +399,10 @@ export function renderAddLinkForm(
 
       selectedTarget = { kind: "local", ref };
       externalWrapper.style.display = "none";
+      targetLabel.removeAttribute("data-l10n-id");
       targetLabel.textContent = targetTitle(targetItem);
-      targetLabel.style.display = "";
       targetValidationMessage.style.display = "none";
-      saveButton.disabled = false;
+      setSaveEnabled(true);
     })();
   });
 
@@ -388,7 +445,7 @@ export function renderAddLinkForm(
       // two nodes with a link between them.
       async function loadNodes() {
         nodeSelect.textContent = "";
-        saveButton.disabled = true;
+        setSaveEnabled(false);
         const target = await readMindmapDocument(
           mindmapSelect.value,
           item.libraryID,
@@ -416,8 +473,12 @@ export function renderAddLinkForm(
         const node = target && offered.get(target.value);
         if (!target || !node) {
           selectedTarget = null;
-          saveButton.disabled = true;
-          targetLabel.style.display = "none";
+          setSaveEnabled(false);
+          targetLabel.textContent = "";
+          targetLabel.setAttribute(
+            "data-l10n-id",
+            getLocaleID("add-link-target-empty"),
+          );
           return;
         }
         selectedTarget = {
@@ -426,12 +487,12 @@ export function renderAddLinkForm(
           homeMindmapId: mindmapSelect.value,
           homeNodeId: node.id,
         };
+        targetLabel.removeAttribute("data-l10n-id");
         targetLabel.textContent = `${target.textContent} (${
           mindmapSelect.selectedOptions[0]?.textContent ?? ""
         })`;
-        targetLabel.style.display = "";
         targetValidationMessage.style.display = "none";
-        saveButton.disabled = false;
+        setSaveEnabled(true);
       }
 
       mindmapSelect.addEventListener("change", () => void loadNodes());

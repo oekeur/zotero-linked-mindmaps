@@ -1,0 +1,193 @@
+/*
+ * Plugin styles for the surfaces that live inside a Zotero main window: the
+ * Mindmaps item-pane section and the mindmap tab.
+ *
+ * Every colour here comes from a Zotero variable. A literal would survive a
+ * theme switch unchanged, and on Linux the selection colour resolves to the
+ * OS accent, so it is never the plugin's to choose.
+ */
+
+/* ---------- Mindmaps item-pane section ---------- */
+
+.mindmap-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 4px;
+}
+
+.mindmap-current-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.mindmap-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mindmap-link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.mindmap-link-row:hover,
+.mindmap-link-row:focus-within {
+  background: var(--fill-quinary);
+}
+
+.mindmap-link-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 55%;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--fill-quinary);
+  color: var(--fill-secondary);
+  font-size: 0.9em;
+}
+
+.mindmap-link-type-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-link-arrow {
+  flex-shrink: 0;
+  color: var(--fill-tertiary);
+}
+
+.mindmap-link-target {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-icon-button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fill-secondary);
+}
+
+.mindmap-icon-button:hover {
+  background: var(--fill-quarternary);
+}
+
+.mindmap-icon-button > svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+/*
+ * Hidden until the row is hovered or something inside it takes focus, so the
+ * resting list is content rather than controls. Visibility rather than
+ * display keeps the row from reflowing as the pointer crosses it, and leaves
+ * the control reachable by keyboard.
+ */
+.mindmap-link-remove {
+  visibility: hidden;
+}
+
+.mindmap-link-row:hover .mindmap-link-remove,
+.mindmap-link-remove:focus-visible {
+  visibility: visible;
+}
+
+.mindmap-link-type > svg {
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+/* ---------- add-link form ---------- */
+
+.mindmap-add-link-form {
+  margin-top: 8px;
+  padding: 8px;
+  border: var(--material-border);
+  border-radius: 5px;
+  background: var(--fill-senary);
+}
+
+.mindmap-form-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.mindmap-form-grid > label {
+  color: var(--fill-secondary);
+  text-align: end;
+}
+
+.mindmap-form-direction {
+  display: contents;
+}
+
+.mindmap-form-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mindmap-form-target-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-form-target-value:empty::before {
+  content: attr(data-empty-label);
+  color: var(--fill-tertiary);
+}
+
+.mindmap-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mindmap-form-actions > .mindmap-form-spacer {
+  flex: 1;
+}
+
+.mindmap-link-external {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.mindmap-empty {
+  color: var(--fill-secondary);
+  padding-block: 4px;
+}
