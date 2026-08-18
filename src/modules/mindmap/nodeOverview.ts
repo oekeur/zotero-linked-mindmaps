@@ -9,10 +9,14 @@
  * date) rather than the full item pane: this is for telling nodes apart, and
  * the real item is one button away.
  */
-import { appendL10nButton } from "./uiElements";
+import { appendGlyph, appendL10nButton } from "./uiElements";
 import { buildNoteLabel, MISSING_ITEM_LABEL } from "./nodeLabels";
 
 export const OVERVIEW_CLASS = "mindmap-node-overview";
+export const HEADER_CLASS = "mindmap-node-overview-header";
+export const HEADING_CLASS = "mindmap-node-overview-heading";
+export const TITLE_CLASS = "mindmap-node-overview-title";
+export const TYPE_CLASS = "mindmap-node-overview-type";
 export const SHOW_IN_LIBRARY_CLASS = "mindmap-show-in-library";
 export const CLOSE_CLASS = "mindmap-dock-close";
 
@@ -33,13 +37,15 @@ function appendLine(
  * Draws the summary for `item` into `container` and returns it, so a caller
  * can put the Connections content underneath.
  *
+ * The header row leads with the title and item type - what tells one node
+ * from another - and trails with the close control, so closing the dock is
+ * never the first thing read. `onClose` hides the dock; it lives here because
+ * right-click on a node is the link-creation menu, so closing needs a control
+ * of its own rather than a second meaning for that gesture.
+ *
  * `onShowInLibrary` is wired to a button rather than to the node click that
  * used to do it: switching to the library tab throws away the graph the user
  * was reading, which should be something they ask for.
- *
- * `onClose` hides the dock. It lives here because right-click on a node is
- * the link-creation menu, so closing needs a control of its own rather than
- * a second meaning for that gesture.
  */
 export function renderNodeOverview(
   container: HTMLElement,
@@ -51,24 +57,35 @@ export function renderNodeOverview(
   const overview = doc.createElement("div");
   overview.classList.add(OVERVIEW_CLASS);
 
-  if (onClose) {
-    const close = appendL10nButton(overview, "mindmap-dock-close", onClose);
-    close.classList.add(CLOSE_CLASS);
-  }
+  const header = doc.createElement("div");
+  header.classList.add(HEADER_CLASS);
+
+  const heading = doc.createElement("div");
+  heading.classList.add(HEADING_CLASS);
 
   const title = doc.createElement("div");
+  title.classList.add(TITLE_CLASS);
   title.textContent = item.isNote()
     ? buildNoteLabel(item)
     : item.getDisplayTitle();
-  title.style.fontWeight = "bold";
-  overview.appendChild(title);
+  heading.appendChild(title);
 
   if (!item.isNote()) {
-    appendLine(
-      overview,
-      doc,
-      Zotero.ItemTypes.getLocalizedString(item.itemTypeID),
-    );
+    const type = doc.createElement("div");
+    type.classList.add(TYPE_CLASS);
+    type.textContent = Zotero.ItemTypes.getLocalizedString(item.itemTypeID);
+    heading.appendChild(type);
+  }
+  header.appendChild(heading);
+
+  if (onClose) {
+    const close = appendL10nButton(header, "mindmap-dock-close", onClose);
+    close.classList.add(CLOSE_CLASS, "mindmap-icon-button");
+    appendGlyph(close, doc, "M4.5 4.5l7 7M11.5 4.5l-7 7");
+  }
+  overview.appendChild(header);
+
+  if (!item.isNote()) {
     appendLine(overview, doc, item.getField("firstCreator") as string);
     appendLine(overview, doc, item.getField("date") as string);
   }

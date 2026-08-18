@@ -66,6 +66,7 @@ export type FluentMessageId =
   | 'mindmap-sidebar-collapse'
   | 'mindmap-sidebar-expand'
   | 'mindmap-sidebar-heading'
+  | 'mindmap-sidebar-new-button'
   | 'mindmap-tab-title'
   | 'mindmap-zoom-in-button'
   | 'mindmap-zoom-out-button'
