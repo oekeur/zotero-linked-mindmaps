@@ -37,17 +37,22 @@ function eligibleSelection(win: _ZoteroTypes.MainWindow): Zotero.Item[] {
 export async function addToMindmap(
   items: Zotero.Item[],
   mindmapId?: string,
-): Promise<number> {
+): Promise<{ added: number; mindmapTitle: string }> {
   const eligible = items.filter(canBeMindmapNode);
   if (eligible.length === 0) {
-    return 0;
+    return { added: 0, mindmapTitle: "" };
   }
 
   const libraryID = eligible[0].libraryID;
   let addedCount = 0;
+  // Reported back so the confirmation can name where the items landed. The
+  // caller may have passed no id at all, in which case only the write knows
+  // which mindmap was resolved.
+  let mindmapTitle = "";
   await updateMindmapDocument(
     (doc) => {
       addedCount = 0;
+      mindmapTitle = doc.title;
       for (const item of eligible) {
         const ref = refFor(item);
         if (doc.nodes.some((node) => refsMatch(node.ref, ref))) {
@@ -61,7 +66,7 @@ export async function addToMindmap(
     mindmapId,
     libraryID,
   );
-  return addedCount;
+  return { added: addedCount, mindmapTitle };
 }
 
 /**
@@ -213,11 +218,11 @@ export class LibraryContextMenuFactory {
       },
       (mindmapId) => {
         void addToMindmap(eligibleSelection(win), mindmapId).then(
-          (addedCount) => {
+          ({ added, mindmapTitle }) => {
             new ztoolkit.ProgressWindow(addon.data.config.addonName)
               .createLine({
                 text: getString("add-to-mindmap-progress", {
-                  args: { count: addedCount },
+                  args: { count: added, mindmap: mindmapTitle },
                 }),
                 type: "success",
               })

@@ -13,11 +13,15 @@
   onload="
     Zotero.ZoteroLinkedMindmaps.hooks.onPrefsEvent('library-pane-load', {
       checkbox: this.querySelector('.zoterolinkedmindmaps-hide-mindmap-notes'),
+      help: this.querySelector('.zoterolinkedmindmaps-hide-mindmap-notes-help'),
     })
   "
 >
   <checkbox
     class="zoterolinkedmindmaps-hide-mindmap-notes"
     preference="hideMindmapNotes"
+  />
+  <description
+    class="zoterolinkedmindmaps-hide-mindmap-notes-help description-deemphasized"
   />
 </groupbox>

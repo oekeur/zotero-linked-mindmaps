@@ -176,12 +176,17 @@ async function onPrefsEvent(type: string, data: { [key: string]: any }) {
     // Labelled from here rather than through data-l10n-id: the preferences
     // window has no l10n context for the plugin's .ftl files, so the same
     // getString path the link-types pane uses is the one that resolves.
-    case "library-pane-load":
+    case "library-pane-load": {
       (data.checkbox as Element | null)?.setAttribute(
         "label",
         getString("preferences-hide-mindmap-notes"),
       );
+      const help = data.help as Element | null;
+      if (help) {
+        help.textContent = getString("preferences-hide-mindmap-notes-help");
+      }
       break;
+    }
     default:
       break;
   }

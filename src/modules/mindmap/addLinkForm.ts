@@ -263,12 +263,20 @@ export function renderAddLinkForm(
   directionWrapper.appendChild(directionSelect);
   container.appendChild(directionWrapper);
 
-  function updateDirectionVisibility() {
+  // Both options name the two ends of the relation and use the selected type
+  // as the verb ("This item cites the target"), so the argument is rewritten
+  // whenever the type changes and Fluent re-resolves the two labels. The
+  // argument goes through data-l10n-args rather than a getString call, which
+  // would reach for the addon global during render.
+  function updateDirectionField() {
     const selectedType = getLinkTypeById(typeSelect.value);
     directionWrapper.style.display = selectedType?.directional ? "" : "none";
+    const args = JSON.stringify({ type: selectedType?.label ?? "" });
+    forwardOption.setAttribute("data-l10n-args", args);
+    backwardOption.setAttribute("data-l10n-args", args);
   }
-  typeSelect.addEventListener("change", updateDirectionVisibility);
-  updateDirectionVisibility();
+  typeSelect.addEventListener("change", updateDirectionField);
+  updateDirectionField();
 
   const targetWrapper = ownerDoc.createElement("div");
   const chooseTargetButton = appendL10nButton(

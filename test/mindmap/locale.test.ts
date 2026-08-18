@@ -188,4 +188,84 @@ describe("locales", function () {
     assert.equal(content.trim(), "", "zh-CN is still in the built add-on");
     assert.isNotEmpty((await localeSource("en-US", "addon")).trim());
   });
+
+  /**
+   * The copy rules the string layer was settled on. They were unwritten
+   * conventions that the two locales had drifted apart on, so they are
+   * asserted here rather than left to review.
+   */
+  describe("copy rules", function () {
+    it("counts with a plural selector and names the mindmap it added to", function () {
+      const one = getString("add-to-mindmap-progress", {
+        args: { count: 1, mindmap: "Chapter one" },
+      });
+      const many = getString("add-to-mindmap-progress", {
+        args: { count: 3, mindmap: "Chapter one" },
+      });
+
+      assert.include(one, "Chapter one", "the confirmation drops the mindmap");
+      assert.include(many, "Chapter one", "the confirmation drops the mindmap");
+      assert.notInclude(one, "(s)", "an (s) plural instead of a selector");
+      assert.notEqual(
+        one,
+        many,
+        "the count selector renders 1 and 3 identically",
+      );
+    });
+
+    it("names both ends of a link in the direction options", function () {
+      const forward = getString("add-link-direction-forward", {
+        args: { type: "cites" },
+      });
+      const backward = getString("add-link-direction-backward", {
+        args: { type: "cites" },
+      });
+
+      assert.include(forward, "cites", "the type is not used as the verb");
+      assert.include(backward, "cites", "the type is not used as the verb");
+      assert.notEqual(forward, backward);
+      for (const label of [forward, backward]) {
+        assert.notMatch(
+          label,
+          /\b(forward|backward)\b/i,
+          `"${label}" still names a direction instead of the two ends`,
+        );
+      }
+    });
+
+    for (const locale of ["en-US", "nl-NL"]) {
+      it(`uses no spaced hyphen as punctuation in ${locale}`, async function () {
+        this.timeout(30000);
+        for (const file of FILES) {
+          const offenders = (await localeSource(locale, file))
+            .split("\n")
+            .filter((line) => / - /.test(line));
+          assert.deepEqual(
+            offenders,
+            [],
+            `${locale}/${file}.ftl stands a hyphen in for a colon or semicolon`,
+          );
+        }
+      });
+
+      it(`keeps the old vocabulary and storage wording out of ${locale}`, async function () {
+        this.timeout(30000);
+        for (const file of FILES) {
+          const source = (await localeSource(locale, file)).toLowerCase();
+          assert.notInclude(
+            source,
+            "(plugin data)",
+            `${locale}/${file}.ftl still names the container by its storage role`,
+          );
+          for (const word of ["connection", "verbinding"]) {
+            assert.notInclude(
+              source,
+              word,
+              `${locale}/${file}.ftl still calls a link a ${word}`,
+            );
+          }
+        }
+      });
+    }
+  });
 });

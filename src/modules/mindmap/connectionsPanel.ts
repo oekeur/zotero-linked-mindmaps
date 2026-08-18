@@ -51,11 +51,11 @@ export class ConnectionsPanelFactory {
       paneID: PANE_ID,
       pluginID: addon.data.config.addonID,
       header: {
-        l10nID: getLocaleID("connections-section-head-text"),
+        l10nID: getLocaleID("item-mindmaps-section-head-text"),
         icon: "chrome://zotero/skin/16/universal/book.svg",
       },
       sidenav: {
-        l10nID: getLocaleID("connections-section-sidenav-tooltip"),
+        l10nID: getLocaleID("item-mindmaps-section-sidenav-tooltip"),
         icon: "chrome://zotero/skin/20/universal/save.svg",
       },
       sectionButtons: [
@@ -64,7 +64,7 @@ export class ConnectionsPanelFactory {
           // Rendered via -moz-context-properties/fill: currentColor, so this
           // one icon tracks both light and dark themes.
           icon: "chrome://zotero/skin/16/universal/plus.svg",
-          l10nID: getLocaleID("connections-add-link-header-button"),
+          l10nID: getLocaleID("item-mindmaps-add-link-header-button"),
           onClick: ({ body, item }) => {
             expandSection(body);
             openAddLinkForm(body, item);
@@ -244,7 +244,7 @@ async function loadAddLinkForm(
     appendL10nText(
       formContainer,
       formContainer.ownerDocument!,
-      getLocaleID("connections-error-state"),
+      getLocaleID("item-mindmaps-error-state"),
     );
   }
 }
@@ -261,13 +261,17 @@ function renderMindmapChoice(
   const wrapper = doc.createElement("div");
   wrapper.classList.add(MINDMAP_CHOICE_CLASS);
 
-  appendL10nText(wrapper, doc, getLocaleID("connections-choose-mindmap-label"));
+  appendL10nText(
+    wrapper,
+    doc,
+    getLocaleID("item-mindmaps-choose-mindmap-label"),
+  );
 
   const picker = doc.createElement("select");
   appendMindmapOptions(picker, mindmaps);
   wrapper.appendChild(picker);
 
-  appendL10nButton(wrapper, "connections-choose-mindmap-continue", () => {
+  appendL10nButton(wrapper, "item-mindmaps-choose-mindmap-continue", () => {
     void mountAddLinkForm(formContainer, item, panelContainer, picker.value);
   });
 
@@ -395,7 +399,7 @@ async function renderPanelBody(
         (err as Error).message
       }`,
     );
-    appendL10nText(container, doc, getLocaleID("connections-error-state"));
+    appendL10nText(container, doc, getLocaleID("item-mindmaps-error-state"));
     return undefined;
   }
 
@@ -405,8 +409,8 @@ async function renderPanelBody(
       doc,
       getLocaleID(
         found.unreadable
-          ? "connections-error-state"
-          : "connections-empty-state",
+          ? "item-mindmaps-error-state"
+          : "item-mindmaps-empty-state",
       ),
     );
     if (!found.unreadable) {
@@ -421,7 +425,7 @@ async function renderPanelBody(
     refsMatch(candidate.ref, ref),
   );
   if (!node) {
-    appendL10nText(container, doc, getLocaleID("connections-empty-state"));
+    appendL10nText(container, doc, getLocaleID("item-mindmaps-empty-state"));
     appendAddLinkSection(container, doc, item, mindmapDoc.id);
     return mindmapDoc.id;
   }
@@ -430,29 +434,33 @@ async function renderPanelBody(
   const titleLabel = doc.createElement("span");
   titleLabel.setAttribute(
     "data-l10n-id",
-    getLocaleID("connections-mindmap-label"),
+    getLocaleID("item-mindmaps-current-label"),
   );
   titleEl.appendChild(titleLabel);
   titleEl.appendChild(doc.createTextNode(` ${mindmapDoc.title}`));
   container.appendChild(titleEl);
 
-  appendL10nButton(container, "connections-remove-node-button", () => {
+  appendL10nButton(container, "item-mindmaps-remove-node-button", () => {
     void handleRemoveNode(container, item, mindmapDoc, node.id);
   });
 
   // Only offered when the node is actually in a group: this is where a single
   // node leaves one, as opposed to dissolving the whole group from the graph.
   if (node.groupId) {
-    appendL10nButton(container, "connections-remove-from-group-button", () => {
-      void handleRemoveFromGroup(container, item, mindmapDoc, node.id);
-    });
+    appendL10nButton(
+      container,
+      "item-mindmaps-remove-from-group-button",
+      () => {
+        void handleRemoveFromGroup(container, item, mindmapDoc, node.id);
+      },
+    );
   }
 
   const links = mindmapDoc.links.filter(
     (link) => link.sourceNodeId === node.id || link.targetNodeId === node.id,
   );
   if (links.length === 0) {
-    appendL10nText(container, doc, getLocaleID("connections-no-links-state"));
+    appendL10nText(container, doc, getLocaleID("item-mindmaps-no-links-state"));
     appendAddLinkSection(container, doc, item, mindmapDoc.id);
     return mindmapDoc.id;
   }
@@ -482,7 +490,7 @@ async function renderPanelBody(
     const li = doc.createElement("li");
     li.textContent = `${parts.join(" ")} ${separator} ${otherTitle}`;
 
-    appendL10nButton(li, "connections-remove-link-button", () => {
+    appendL10nButton(li, "item-mindmaps-remove-link-button", () => {
       void handleRemoveLink(container, item, mindmapDoc, link.id);
     });
 
