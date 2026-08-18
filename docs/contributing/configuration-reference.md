@@ -34,7 +34,7 @@ Passed to Zotero as `--dataDir`. The test runner ignores this too; it uses `.sca
 
 Commented out in `.env.example`. Overrides the built-in per-platform command the scaffold uses to kill Zotero processes. Set it only if the built-in command does not match on your system.
 
-Note that `scripts/clean-dev-profile.mjs` and `scripts/run-tests.mjs` do not consult this variable; both hardcode `pkill -9 -f zotero-bin`.
+Note that neither `scripts/clean-dev-profile.mjs` nor `scripts/run-tests.mjs` consults this variable. `clean-dev-profile.mjs` hardcodes `pkill -9 -f zotero-bin`; `run-tests.mjs` kills its own process group instead and so matches on nothing at all.
 
 ### GITHUB_TOKEN
 

@@ -18,12 +18,12 @@ Plugin name: **Zotero Linked Mindmaps** (`config.addonName`/`addonRef` in `packa
 - `npm run build` — bundles `src/`+`addon/` into a `.xpi`-ready build under `.scaffold/build/` via `zotero-plugin build`, then type-checks with `tsc --noEmit`.
 - `npm run lint:check` / `npm run lint:fix` — Prettier + ESLint (`@zotero-plugin/eslint-config`).
 - `npm test` — runs `test/` via `zotero-plugin test` (Mocha/Chai) against a live Zotero instance. Locally this is a **watch session by design** and will not exit on its own: the scaffold CLI computes `watch: !options.exitOnFinish && options.watch`, and `watch` defaults true. CI forces `watch=false, headless=true`.
-- `npm run test:fast` — same test run via `scripts/run-tests.mjs`, but kills Zotero the moment the completion line prints. Prefer this one for a one-shot pass/fail. **Not safe while a dev Zotero from `npm start` is running**: it force-kills by `pkill -9 -f zotero-bin`, which takes your dev instance down with it.
+- `npm run test:fast` — same test run via `scripts/run-tests.mjs`, but kills Zotero the moment the completion line prints. Prefer this one for a one-shot pass/fail. Safe alongside a dev Zotero from `npm start`: it kills its own process group, not everything matching `zotero-bin`, so it leaves other instances (a dev profile, another worktree's test run, your own library) alone.
 - `npm run release` — version bump + GitHub release via `zotero-plugin release`.
 
 ## Scripts
 
-- `scripts/verify.sh` — the verification gate: build, lint, then the live-Zotero startup check, cheapest stage first. Runs every stage even after one fails and exits non-zero naming which. `--no-test` stops before Zotero is launched; `--test-only` runs the live stage alone. It refuses the live stage when a Zotero is running that is not a test profile, because `test:fast` force-kills by `pkill -9 -f zotero-bin` and would take a dev instance (or your own library) down with it.
+- `scripts/verify.sh` — the verification gate: build, lint, then the live-Zotero startup check, cheapest stage first. Runs every stage even after one fails and exits non-zero naming which. `--no-test` stops before Zotero is launched; `--test-only` runs the live stage alone. It refuses the live stage when a Zotero is running that is not a test profile. That guard predates `test:fast` killing by process group and is now redundant rather than load-bearing; it is the reason the gate still declines to run while `npm start` is up.
 - `scripts/backlog.sh` — the Backlog.md CLI, pointed at the tracker in `project/`. Resolves the package name (`backlog.md`, not `backlog`) and the tracker path from the main checkout, so it works from a worktree too.
 - `scripts/run-tests.mjs` (`npm run test:fast`) and `scripts/clean-dev-profile.mjs` (`npm run clean:profile`, and automatically via `prestart`) — see `docs/contributing/npm-scripts-reference.md`.
 

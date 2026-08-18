@@ -62,9 +62,10 @@ pid_cmdline() {
   tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null || true
 }
 
-# `npm run test:fast` shells out to `pkill -9 -f zotero-bin`, which matches
-# every Zotero on the machine: a dev instance from `npm start`, and the user's
-# own library too. Refuse rather than kill something that isn't ours. A test
+# Kept from when `npm run test:fast` cleaned up with `pkill -9 -f zotero-bin`
+# and would have killed every Zotero on the machine. It now kills only its own
+# process group, so this guard no longer protects anything and could go; until
+# it does, it is why the gate declines to run while `npm start` is up. A test
 # instance is identifiable by its profile path; anything else is not.
 live_zotero_outside_tests() {
   local pid cmd
@@ -107,8 +108,8 @@ if [ "$RUN_TEST" = 1 ]; then
     say "test"
     warn "a Zotero instance is running that is not a test profile:"
     printf '%s\n' "$STRAY" | sed 's/^/      /' >&2
-    warn "test:fast would kill it (blanket pkill -9 -f zotero-bin). Close it, or"
-    warn "run scripts/verify.sh --no-test and use plain \`npm test\` instead."
+    warn "this guard predates test:fast killing by process group and is now"
+    warn "redundant. Close the instance, or run scripts/verify.sh --no-test."
     FAILED+=("test (refused: live Zotero)")
   else
     clear_stale_test_zotero

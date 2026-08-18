@@ -22,11 +22,13 @@ The scaffold derives `exitOnFinish` as `!watch`, and `watch` defaults to true. R
 
 Separately, when Zotero is asked to quit, the GUI does sometimes fail to actually exit, and nothing on the Node side then forces the issue. A run whose tests all finished can sit open until you happen to notice.
 
-`scripts/run-tests.mjs` sidesteps both by not depending on Zotero's exit at all. It spawns `npx zotero-plugin test`, watches stdout for the same completion line the reporter already prints, and on seeing it runs `pkill -9 -f zotero-bin`, SIGKILLs the child, and exits 1 if the line reported failures or 0 if it didn't. The exit-code contract matches `npm test` under CI. It simply doesn't gamble on the process ending itself.
+`scripts/run-tests.mjs` sidesteps both by not depending on Zotero's exit at all. It spawns `npx zotero-plugin test` detached, so the run gets its own process group, watches stdout for the same completion line the reporter already prints, and on seeing it SIGKILLs that whole group and exits 1 if the line reported failures or 0 if it didn't. The exit-code contract matches `npm test` under CI. It simply doesn't gamble on the process ending itself.
 
 The wrapper's 240-second timer is a different mechanism aimed at a different failure. It counts from launch, so it has to cover the whole suite, and it exists to catch a plugin that never initializes at all rather than to police how long the suite takes. Exceeding it is a genuine hang and reports as a failure.
 
-The tradeoff is that `pkill -9 -f zotero-bin` matches every Zotero on the machine. Run `test:fast` while `npm start` is up and it kills your dev instance. That is why [testing-howto.md](./testing-howto.md) sends you to plain `npm test` when a dev instance is open.
+Killing by process group rather than by name is what makes this safe to run next to anything else. The wrapper used to clean up with `pkill -9 -f zotero-bin`, which matched every Zotero on the machine: a dev instance from `npm start`, a test run in another worktree, your own library. A group kill reaches only the processes this run started, so `test:fast` and `npm start` can now be up at the same time.
+
+The limit of the technique is that a child which puts itself in a new session escapes the group. Zotero does not, which is why this works, but it is the thing to check first if a run ever leaves a process behind.
 
 ## What is not tested, and what replaces it
 
