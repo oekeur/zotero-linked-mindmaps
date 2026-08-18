@@ -191,3 +191,96 @@
   color: var(--fill-secondary);
   padding-block: 4px;
 }
+
+/* ---------- mindmap tab: view toolbar, legend and node menu ---------- */
+
+.mindmap-graph-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-sidepane);
+  border: var(--material-border);
+  border-radius: 6px;
+}
+
+.mindmap-legend {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 5;
+  max-width: 220px;
+  padding: 8px;
+  background: var(--color-sidepane);
+  border: var(--material-border);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.mindmap-legend-heading {
+  margin-bottom: 6px;
+  color: var(--fill-primary);
+  font-weight: bold;
+}
+
+.mindmap-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mindmap-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fill-secondary);
+}
+
+.mindmap-legend-row svg {
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.mindmap-group-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--color-sidepane);
+  border: var(--material-border);
+  border-radius: 6px;
+}
+
+.mindmap-group-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.mindmap-group-menu > button:hover {
+  background: var(--fill-quinary);
+}
+
+.mindmap-menu-action svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+}
