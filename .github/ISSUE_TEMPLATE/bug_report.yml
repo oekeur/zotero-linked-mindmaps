@@ -1,0 +1,97 @@
+name: Bug report
+description: Something in the plugin behaves differently than documented, or not at all.
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched the existing issues and this isn't already reported.
+          required: true
+        - label: I'm on the latest release, or the version below says which older one.
+          required: true
+        - label: '"Zotero Linked Mindmaps" appears under Tools -> Plugins. A plugin that fails to load does so quietly, with no error dialog, so this rules out the most common non-bug.'
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Number the steps from a fresh Zotero start. If it only happens with particular items, links, or one particular mindmap, say so.
+      placeholder: |
+        1. Open the mindmap tab for "..."
+        2. Right-click a node, choose ...
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it happens
+      options:
+        - Mindmap tab (graph rendering, layout, dragging)
+        - Connections panel in the item pane
+        - Creating or editing a link
+        - Link types
+        - Node grouping
+        - Cross-mindmap links
+        - Preferences
+        - Plugin data item or syncing
+        - Somewhere else, or not sure
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Tools -> Plugins, next to "Zotero Linked Mindmaps".
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: zotero-version
+    attributes:
+      label: Zotero version
+      description: Help -> About Zotero.
+      placeholder: 7.0.15
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug-output
+    attributes:
+      label: Debug output
+      description: |
+        Help -> Debug Output Logging -> Enable, reproduce the bug, then View Output. Paste the lines around the failure.
+        The plugin writes no log file, so this is often the only signal available. Leave it blank if the panel shows nothing; that is worth knowing too.
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Screenshots, other plugins installed, whether the library syncs, whether the problem survives a restart.

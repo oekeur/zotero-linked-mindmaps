@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest something the plugin should do that it doesn't.
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched the existing issues and this isn't already requested.
+          required: true
+        - label: I read ROADMAP.md and this isn't already listed there.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The situation in your own library, not the feature. What gets tedious, impossible, or lossy today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should happen instead
+      description: The behaviour you want, concretely enough to build. Say where it would live and what you would click.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the plugin
+      options:
+        - Mindmap tab (graph rendering, layout, dragging)
+        - Connections panel in the item pane
+        - Creating or editing a link
+        - Link types
+        - Node grouping
+        - Cross-mindmap links
+        - Import, export, or interop
+        - Preferences
+        - Something else, or a new area
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Tags, related items, a note, another plugin. Say why it fell short. This is usually the most useful part of the request.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Rough library size, how many mindmaps and link types you use, mockups.

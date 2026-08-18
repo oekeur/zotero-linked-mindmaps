@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://oekeur.github.io/zotero-linked-mindmaps/
+    about: Getting started, the user guide, and the internals. Check here before filing.
+  - name: My mindmaps disappeared
+    url: https://oekeur.github.io/zotero-linked-mindmaps/user-guide/plugin-data-howto
+    about: Usually the plugin data item landed in the trash. This walks through restoring it.
+  - name: Zotero itself is misbehaving
+    url: https://forums.zotero.org/
+    about: For problems that also happen with this plugin disabled, the Zotero forums are the right place.
