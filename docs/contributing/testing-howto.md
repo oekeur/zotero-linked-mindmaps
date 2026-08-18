@@ -30,9 +30,30 @@ Reach for this while you're iterating on a failing test. Reach for `test:fast` f
 
 `npm test` is safe alongside `npm start`. The test runner uses its own profile and data directories, `.scaffold/test/profile` and `.scaffold/test/data`, both resolved relative to the current working directory and both emptied at the start of every run. It picks a free TCP port for the debugger server and another for the reporter, so nothing collides with the dev instance.
 
-`npm run test:fast` is not safe alongside `npm start`. Its cleanup step is `pkill -9 -f zotero-bin`, which matches every Zotero process on the machine, your dev instance included. It will take that down with it, and it won't warn you first.
+`npm run test:fast` is safe alongside `npm start` too. It cleans up by killing its own process group, so it takes down the Zotero it launched and leaves every other one alone: your dev instance, a test run in another worktree, your own library.
 
-So: dev instance running, use `npm test`. No dev instance running, use `npm run test:fast`.
+That changed. It used to clean up with `pkill -9 -f zotero-bin`, which matched every Zotero on the machine and killed all of them without warning, so older notes and habits may still tell you to avoid it while a dev instance is open.
+
+## Run the suite against a different Zotero version
+
+CI runs the suite against every Zotero major the manifest claims support for, currently 7.0.32, 8.0.4, 9.0.4 and 10.0, pinned in the `test` job's matrix in `.github/workflows/ci.yml`. Locally you only need the one Zotero you develop against, so there is no local matrix and no script for one.
+
+When CI reports a failure on a version you don't run, point the runner at that version's binary for a single run:
+
+```sh
+ZOTERO_PLUGIN_ZOTERO_BIN_PATH=/path/to/Zotero_linux-x86_64/zotero npm run test:fast
+```
+
+The variable overrides the path from `.env` for that run, and the scaffold uses whatever binary it names. Nothing else changes.
+
+To get a binary, unpack the version you need next to wherever you keep scratch files:
+
+```sh
+curl -fL --output zotero.tar https://download.zotero.org/client/release/7.0.32/Zotero-7.0.32_linux-x86_64.tar.bz2
+tar -xf zotero.tar
+```
+
+Zotero 7 ships `.tar.bz2` and 8 and later ship `.tar.xz`; `tar -xf` detects both, so only the URL changes. Each unpacked install is roughly 480 MB, so delete it when you're done rather than accumulating one per major.
 
 ## Read a failure
 

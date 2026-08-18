@@ -111,7 +111,9 @@ Watch is the part that surprises people. Without `--exit-on-finish` or `--no-wat
 node scripts/run-tests.mjs
 ```
 
-Spawns `npx zotero-plugin test`, pipes its stdout through unchanged, and watches for `/Test run completed - (\d+) passed(?:, (\d+) failed)?/`. On a match it logs `run-tests: completion line seen, killing Zotero instead of waiting for its own exit (failed=N)`, runs `pkill -9 -f zotero-bin`, SIGKILLs the child, and exits 1 if any test failed, 0 otherwise.
+Spawns `npx zotero-plugin test` with `detached: true`, pipes its stdout through unchanged, and watches for `/Test run completed - (\d+) passed(?:, (\d+) failed)?/`. On a match it logs `run-tests: completion line seen, killing Zotero instead of waiting for its own exit (failed=N)`, SIGKILLs the child's process group, and exits 1 if any test failed, 0 otherwise.
+
+Because it kills a process group rather than matching on process names, it leaves every Zotero it did not start alone, so it is safe to run alongside `npm start` or a test run in another worktree. Detaching also means Ctrl-C no longer reaches Zotero through the terminal, so the script traps `SIGINT` and `SIGTERM` and kills the group itself.
 
 A 240-second timer starts at launch. If no completion line has appeared by then, the script prints `run-tests: no completion line after 240s, treating as a hang` and exits 1. The timer covers the whole suite, not the gap since the last line, because several tests wait on Zotero's own notification timing and cannot be shortened.
 

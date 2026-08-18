@@ -4,7 +4,7 @@
 // on its own (scaffold's exitOnFinish quits Zotero on mocha's "end" event,
 // but the GUI sometimes hangs and never actually exits — see CLAUDE.md's
 // manual verification protocol).
-import { spawn, execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 
 const DONE_PATTERN = /Test run completed - (\d+) passed(?:, (\d+) failed)?/;
 // Counts from launch, not from the last line of output, so it has to clear the
@@ -13,18 +13,25 @@ const DONE_PATTERN = /Test run completed - (\d+) passed(?:, (\d+) failed)?/;
 // plugin that never initialises, not to police how long the suite takes.
 const HANG_TIMEOUT_MS = 900_000;
 
+// detached puts the run in its own process group, so the Zotero that
+// `zotero-plugin test` spawns underneath can be killed by group id. Killing by
+// pattern instead (`pkill -9 -f zotero-bin`) matched every Zotero on the
+// machine: a dev instance from `npm start`, a concurrent test run in another
+// worktree, and the user's own library along with them.
 const child = spawn("npx", ["zotero-plugin", "test"], {
   stdio: ["ignore", "pipe", "pipe"],
+  detached: true,
 });
 
 let settled = false;
 let buffer = "";
 
-function killZotero() {
+function killRun() {
+  if (!child.pid) return;
   try {
-    execSync("pkill -9 -f zotero-bin", { stdio: "ignore" });
+    process.kill(-child.pid, "SIGKILL");
   } catch {
-    // pkill exits 1 when no matching process is found — nothing to clean
+    // ESRCH: the group is already gone
   }
 }
 
@@ -32,9 +39,15 @@ function finish(code) {
   if (settled) return;
   settled = true;
   clearTimeout(hangTimer);
-  killZotero();
-  child.kill("SIGKILL");
+  killRun();
   process.exit(code);
+}
+
+// A detached child no longer sits in the terminal's foreground group, so Ctrl-C
+// reaches this wrapper but not Zotero. Relay it, or an interrupted run leaves
+// Zotero holding the test profile.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => finish(1));
 }
 
 function handleChunk(chunk) {
