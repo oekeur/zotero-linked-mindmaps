@@ -41,14 +41,27 @@ jobs:
   # itself the scaffold downloads `channel=beta` un-pinned, so CI would test a
   # moving target and a passing run would not record what it passed against.
   # `installZoteroLinux` returns early when ZOTERO_PLUGIN_ZOTERO_BIN_PATH is
-  # already set, which is the seam these jobs use; Xvfb and the Ubuntu deps are
-  # still installed by the scaffold as before.
+  # already set, which is the seam these jobs use.
+  #
+  # The apt packages are installed here rather than left to the scaffold, which
+  # shells out to `sudo apt update && sudo apt install -y` with stdio "pipe".
+  # apt-get defaults DPkg::Lock::Timeout to -1, so when a runner's dpkg lock is
+  # held by unattended-upgrades that call blocks forever and prints nothing:
+  # two jobs in the first run of this matrix sat silent for 15 minutes and had
+  # to be cancelled by hand, then passed unchanged on re-run. Installing the
+  # same packages up front means the scaffold's `dpkg-query -W` check finds
+  # them and never shells out, and the explicit lock timeout turns a hang that
+  # does happen into a bounded, visible failure.
   #
   # Zotero 7 ships .tar.bz2 and 8+ ship .tar.xz. `tar -xf` detects both, so the
   # compression only varies in the URL.
   test:
     name: test (Zotero ${{ matrix.zotero }})
     runs-on: ubuntu-latest
+    # A passing job takes ~2.5 min with a cold cache. This is a backstop for
+    # the scaffold hanging with no output, not a performance budget: it has
+    # already burned 15 min twice waiting on apt (see the deps step below).
+    timeout-minutes: 10
     needs:
       - build
     strategy:
@@ -68,6 +81,14 @@ jobs:
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@main
+
+      - name: Install Zotero runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get -o DPkg::Lock::Timeout=180 update
+          sudo apt-get -o DPkg::Lock::Timeout=180 install -y \
+            xvfb x11-xkb-utils xkb-data libasound2t64 libdbus-glib-1-2
 
       - name: Cache Zotero
         uses: actions/cache@v4
@@ -97,6 +118,7 @@ jobs:
   test-beta:
     name: test (Zotero beta, non-blocking)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - build
     continue-on-error: true
@@ -105,5 +127,14 @@ jobs:
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@main
+
+      - name: Install Zotero runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get -o DPkg::Lock::Timeout=180 update
+          sudo apt-get -o DPkg::Lock::Timeout=180 install -y \
+            xvfb x11-xkb-utils xkb-data libasound2t64 libdbus-glib-1-2
+
       - name: Run tests
         run: npm run test
