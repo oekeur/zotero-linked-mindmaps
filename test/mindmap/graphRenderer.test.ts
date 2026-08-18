@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import cytoscape from "cytoscape";
+import { config } from "../../package.json";
 import {
   attachLiveRefresh,
   attachNodeClickHandler,
@@ -8,12 +9,20 @@ import {
   buildParentChildTies,
   computeParallelOffsets,
   EXTERNAL_NODE_CLASS,
+  FIT_BUTTON_CLASS,
+  GROUP_MENU_CLASS,
   GROUP_NODE_CLASS,
+  LEGEND_CLASS,
+  LEGEND_TOGGLE_BUTTON_CLASS,
+  MENU_ACTION_CLASS,
   NODE_MENU_ADD_LINK_CLASS,
   PARENT_CHILD_TIE_CLASS,
   renderMindmap,
   type RenderedState,
   resolveLinkVisual,
+  TOOLBAR_CLASS,
+  ZOOM_IN_BUTTON_CLASS,
+  ZOOM_OUT_BUTTON_CLASS,
 } from "../../src/modules/mindmap/graphRenderer";
 import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
 import {
@@ -46,6 +55,8 @@ import type {
   ZoteroObjectRef,
 } from "../../src/modules/mindmap/schema";
 import { clearStorageNotes } from "./storageNotes";
+
+const LEGEND_COLLAPSED_PREF_KEY = `${config.prefsPrefix}.legendCollapsed`;
 
 describe("mindmap/graphRenderer", function () {
   // Which tab Zotero is showing. The test bundle has no `ztoolkit` of its
@@ -437,10 +448,22 @@ describe("mindmap/graphRenderer", function () {
 
     // The shape a Cytoscape node event actually has. `data` matters here: the
     // handler asks whether the target is a group container before doing
-    // anything else, and `renderedPosition` is where the menu is drawn.
+    // anything else, and `renderedBoundingBox` is what the menu positions
+    // itself against.
     function nodeEvent(id: string, isGroup = false) {
       return {
-        target: { id: () => id, data: () => isGroup || undefined },
+        target: {
+          id: () => id,
+          data: () => isGroup || undefined,
+          renderedBoundingBox: () => ({
+            x1: 0,
+            y1: 0,
+            x2: 20,
+            y2: 20,
+            w: 20,
+            h: 20,
+          }),
+        },
         renderedPosition: { x: 10, y: 20 },
       };
     }
@@ -1342,6 +1365,266 @@ describe("mindmap/graphRenderer", function () {
       assert.isNotNull(laidOut);
       const [a, b] = laidOut!.nodes.map((n) => n.position!);
       assert.isFalse(isCoincident(a, b));
+    });
+  });
+
+  describe("view controls", function () {
+    let container: HTMLDivElement;
+    let cy: cytoscape.Core | undefined;
+
+    function twoFarNodes(): MindmapDocument {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-view-controls-test",
+        title: "View controls",
+        nodes: ["node-a", "node-b"].map((id, i) => ({
+          membership: "member" as const,
+          id,
+          position: { x: i * 900, y: i * 900 },
+          ref: {
+            kind: "item" as const,
+            libraryID: Zotero.Libraries.userLibraryID,
+            key: "NOSUCHKEY",
+          },
+        })),
+        links: [],
+      };
+    }
+
+    beforeEach(function () {
+      const doc = Zotero.getMainWindow().document;
+      container = doc.createElement("div");
+      container.style.cssText =
+        "position: relative; width: 200px; height: 200px;";
+      doc.documentElement.appendChild(container);
+    });
+
+    afterEach(function () {
+      cy?.destroy();
+      cy = undefined;
+      container.remove();
+      Zotero.Prefs.clear(LEGEND_COLLAPSED_PREF_KEY, true);
+    });
+
+    it("draws a legend covering every line and node style the renderer draws (AC #1)", async function () {
+      cy = await renderMindmap(container, twoFarNodes(), []);
+
+      const rows = container.querySelectorAll(`.${LEGEND_CLASS} li`);
+      assert.equal(rows.length, 5, "the legend does not cover every style");
+    });
+
+    it("can be dismissed and reopened, writing nothing to the mindmap document (AC #2)", async function () {
+      const doc = twoFarNodes();
+      cy = await renderMindmap(container, doc, []);
+      const toggle = container.querySelector(
+        `.${LEGEND_TOGGLE_BUTTON_CLASS}`,
+      ) as HTMLButtonElement;
+      assert.isNotNull(container.querySelector(`.${LEGEND_CLASS}`));
+
+      toggle.click();
+      assert.isNull(container.querySelector(`.${LEGEND_CLASS}`));
+
+      toggle.click();
+      assert.isNotNull(container.querySelector(`.${LEGEND_CLASS}`));
+
+      // Toggling the legend is view state, not document state.
+      assert.deepEqual(doc.nodes, twoFarNodes().nodes);
+    });
+
+    it("offers zoom out, zoom in and fit-to-window in a view toolbar (AC #3)", async function () {
+      cy = await renderMindmap(container, twoFarNodes(), []);
+
+      assert.isNotNull(container.querySelector(`.${TOOLBAR_CLASS}`));
+      assert.isNotNull(container.querySelector(`.${ZOOM_OUT_BUTTON_CLASS}`));
+      assert.isNotNull(container.querySelector(`.${ZOOM_IN_BUTTON_CLASS}`));
+      assert.isNotNull(container.querySelector(`.${FIT_BUTTON_CLASS}`));
+    });
+
+    it("fit-to-window changes the viewport without moving any stored node position (AC #4)", async function () {
+      cy = await renderMindmap(container, twoFarNodes(), []);
+      const before = cy
+        .nodes()
+        .map((n) => ({ id: n.id(), position: { ...n.position() } }));
+
+      // Move away from wherever the initial render settled, so the fit
+      // button below is guaranteed to change the viewport.
+      cy.zoom(3);
+      cy.pan({ x: 500, y: 500 });
+      const panAway = { ...cy.pan() };
+
+      const fitButton = container.querySelector(
+        `.${FIT_BUTTON_CLASS}`,
+      ) as HTMLButtonElement;
+      fitButton.click();
+
+      assert.notDeepEqual(
+        { ...cy.pan() },
+        panAway,
+        "fit-to-window did not change the viewport",
+      );
+      const after = cy
+        .nodes()
+        .map((n) => ({ id: n.id(), position: { ...n.position() } }));
+      assert.deepEqual(
+        after,
+        before,
+        "fit-to-window moved a node's stored position",
+      );
+    });
+  });
+
+  describe("node context menu styling and positioning", function () {
+    let article: Zotero.Item;
+    let dock: HTMLDivElement;
+    let container: HTMLDivElement;
+    let cy: cytoscape.Core | undefined;
+
+    function docWithNodeAt(x: number, y: number): MindmapDocument {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-node-menu-test",
+        title: "Node menu",
+        nodes: [
+          {
+            membership: "member",
+            id: "n1",
+            position: { x, y },
+            ref: {
+              kind: "item",
+              libraryID: article.libraryID,
+              key: article.key,
+            },
+          },
+        ],
+        links: [],
+      };
+    }
+
+    function openContainer(width: number, height: number): HTMLDivElement {
+      const doc = Zotero.getMainWindow().document;
+      const el = doc.createElement("div");
+      el.style.cssText = `position: relative; width: ${width}px; height: ${height}px;`;
+      doc.documentElement.appendChild(el);
+      return el;
+    }
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Node Menu Test Article");
+      await article.saveTx();
+
+      const doc = Zotero.getMainWindow().document;
+      dock = doc.createElement("div");
+      dock.style.display = "none";
+      doc.documentElement.appendChild(dock);
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      cy?.destroy();
+      cy = undefined;
+      container?.remove();
+      dock.remove();
+      await article.eraseTx();
+      await clearStorageNotes();
+    });
+
+    it("gives the menu a menu background, border and a per-row hover class, with a 16px icon on the action (AC #5)", async function () {
+      container = openContainer(400, 300);
+      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      cy.getElementById("n1").emit("cxttap");
+
+      const menu = container.querySelector(`.${GROUP_MENU_CLASS}`);
+      assert.isNotNull(menu, "no menu was opened");
+      const action = menu!.querySelector(`.${MENU_ACTION_CLASS}`);
+      assert.isNotNull(action, "the add-link action is not a styled menu row");
+      const icon = action!.querySelector("svg");
+      assert.isNotNull(icon, "the menu action has no icon");
+      assert.equal(icon!.getAttribute("width"), "16");
+      assert.equal(icon!.getAttribute("height"), "16");
+    });
+
+    it("opens beside the clicked node rather than over it (AC #6)", async function () {
+      container = openContainer(400, 300);
+      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      cy.zoom(1);
+      cy.pan({ x: 0, y: 0 });
+      const node = cy.getElementById("n1");
+      const box = node.renderedBoundingBox();
+
+      node.emit("cxttap");
+
+      const menu = container.querySelector(
+        `.${GROUP_MENU_CLASS}`,
+      ) as HTMLElement;
+      assert.isNotNull(menu, "no menu was opened");
+      const menuLeft = menu.offsetLeft;
+      const menuRight = menuLeft + menu.offsetWidth;
+      const overlapsNode = menuLeft < box.x2 && menuRight > box.x1;
+      assert.isFalse(
+        overlapsNode,
+        "the menu was drawn over the node it acts on",
+      );
+    });
+
+    it("stays inside the graph viewport when the node sits near an edge (AC #6)", async function () {
+      container = openContainer(220, 160);
+      cy = await renderMindmap(container, docWithNodeAt(190, 10), [], dock);
+      cy.zoom(1);
+      cy.pan({ x: 0, y: 0 });
+
+      cy.getElementById("n1").emit("cxttap");
+
+      const menu = container.querySelector(
+        `.${GROUP_MENU_CLASS}`,
+      ) as HTMLElement;
+      assert.isNotNull(menu, "no menu was opened");
+      assert.isAtLeast(menu.offsetLeft, 0);
+      assert.isAtLeast(menu.offsetTop, 0);
+      assert.isAtMost(
+        menu.offsetLeft + menu.offsetWidth,
+        container.clientWidth,
+      );
+      assert.isAtMost(
+        menu.offsetTop + menu.offsetHeight,
+        container.clientHeight,
+      );
+    });
+
+    it("dismisses on Escape (AC #7)", async function () {
+      container = openContainer(400, 300);
+      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      cy.getElementById("n1").emit("cxttap");
+      assert.isNotNull(container.querySelector(`.${GROUP_MENU_CLASS}`));
+
+      const win = container.ownerDocument!.defaultView as unknown as Window;
+      win.dispatchEvent(
+        new (win as any).KeyboardEvent("keydown", { key: "Escape" }),
+      );
+
+      assert.isNull(container.querySelector(`.${GROUP_MENU_CLASS}`));
+    });
+
+    it("dismisses on an outside click (AC #7)", async function () {
+      container = openContainer(400, 300);
+      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      cy.getElementById("n1").emit("cxttap");
+      assert.isNotNull(container.querySelector(`.${GROUP_MENU_CLASS}`));
+
+      const doc = container.ownerDocument!;
+      const win = doc.defaultView as unknown as Window;
+      const outside = doc.createElement("div");
+      doc.documentElement.appendChild(outside);
+      try {
+        outside.dispatchEvent(
+          new (win as any).MouseEvent("mousedown", { bubbles: true }),
+        );
+        assert.isNull(container.querySelector(`.${GROUP_MENU_CLASS}`));
+      } finally {
+        outside.remove();
+      }
     });
   });
 });

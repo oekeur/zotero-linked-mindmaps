@@ -12,7 +12,10 @@
  * than throwing or being dropped.
  */
 import cytoscape from "cytoscape";
+import { config } from "../../../package.json";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
+import { getLocaleID } from "../../utils/locale";
+import type { FluentMessageId } from "../../../typings/i10n";
 import {
   readDocumentFromNote,
   refreshNote,
@@ -355,6 +358,305 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
   },
 ];
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function appendIconSvg(
+  parent: Element,
+  doc: Document,
+  build: (svg: SVGElement) => void,
+): void {
+  const svg = doc.createElementNS(SVG_NS, "svg") as unknown as SVGElement;
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("aria-hidden", "true");
+  build(svg);
+  parent.appendChild(svg as unknown as Node);
+}
+
+function svgPath(doc: Document, d: string): SVGPathElement {
+  const path = doc.createElementNS(SVG_NS, "path") as unknown as SVGPathElement;
+  path.setAttribute("d", d);
+  return path;
+}
+
+function svgCircle(
+  doc: Document,
+  cx: number,
+  cy: number,
+  r: number,
+): SVGCircleElement {
+  const circle = doc.createElementNS(
+    SVG_NS,
+    "circle",
+  ) as unknown as SVGCircleElement;
+  circle.setAttribute("cx", String(cx));
+  circle.setAttribute("cy", String(cy));
+  circle.setAttribute("r", String(r));
+  return circle;
+}
+
+function appendAddLinkIcon(parent: Element, doc: Document): void {
+  appendIconSvg(parent, doc, (svg) =>
+    svg.appendChild(svgPath(doc, "M8 3v10M3 8h10")),
+  );
+}
+
+function appendZoomIcon(
+  parent: Element,
+  doc: Document,
+  sign: "in" | "out",
+): void {
+  appendIconSvg(parent, doc, (svg) => {
+    svg.appendChild(svgCircle(doc, 6.5, 6.5, 4.5));
+    svg.appendChild(svgPath(doc, "M9.7 9.7l4 4"));
+    svg.appendChild(
+      svgPath(doc, sign === "in" ? "M6.5 4.3v4.4M4.3 6.5h4.4" : "M4.3 6.5h4.4"),
+    );
+  });
+}
+
+function appendFitIcon(parent: Element, doc: Document): void {
+  appendIconSvg(parent, doc, (svg) =>
+    svg.appendChild(svgPath(doc, "M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3")),
+  );
+}
+
+function appendLegendToggleIcon(parent: Element, doc: Document): void {
+  appendIconSvg(parent, doc, (svg) => {
+    svg.appendChild(svgCircle(doc, 8, 8, 6));
+    svg.appendChild(svgPath(doc, "M8 7.4v4.2"));
+    const dot = svgCircle(doc, 8, 4.6, 0.7);
+    dot.setAttribute("fill", "currentColor");
+    dot.setAttribute("stroke", "none");
+    svg.appendChild(dot);
+  });
+}
+
+type LegendSampleStyle =
+  "directional" | "undirectional" | "unknown-type" | "tie";
+
+/**
+ * A 20x8 sample of one edge style the STYLESHEET can draw, so the legend
+ * stays a picture of the actual notation rather than a prose description of
+ * it. "tie" mirrors the parent-child connector: thinner and lighter than the
+ * unknown-type dotted line, matching how they must never read alike on the
+ * graph itself.
+ */
+function appendLegendEdgeSample(
+  parent: Element,
+  doc: Document,
+  style: LegendSampleStyle,
+): void {
+  const svg = doc.createElementNS(SVG_NS, "svg") as unknown as SVGElement;
+  svg.setAttribute("viewBox", "0 0 20 8");
+  svg.setAttribute("width", "20");
+  svg.setAttribute("height", "8");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("mindmap-legend-sample-" + style);
+
+  const line = svgPath(doc, "M1 4h13");
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke-width", style === "tie" ? "1" : "1.5");
+  if (style === "directional") {
+    line.setAttribute("stroke-dasharray", "3 2");
+  } else if (style === "unknown-type" || style === "tie") {
+    line.setAttribute("stroke-dasharray", "1 2");
+  }
+  svg.appendChild(line);
+
+  if (style === "directional") {
+    const head = svgPath(doc, "M14 1.3l5 2.7-5 2.7z");
+    head.setAttribute("fill", "currentColor");
+    head.setAttribute("stroke", "none");
+    svg.appendChild(head);
+  }
+  parent.appendChild(svg as unknown as Node);
+}
+
+/** A dashed, paler ellipse: the same node style EXTERNAL_NODE_CLASS draws. */
+function appendLegendNodeSample(parent: Element, doc: Document): void {
+  const svg = doc.createElementNS(SVG_NS, "svg") as unknown as SVGElement;
+  svg.setAttribute("viewBox", "0 0 20 16");
+  svg.setAttribute("width", "20");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("aria-hidden", "true");
+  const ellipse = doc.createElementNS(
+    SVG_NS,
+    "ellipse",
+  ) as unknown as SVGEllipseElement;
+  ellipse.setAttribute("cx", "10");
+  ellipse.setAttribute("cy", "8");
+  ellipse.setAttribute("rx", "8");
+  ellipse.setAttribute("ry", "6");
+  ellipse.setAttribute("fill", "none");
+  ellipse.setAttribute("stroke-width", "1.5");
+  ellipse.setAttribute("stroke-dasharray", "3 2");
+  svg.appendChild(ellipse as unknown as Node);
+  parent.appendChild(svg as unknown as Node);
+}
+
+export const LEGEND_CLASS = "mindmap-legend";
+
+/**
+ * Every line and node style STYLESHEET can produce (AC #1), each drawn as a
+ * sample rather than described in words. Kept as one list next to the
+ * stylesheet it mirrors, so a new style added there is a visible gap here
+ * instead of a silent one.
+ */
+const LEGEND_ROWS: Array<{
+  localeId: FluentMessageId;
+  sample: (parent: Element, doc: Document) => void;
+}> = [
+  {
+    localeId: "mindmap-legend-directional",
+    sample: (parent, doc) => appendLegendEdgeSample(parent, doc, "directional"),
+  },
+  {
+    localeId: "mindmap-legend-undirectional",
+    sample: (parent, doc) =>
+      appendLegendEdgeSample(parent, doc, "undirectional"),
+  },
+  {
+    localeId: "mindmap-legend-unknown-type",
+    sample: (parent, doc) =>
+      appendLegendEdgeSample(parent, doc, "unknown-type"),
+  },
+  {
+    localeId: "mindmap-legend-parent-child-tie",
+    sample: (parent, doc) => appendLegendEdgeSample(parent, doc, "tie"),
+  },
+  {
+    localeId: "mindmap-legend-external-node",
+    sample: appendLegendNodeSample,
+  },
+];
+
+function buildLegend(doc: Document): HTMLElement {
+  const legend = doc.createElement("div");
+  legend.classList.add(LEGEND_CLASS);
+  legend.addEventListener("mousedown", (evt) => evt.stopPropagation());
+
+  const heading = doc.createElement("div");
+  heading.classList.add("mindmap-legend-heading");
+  heading.setAttribute("data-l10n-id", getLocaleID("mindmap-legend-heading"));
+  legend.appendChild(heading);
+
+  const list = doc.createElement("ul");
+  list.classList.add("mindmap-legend-list");
+  for (const row of LEGEND_ROWS) {
+    const item = doc.createElement("li");
+    item.classList.add("mindmap-legend-row");
+    row.sample(item, doc);
+    const label = doc.createElement("span");
+    label.setAttribute("data-l10n-id", getLocaleID(row.localeId));
+    item.appendChild(label);
+    list.appendChild(item);
+  }
+  legend.appendChild(list);
+  return legend;
+}
+
+export const TOOLBAR_CLASS = "mindmap-graph-toolbar";
+export const ZOOM_OUT_BUTTON_CLASS = "mindmap-zoom-out-button";
+export const ZOOM_IN_BUTTON_CLASS = "mindmap-zoom-in-button";
+export const FIT_BUTTON_CLASS = "mindmap-fit-button";
+export const LEGEND_TOGGLE_BUTTON_CLASS = "mindmap-legend-toggle-button";
+
+const ZOOM_STEP = 1.2;
+
+const LEGEND_COLLAPSED_PREF_KEY = config.prefsPrefix + ".legendCollapsed";
+
+function readLegendCollapsed(): boolean {
+  return Zotero.Prefs.get(LEGEND_COLLAPSED_PREF_KEY, true) === true;
+}
+
+function writeLegendCollapsed(collapsed: boolean): void {
+  Zotero.Prefs.set(LEGEND_COLLAPSED_PREF_KEY, collapsed, true);
+}
+
+function appendToolbarButton(
+  toolbar: HTMLElement,
+  doc: Document,
+  className: string,
+  localeId: FluentMessageId,
+  icon: (parent: Element, doc: Document) => void,
+  onClick: () => void,
+): HTMLButtonElement {
+  const button = doc.createElement("button");
+  button.classList.add("mindmap-icon-button", className);
+  button.setAttribute("data-l10n-id", getLocaleID(localeId));
+  icon(button, doc);
+  button.addEventListener("click", onClick);
+  toolbar.appendChild(button);
+  return button;
+}
+
+/**
+ * Zoom and fit touch the viewport only - cy.zoom()/cy.fit() move the camera,
+ * never a node's stored position, which is what keeps this control clear of
+ * the drag-write path entirely (AC #4).
+ */
+function attachViewControls(cy: cytoscape.Core, container: HTMLElement): void {
+  const doc = container.ownerDocument!;
+
+  const toolbar = doc.createElement("div");
+  toolbar.classList.add(TOOLBAR_CLASS);
+  toolbar.addEventListener("mousedown", (evt) => evt.stopPropagation());
+
+  appendToolbarButton(
+    toolbar,
+    doc,
+    ZOOM_OUT_BUTTON_CLASS,
+    "mindmap-zoom-out-button",
+    (parent, d) => appendZoomIcon(parent, d, "out"),
+    () => cy.zoom(cy.zoom() / ZOOM_STEP),
+  );
+  appendToolbarButton(
+    toolbar,
+    doc,
+    ZOOM_IN_BUTTON_CLASS,
+    "mindmap-zoom-in-button",
+    (parent, d) => appendZoomIcon(parent, d, "in"),
+    () => cy.zoom(cy.zoom() * ZOOM_STEP),
+  );
+  appendToolbarButton(
+    toolbar,
+    doc,
+    FIT_BUTTON_CLASS,
+    "mindmap-fit-button",
+    appendFitIcon,
+    () => cy.fit(undefined, 30),
+  );
+
+  let legend: HTMLElement | undefined;
+  function setLegendVisible(visible: boolean): void {
+    if (visible && !legend) {
+      legend = buildLegend(doc);
+      container.appendChild(legend);
+    } else if (!visible && legend) {
+      legend.remove();
+      legend = undefined;
+    }
+  }
+  setLegendVisible(!readLegendCollapsed());
+
+  appendToolbarButton(
+    toolbar,
+    doc,
+    LEGEND_TOGGLE_BUTTON_CLASS,
+    "mindmap-legend-toggle-button",
+    appendLegendToggleIcon,
+    () => {
+      const nowVisible = !legend;
+      setLegendVisible(nowVisible);
+      writeLegendCollapsed(!nowVisible);
+    },
+  );
+
+  container.appendChild(toolbar);
+}
+
 /**
  * Selects the Zotero item a node represents in the library, which switches
  * Zotero away from the mindmap tab. Only ever reached from the dock's own
@@ -576,37 +878,45 @@ export function attachNodeContextMenuHandler(
     if (!ref) {
       return;
     }
-    const menu = openMenu(cy, evt.renderedPosition);
+    const menu = openMenu(cy);
     if (!menu) {
       return;
     }
-    const addLink = appendL10nButton(menu, "add-link-button", () => {
-      closeMenu(cy);
-      showNodeInDock(dockContainer, ref, mindmapId, true);
-    });
+    const addLink = appendMenuAction(
+      menu,
+      "add-link-button",
+      appendAddLinkIcon,
+      () => {
+        closeMenu(cy);
+        showNodeInDock(dockContainer, ref, mindmapId, true);
+      },
+    );
     addLink.classList.add(NODE_MENU_ADD_LINK_CLASS);
+    positionMenuBesideNode(cy.container()!, menu, evt.target);
   });
 }
 
 export const GROUP_MENU_CLASS = "mindmap-group-menu";
+export const MENU_ACTION_CLASS = "mindmap-menu-action";
+
+const menuDismissCleanups = new WeakMap<HTMLElement, () => void>();
 
 /**
- * A small menu drawn into the graph container at the click point. A DOM popup
- * rather than a native context menu for the same reason the Connections dock
- * is one: it doesn't block, and it can hold an inline text field.
+ * A small menu drawn into the graph container, positioned once its content is
+ * built (positionMenuAt/positionMenuBesideNode). A DOM popup rather than a
+ * native context menu for the same reason the Connections dock is one: it
+ * doesn't block, and it can hold an inline text field.
  */
-function openMenu(
-  cy: cytoscape.Core,
-  at: { x: number; y: number },
-): HTMLElement | null {
+function openMenu(cy: cytoscape.Core): HTMLElement | null {
   closeMenu(cy);
   const container = cy.container();
   if (!container) {
     return null;
   }
-  const menu = container.ownerDocument!.createElement("div");
+  const doc = container.ownerDocument!;
+  const menu = doc.createElement("div");
   menu.classList.add(GROUP_MENU_CLASS);
-  menu.style.cssText = `position: absolute; left: ${at.x}px; top: ${at.y}px; z-index: 10; background: Field; color: FieldText; border: 1px solid ThreeDShadow; padding: 4px; display: flex; flex-direction: column; gap: 2px;`;
+  menu.style.cssText = "position: absolute; left: 0px; top: 0px; z-index: 10;";
   // The menu is a child of the graph container, so without this Cytoscape
   // treats a click on it as a click on the canvas: its container mousedown
   // handler calls preventDefault (the rename field can then never take focus)
@@ -617,13 +927,102 @@ function openMenu(
   // no tap is emitted for clicks inside the menu.
   menu.addEventListener("mousedown", (evt) => evt.stopPropagation());
   container.appendChild(menu);
+  attachMenuDismissal(cy, menu);
   return menu;
+}
+
+/**
+ * Escape and an outside click both close whatever menu is open (AC #7). The
+ * outside-click listener runs on the capture phase, before any target's own
+ * bubble-phase stopPropagation (including the menu's own, and the toolbar's)
+ * can suppress it, so it needs no cooperation from anything else on the page
+ * to see every mousedown.
+ */
+function attachMenuDismissal(cy: cytoscape.Core, menu: HTMLElement): void {
+  const win = menu.ownerDocument!.defaultView!;
+  function onKeyDown(evt: KeyboardEvent): void {
+    if (evt.key === "Escape") {
+      closeMenu(cy);
+    }
+  }
+  function onOutsideMouseDown(evt: Event): void {
+    if (!menu.contains(evt.target as Node)) {
+      closeMenu(cy);
+    }
+  }
+  win.addEventListener("keydown", onKeyDown);
+  win.addEventListener("mousedown", onOutsideMouseDown, true);
+  menuDismissCleanups.set(menu, () => {
+    win.removeEventListener("keydown", onKeyDown);
+    win.removeEventListener("mousedown", onOutsideMouseDown, true);
+  });
 }
 
 function closeMenu(cy: cytoscape.Core): void {
   cy.container()
     ?.querySelectorAll(`.${GROUP_MENU_CLASS}`)
-    .forEach((menu: Element) => menu.remove());
+    .forEach((menu: Element) => {
+      menuDismissCleanups.get(menu as HTMLElement)?.();
+      menuDismissCleanups.delete(menu as HTMLElement);
+      menu.remove();
+    });
+}
+
+/** Clamps a menu's top-left corner so its whole box stays inside container. */
+function positionMenuAt(
+  container: HTMLElement,
+  menu: HTMLElement,
+  x: number,
+  y: number,
+): void {
+  const maxLeft = Math.max(0, container.clientWidth - menu.offsetWidth);
+  const maxTop = Math.max(0, container.clientHeight - menu.offsetHeight);
+  menu.style.left = `${Math.min(Math.max(x, 0), maxLeft)}px`;
+  menu.style.top = `${Math.min(Math.max(y, 0), maxTop)}px`;
+}
+
+/**
+ * Places a menu to the right of the node it acts on, so it never opens on
+ * top of the thing that was just clicked (AC #6). Falls back to the node's
+ * left side when the right doesn't fit, and positionMenuAt clamps whichever
+ * side is chosen to stay inside the viewport near every edge.
+ */
+function positionMenuBesideNode(
+  container: HTMLElement,
+  menu: HTMLElement,
+  node: cytoscape.NodeSingular,
+): void {
+  const box = node.renderedBoundingBox();
+  const gap = 8;
+  let left = box.x2 + gap;
+  if (left + menu.offsetWidth > container.clientWidth) {
+    left = box.x1 - gap - menu.offsetWidth;
+  }
+  positionMenuAt(container, menu, left, box.y1);
+}
+
+/**
+ * A menu row with its own 16px icon (AC #5). The label goes on a child span
+ * rather than the button itself: a Fluent message with a value overwrites
+ * whatever element it targets, which would wipe out the icon if applied to
+ * the button directly.
+ */
+function appendMenuAction(
+  menu: HTMLElement,
+  localeId: FluentMessageId,
+  icon: (parent: Element, doc: Document) => void,
+  onClick: () => void,
+): HTMLButtonElement {
+  const doc = menu.ownerDocument!;
+  const button = doc.createElement("button");
+  button.classList.add(MENU_ACTION_CLASS);
+  icon(button, doc);
+  const label = doc.createElement("span");
+  label.setAttribute("data-l10n-id", getLocaleID(localeId));
+  button.appendChild(label);
+  button.addEventListener("click", onClick);
+  menu.appendChild(button);
+  return button;
 }
 
 /**
@@ -667,7 +1066,7 @@ export function attachGroupingHandlers(
       closeMenu(cy);
       return;
     }
-    const menu = openMenu(cy, evt.renderedPosition);
+    const menu = openMenu(cy);
     if (!menu) {
       return;
     }
@@ -675,6 +1074,12 @@ export function attachGroupingHandlers(
     appendL10nButton(menu, "mindmap-group-create", () => {
       void apply((doc) => createGroup(doc, ids));
     });
+    positionMenuAt(
+      cy.container()!,
+      menu,
+      evt.renderedPosition.x,
+      evt.renderedPosition.y,
+    );
   });
 
   cy.on("cxttap", "node", (evt) => {
@@ -682,7 +1087,7 @@ export function attachGroupingHandlers(
       return;
     }
     const groupId = evt.target.id();
-    const menu = openMenu(cy, evt.renderedPosition);
+    const menu = openMenu(cy);
     if (!menu) {
       return;
     }
@@ -698,6 +1103,12 @@ export function attachGroupingHandlers(
     appendL10nButton(menu, "mindmap-group-delete", () => {
       void apply((doc) => deleteGroup(doc, groupId));
     });
+    positionMenuAt(
+      cy.container()!,
+      menu,
+      evt.renderedPosition.x,
+      evt.renderedPosition.y,
+    );
   });
 
   // Any click that isn't opening a menu dismisses the one that's open.
@@ -751,6 +1162,14 @@ export async function renderMindmap(
   const win = container.ownerDocument!.defaultView!;
   ensureDocumentHead(container.ownerDocument!);
   ensureCytoscapeWindowGlobals(win);
+  // A live-refresh rebuild destroys the old Cytoscape instance but leaves any
+  // DOM this module added beside it untouched, since cy.destroy() only
+  // unbinds what Cytoscape itself created.
+  container
+    .querySelectorAll(
+      `.${TOOLBAR_CLASS}, .${LEGEND_CLASS}, .${GROUP_MENU_CLASS}`,
+    )
+    .forEach((el: Element) => el.remove());
 
   const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
   const parallelOffsets = computeParallelOffsets(doc.links);
@@ -780,6 +1199,7 @@ export async function renderMindmap(
     layout: { name: "preset" },
   });
   observeContainerSize(cy, container, win);
+  attachViewControls(cy, container);
   attachNodeClickHandler(cy, nodeRefsById, dockContainer, doc.id);
   attachNodeDragHandler(cy, doc.id, rendered);
   attachGroupingHandlers(cy, doc.id);
