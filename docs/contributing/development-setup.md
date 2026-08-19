@@ -52,10 +52,10 @@ Install Node. Everything else (`zotero-plugin-scaffold` 0.8.x, esbuild, TypeScri
 
 `zotero-plugin serve` passes `no-remote` when it spawns Zotero, but a Zotero process left over from a crashed session, or one you launched normally, can still end up holding the profile. What you see is a build that succeeds while the running Zotero cheerfully keeps showing the old behavior, so your fix looks like it did nothing at all.
 
-`npm start` already guards against this. `prestart` runs `scripts/clean-dev-profile.mjs`, which issues `pkill -9 -f zotero-bin` before the server starts. If you invoke `npx zotero-plugin serve` directly, or you're on a platform where that `pkill` invocation doesn't match, run it yourself first:
+`npm start` already guards against this. `prestart` runs `scripts/clean-dev-profile.mjs`, which kills the Zotero holding the profile named in your `.env` before the server starts. It leaves every other Zotero alone: another checkout's dev instance, a test run, and your own library all survive it. If you invoke `npx zotero-plugin serve` directly, run the cleanup yourself first:
 
 ```sh
-pkill -9 -f zotero-bin
+npm run clean:profile
 ```
 
 The same script also strips leftover tabs whose `type` starts with `zoterolinkedmindmaps-` out of `<profile>/session.json`. Zotero restores session tabs before plugins register their tab types, so a stale mindmap tab from a previous run can crash startup inside core `tabs.js` or `itemTree.js`, with an error that looks like it has nothing to do with your change.

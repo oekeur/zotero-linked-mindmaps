@@ -37,7 +37,7 @@ Run the verification gate:
 scripts/verify.sh
 ```
 
-It runs build, lint, and a live-Zotero startup check, cheapest stage first, and reports every stage that failed rather than stopping at the first. `--no-test` stops before Zotero is launched; `--test-only` runs the live stage alone. It refuses the live stage while a non-test Zotero is running, because that stage force-kills by process name and would take your dev instance down with it.
+It runs build, lint, and a live-Zotero startup check, cheapest stage first, and reports every stage that failed rather than stopping at the first. `--no-test` stops before Zotero is launched; `--test-only` runs the live stage alone. You can run it with a dev Zotero from `npm start` open: the live stage kills its own process group rather than every Zotero it can find.
 
 **If your change touches XUL, Cytoscape, or the live Zotero API, drive it manually as well.** None of that surface is unit-testable here, and its failures are silent rather than thrown: no exception, no console error, just a panel that doesn't render or a plugin that never loads. Run `npm start`, exercise the change, confirm the plugin still lists under Tools -> Plugins, and check Debug Output for "Error running bootstrap method".
 
