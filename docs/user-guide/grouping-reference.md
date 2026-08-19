@@ -20,7 +20,7 @@ A node is in at most one group. Grouping a node that is already in another group
 
 That falls out of how a group is drawn (a graph node has one parent container) rather than from a product decision, so it is the first thing that would have to change if overlapping groups were ever wanted.
 
-A group needs two or more nodes to be created. The grouping menu does not appear for a single selected node: a group of one says nothing the node does not already say.
+A group needs two or more nodes to be created; two is enough. The grouping menu does not appear for a single selected node: a group of one says nothing the node does not already say.
 
 A group can end up with one member afterwards, by removing the others from it. It still renders.
 
@@ -36,16 +36,18 @@ The region cannot be dragged. Dragging it would carry every member along and rew
 
 Clicking a group's region does nothing: there is no Zotero item behind it, so it does not open the dock. Right-clicking it opens the group menu.
 
+"Group selected nodes" is reached from a node's own right-click menu, alongside "Add link", rather than from a right-click on empty canvas: right-click one of the selected nodes, not the space around them.
+
 A selected node - shift-clicked, or caught in a shift-drag box - gets a highlighted border. That's the only feedback selection gives before you group anything, so it's what to check if a click or drag seems to have done nothing.
 
 ## Controls
 
-| Where                                                   | Control                        | Effect                                                                      |
-| ------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------- |
-| Right-click on empty canvas, two or more nodes selected | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
-| Right-click on a group's region                         | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
-| Right-click on a group's region                         | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
-| Mindmaps section, for a node in a group                 | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
+| Where                                                        | Control                        | Effect                                                                      |
+| ------------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------- |
+| Right-click a node that's part of a selection of two or more | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
+| Right-click on a group's region                              | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
+| Right-click on a group's region                              | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
+| Mindmaps section, for a node in a group                      | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
 
 Everything above is mouse-driven; there are no keyboard equivalents.
 

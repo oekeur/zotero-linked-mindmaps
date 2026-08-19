@@ -514,20 +514,41 @@ describe("mindmap/graphRenderer", function () {
     let otherArticle: Zotero.Item;
     let dockContainer: HTMLDivElement;
     let cxttapHandler: (evt: {
-      target: { id(): string; data(key: string): unknown };
+      target: {
+        id(): string;
+        data(key: string): unknown;
+        selected(): boolean;
+      };
     }) => void;
 
     let graphContainer: HTMLDivElement;
 
+    // Mirrors cy.$("node:selected") closely enough for attachNodeContextMenuHandler's
+    // use of it: a collection whose .filter() and .map() chain.
+    function collection(nodeIds: string[]): unknown {
+      const nodes = nodeIds.map((id) => ({
+        id: () => id,
+        data: () => undefined,
+      }));
+      return {
+        length: nodes.length,
+        filter: (predicate: (node: unknown) => boolean) =>
+          collection(nodes.filter(predicate).map((node) => node.id())),
+        map: (fn: (node: unknown) => unknown) => nodes.map(fn),
+      };
+    }
+
     // The shape a Cytoscape node event actually has. `data` matters here: the
     // handler asks whether the target is a group container before doing
-    // anything else, and `renderedBoundingBox` is what the menu positions
-    // itself against.
-    function nodeEvent(id: string, isGroup = false) {
+    // anything else, `selected` decides whether the grouping action is
+    // offered, and `renderedBoundingBox` is what the menu positions itself
+    // against.
+    function nodeEvent(id: string, isGroup = false, selected = false) {
       return {
         target: {
           id: () => id,
           data: () => isGroup || undefined,
+          selected: () => selected,
           renderedBoundingBox: () => ({
             x1: 0,
             y1: 0,
@@ -575,10 +596,15 @@ describe("mindmap/graphRenderer", function () {
     });
 
     // The menu is drawn into the graph container, so the fake has to offer one
-    // the way a real Core does.
-    function fakeCy(): cytoscape.Core {
+    // the way a real Core does. selectedNodeIds answers cy.$("node:selected"),
+    // the same way attachGroupingHandlers' fake does.
+    function fakeCy(selectedNodeIds: string[] = []): cytoscape.Core {
       return {
         container: () => graphContainer,
+        $: (selector: string) =>
+          selector === "node:selected"
+            ? collection(selectedNodeIds)
+            : collection([]),
         on(
           events: string,
           _selector: string,
@@ -654,6 +680,50 @@ describe("mindmap/graphRenderer", function () {
     // container binding, which it removes on destroy - the handler no longer
     // adds one of its own, since a per-render listener would outlive every
     // rebuild. Nothing a fake Core can observe, so there is no test for it.
+
+    function groupButton(): HTMLButtonElement | null {
+      return graphContainer.querySelector(
+        `.${GROUP_MENU_CLASS} button[data-l10n-id="${config.addonRef}-mindmap-group-create"]`,
+      );
+    }
+
+    it('offers "Group selected nodes" on a node that is itself part of a two-node selection (AC #7)', function () {
+      attachNodeContextMenuHandler(
+        fakeCy(["n1", "n2"]),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
+
+      cxttapHandler(nodeEvent("n1", false, true));
+
+      assert.isNotNull(menuButton(), "Add link should still be offered too");
+      assert.isNotNull(groupButton(), "no group-create action offered");
+    });
+
+    it("does not offer grouping when the right-clicked node itself is not selected, even with two others selected", function () {
+      attachNodeContextMenuHandler(
+        fakeCy(["n2", "n3"]),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
+
+      cxttapHandler(nodeEvent("n1", false, false));
+
+      assert.isNotNull(menuButton());
+      assert.isNull(groupButton());
+    });
+
+    it("does not offer grouping for a selection of only one node", function () {
+      attachNodeContextMenuHandler(
+        fakeCy(["n1"]),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
+
+      cxttapHandler(nodeEvent("n1", false, true));
+
+      assert.isNull(groupButton());
+    });
   });
 
   describe("attachLiveRefresh", function () {
@@ -1791,5 +1861,193 @@ describe("mindmap/graphRenderer", function () {
         outside.remove();
       }
     });
+  });
+
+  describe("grouping from the node context menu, driven by real Cytoscape gestures (AC #7)", function () {
+    let article: Zotero.Item;
+    let otherArticle: Zotero.Item;
+    let dock: HTMLDivElement;
+    let container: HTMLDivElement;
+    let cy: cytoscape.Core | undefined;
+
+    function twoNodeDoc(): MindmapDocument {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-node-menu-group-test",
+        title: "Node menu grouping",
+        nodes: [
+          {
+            membership: "member",
+            id: "n1",
+            position: { x: 60, y: 60 },
+            ref: {
+              kind: "item",
+              libraryID: article.libraryID,
+              key: article.key,
+            },
+          },
+          {
+            membership: "member",
+            id: "n2",
+            position: { x: 220, y: 60 },
+            ref: {
+              kind: "item",
+              libraryID: otherArticle.libraryID,
+              key: otherArticle.key,
+            },
+          },
+        ],
+        links: [],
+      };
+    }
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Node Menu Group Test Article 1");
+      await article.saveTx();
+
+      otherArticle = new Zotero.Item("journalArticle");
+      otherArticle.libraryID = Zotero.Libraries.userLibraryID;
+      otherArticle.setField("title", "Node Menu Group Test Article 2");
+      await otherArticle.saveTx();
+
+      const doc = Zotero.getMainWindow().document;
+      dock = doc.createElement("div");
+      dock.style.display = "none";
+      doc.documentElement.appendChild(dock);
+      container = doc.createElement("div");
+      container.style.cssText =
+        "position: relative; width: 400px; height: 300px;";
+      doc.documentElement.appendChild(container);
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      cy?.destroy();
+      cy = undefined;
+      container.remove();
+      dock.remove();
+      await article.eraseTx();
+      await otherArticle.eraseTx();
+      await clearStorageNotes();
+    });
+
+    function win(): Window {
+      return container.ownerDocument!.defaultView as unknown as Window;
+    }
+
+    function canvas(): HTMLCanvasElement {
+      return container.querySelector("canvas")!;
+    }
+
+    // A genuine pointer gesture through the DOM, not cy.emit(): Cytoscape's
+    // eventInContainer gate requires the event target to be a descendant of
+    // the container (dispatching on the container itself is silently
+    // dropped), which the canvas is. clientX/clientY are the container's own
+    // bounding rect plus a rendered-space offset - renderedPosition() is
+    // already that offset pushed through the live pan/zoom transform, so
+    // this lands exactly on the node regardless of viewport state.
+    function dispatchAt(
+      type: string,
+      x: number,
+      y: number,
+      init: Record<string, unknown>,
+    ): void {
+      const rect = container.getBoundingClientRect();
+      const MouseEventCtor = (win() as any).MouseEvent;
+      const evt = new MouseEventCtor(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + x,
+        clientY: rect.top + y,
+        ...init,
+      });
+      // Cytoscape reads the legacy `which` field directly; some engines
+      // don't route the constructor's init dict to it, so set it explicitly
+      // too rather than depend on constructor support alone.
+      try {
+        Object.defineProperty(evt, "which", {
+          value: init.which,
+          configurable: true,
+        });
+      } catch {
+        // read-only in this engine; the init dict value is the fallback.
+      }
+      canvas().dispatchEvent(evt);
+    }
+
+    function leftClick(
+      x: number,
+      y: number,
+      init: Record<string, unknown> = {},
+    ): void {
+      dispatchAt("mousedown", x, y, { button: 0, which: 1, ...init });
+      dispatchAt("mouseup", x, y, { button: 0, which: 1, ...init });
+    }
+
+    function rightClick(x: number, y: number): void {
+      dispatchAt("mousedown", x, y, { button: 2, which: 3 });
+      dispatchAt("mouseup", x, y, { button: 2, which: 3 });
+    }
+
+    it("offers Group selected nodes on a node that is part of a real two-node selection, and grouping it writes the group", async function () {
+      this.timeout(30000);
+      try {
+        await runGroupFromNodeMenuGesture();
+      } catch (err) {
+        // The test harness ships thrown errors to the reporter via
+        // JSON.stringify, which drops a native Error's non-enumerable
+        // `message` - assert.fail's message is a plain enumerable property,
+        // so it survives that trip and the real cause is visible.
+        assert.fail(
+          `${(err as Error)?.message ?? err}\n${(err as Error)?.stack ?? ""}`,
+        );
+      }
+    });
+
+    async function runGroupFromNodeMenuGesture(): Promise<void> {
+      const doc = twoNodeDoc();
+      await writeMindmapDocument(doc);
+      cy = await renderMindmap(container, doc, [], dock);
+      cy.zoom(1);
+      cy.pan({ x: 0, y: 0 });
+      cy.resize();
+
+      const n1 = cy.getElementById("n1").renderedPosition();
+      const n2 = cy.getElementById("n2").renderedPosition();
+
+      leftClick(n1.x, n1.y);
+      leftClick(n2.x, n2.y, { shiftKey: true });
+      assert.equal(
+        cy.$("node:selected").length,
+        2,
+        "the real shift-click gesture did not select both nodes",
+      );
+
+      rightClick(n1.x, n1.y);
+
+      const groupButton = container.querySelector(
+        `.${GROUP_MENU_CLASS} button[data-l10n-id="${config.addonRef}-mindmap-group-create"]`,
+      ) as HTMLButtonElement | null;
+      assert.isNotNull(
+        groupButton,
+        "no group-create action offered from a real right-click on a selected node",
+      );
+
+      groupButton!.click();
+      await whenStorageIdle();
+
+      const written = await readMindmapDocument("doc-node-menu-group-test");
+      assert.equal(written.groups?.length, 1, "grouping did not write a group");
+      const groupId = written.groups![0].id;
+      assert.sameMembers(
+        written.nodes
+          .filter((node) => node.groupId === groupId)
+          .map((node) => node.id),
+        ["n1", "n2"],
+      );
+    }
   });
 });
