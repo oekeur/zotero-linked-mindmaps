@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Cleans dev-profile state that causes silent breakage between npm start runs:
-// - stale zotero-bin process left running after a crash or manifest error
-//   (masks fixes because `zotero-plugin serve` reuses it instead of launching fresh)
+// - a Zotero left running against this checkout's dev profile after a crash or
+//   manifest error (masks fixes because `zotero-plugin serve` reuses it instead
+//   of launching fresh)
 // - leftover custom-tab entries in session.json for this addon's tab types
 //   (Zotero restores them before the plugin registers the type, crashing startup)
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -24,12 +25,38 @@ function parseEnvFile(envPath) {
   return vars;
 }
 
-function killStaleZotero() {
+// Kills only the Zotero holding this checkout's dev profile. The scaffold
+// launches it with `-profile <resolved path>` (ZoteroRunner.startZoteroInstance
+// in zotero-plugin-scaffold), and that argument is the only thing separating it
+// from another worktree's dev instance, a concurrent test run, and the user's
+// own library. `pkill -9 -f zotero-bin` stood here and killed all of them.
+function killDevZotero(profilePath) {
+  let listing;
   try {
-    execSync("pkill -9 -f zotero-bin", { stdio: "ignore" });
-    console.log("clean-dev-profile: killed stale zotero-bin process");
+    listing = execSync("ps -ww -e -o pid=,args=", { encoding: "utf8" });
   } catch {
-    // pkill exits 1 when no matching process is found — nothing to clean
+    console.warn("clean-dev-profile: ps failed, skipping the process check");
+    return;
+  }
+
+  for (const line of listing.split("\n")) {
+    const match = line.match(/^\s*(\d+)\s+(\S+)\s*(.*)$/);
+    if (!match) continue;
+    const [, pid, binary, args] = match;
+    // Match on argv[0] rather than the whole line: any shell command that
+    // merely mentions zotero-bin or the profile path matches its own command
+    // line, and killing one of those would be worse than missing a cleanup.
+    if (!/\/zotero(-bin)?$/.test(binary)) continue;
+    if (!args.includes(`-profile ${profilePath}`)) continue;
+
+    try {
+      process.kill(Number(pid), "SIGKILL");
+      console.log(
+        `clean-dev-profile: killed the dev Zotero holding ${profilePath} (pid ${pid})`,
+      );
+    } catch {
+      // ESRCH: it exited between the listing and the kill. EPERM: not ours.
+    }
   }
 }
 
@@ -64,12 +91,19 @@ const pkg = JSON.parse(
 );
 const env = parseEnvFile(path.join(rootDir, ".env"));
 
-killStaleZotero();
+// Resolved the way the scaffold resolves it, so the string compared against
+// the running process's arguments is the same one it was launched with.
+const profilePath = env.ZOTERO_PLUGIN_PROFILE_PATH
+  ? path.resolve(env.ZOTERO_PLUGIN_PROFILE_PATH)
+  : null;
 
-if (env.ZOTERO_PLUGIN_PROFILE_PATH) {
-  cleanSessionTabs(env.ZOTERO_PLUGIN_PROFILE_PATH, pkg.config.addonRef);
+if (profilePath) {
+  killDevZotero(profilePath);
+  cleanSessionTabs(profilePath, pkg.config.addonRef);
 } else {
+  // Without the profile path there is nothing to identify our own instance by,
+  // so killing anything here would be a guess.
   console.warn(
-    "clean-dev-profile: ZOTERO_PLUGIN_PROFILE_PATH not set in .env, skipping session.json cleanup",
+    "clean-dev-profile: ZOTERO_PLUGIN_PROFILE_PATH not set in .env, skipping the process check and session.json cleanup",
   );
 }

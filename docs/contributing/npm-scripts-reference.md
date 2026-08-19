@@ -27,10 +27,10 @@ node scripts/clean-dev-profile.mjs
 
 Two cleanups against the dev profile named in `.env`:
 
-1. Runs `pkill -9 -f zotero-bin`. Logs `clean-dev-profile: killed stale zotero-bin process` on a match; a `pkill` exit code of 1 (no match) is swallowed.
+1. Kills the Zotero holding this checkout's dev profile, and nothing else. It reads `ps -ww -e -o pid=,args=`, keeps the processes whose `argv[0]` ends in `zotero` or `zotero-bin`, and among those kills the ones carrying `-profile <resolved profile path>` — the argument `zotero-plugin serve` launches with (`ZoteroRunner.startZoteroInstance` in `zotero-plugin-scaffold`). Logs `clean-dev-profile: killed the dev Zotero holding <path> (pid N)`. Zotero's `-contentproc` children carry no `-profile` of their own and are not matched; they exit with the parent. Matching on `argv[0]` rather than the whole line keeps a shell command that merely mentions the path from matching itself.
 2. Reads `ZOTERO_PLUGIN_PROFILE_PATH` from `.env`, opens `<profile>/session.json`, and drops every tab whose `type` starts with `zoterolinkedmindmaps-` (the `config.addonRef` value plus a hyphen). If it removed tabs and none of the survivors is marked `selected`, it selects the last remaining tab, then rewrites `session.json`.
 
-If `ZOTERO_PLUGIN_PROFILE_PATH` is absent from `.env`, the script logs `clean-dev-profile: ZOTERO_PLUGIN_PROFILE_PATH not set in .env, skipping session.json cleanup` and skips step 2. It still does step 1. A missing `session.json` is not an error.
+If `ZOTERO_PLUGIN_PROFILE_PATH` is absent from `.env`, the script logs `clean-dev-profile: ZOTERO_PLUGIN_PROFILE_PATH not set in .env, skipping the process check and session.json cleanup` and does neither. Both steps identify the profile by that path, and killing a Zotero without it would be a guess at which one is yours. A missing `session.json` is not an error.
 
 Run it directly when you want the cleanup without launching Zotero.
 

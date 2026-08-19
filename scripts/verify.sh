@@ -62,22 +62,6 @@ pid_cmdline() {
   tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null || true
 }
 
-# Kept from when `npm run test:fast` cleaned up with `pkill -9 -f zotero-bin`
-# and would have killed every Zotero on the machine. It now kills only its own
-# process group, so this guard no longer protects anything and could go; until
-# it does, it is why the gate declines to run while `npm start` is up. A test
-# instance is identifiable by its profile path; anything else is not.
-live_zotero_outside_tests() {
-  local pid cmd
-  for pid in $(zotero_pids); do
-    cmd="$(pid_cmdline "$pid")"
-    case "$cmd" in
-      *scaffold/test*) ;;
-      *) printf '%s %s\n' "$pid" "$cmd" ;;
-    esac
-  done
-}
-
 # A test instance left behind by an interrupted run holds the profile the next
 # run wants. Safe to kill: the path proves it belongs to a test run. Killed by
 # PID rather than `pkill -f`, which would also match an unrelated shell.
@@ -102,19 +86,13 @@ if [ "$RUN_STATIC" = 1 ]; then
   run_stage lint npm run lint:check
 fi
 
+# Safe next to a dev Zotero from `npm start`: `npm run test:fast` kills its own
+# process group and the test profile is CWD-relative, so the dev instance is
+# left alone. clear_stale_test_zotero below still matches any `scaffold/test`
+# profile, including another worktree's in-flight test run.
 if [ "$RUN_TEST" = 1 ]; then
-  STRAY="$(live_zotero_outside_tests)"
-  if [ -n "$STRAY" ]; then
-    say "test"
-    warn "a Zotero instance is running that is not a test profile:"
-    printf '%s\n' "$STRAY" | sed 's/^/      /' >&2
-    warn "this guard predates test:fast killing by process group and is now"
-    warn "redundant. Close the instance, or run scripts/verify.sh --no-test."
-    FAILED+=("test (refused: live Zotero)")
-  else
-    clear_stale_test_zotero
-    run_stage test npm run test:fast
-  fi
+  clear_stale_test_zotero
+  run_stage test npm run test:fast
 fi
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
