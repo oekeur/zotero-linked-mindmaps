@@ -176,7 +176,7 @@ export function attachNodeDragHandler(
 
 Persists where dragged nodes land.
 
-Registers a `dragfree` handler on nodes. Each event copies the node's `x`/`y` into a pending map and schedules a microtask flush; a gesture moving N selected nodes emits N `dragfree` events in one tick and produces one flush. The flush calls the module-private `persistNodePositions`, which goes through [`updateMindmapDocument`](storage-reference.md) rather than a read/write pair, writes only nodes whose coordinates actually changed, returns `null` from the mutator (writing nothing) when none did, and records the serialized result into `rendered.document` before the write resolves. A failed write is caught and reported through `Zotero.debug` with the prefix `[zoteroLinkedMindmaps]`.
+Registers a `dragfree` handler on nodes. Each event copies the node's `x`/`y` into a pending map and schedules a microtask flush; a gesture moving N selected nodes emits N `dragfree` events in one tick and produces one flush. The flush calls the module-private `persistNodePositions`, which goes through [`updateMindmapDocument`](storage-reference.md) rather than a read/write pair, writes only nodes whose coordinates actually changed, returns `null` from the mutator (writing nothing) when none did, and records the serialized result into `rendered.document` before the write resolves. A failed write is caught and reported through `logFailure` with the prefix `[zoteroLinkedMindmaps]`.
 
 Returns nothing. Reading `node.position()` copies the coordinates out rather than storing the object Cytoscape hands back, which Cytoscape owns and mutates.
 
@@ -218,7 +218,7 @@ A `cxttap` on a node whose `data("isGroup")` is truthy opens a menu holding a te
 
 A `tap` on anything closes the open menu.
 
-Every mutation runs through a shared `apply` helper that closes the menu, calls `updateMindmapDocument(mutate, mindmapId)`, and reports a failure through `Zotero.debug`. Nothing redraws directly: the write fires a modify notification and `attachLiveRefresh` rebuilds from what was stored.
+Every mutation runs through a shared `apply` helper that closes the menu, calls `updateMindmapDocument(mutate, mindmapId)`, and reports a failure through `logFailure`. Nothing redraws directly: the write fires a modify notification and `attachLiveRefresh` rebuilds from what was stored.
 
 The menu element stops `mousedown` from propagating. Without that, Cytoscape's container `mousedown` handler calls `preventDefault` (the rename field can then never take focus) and arms the capture flag its window-level `mouseup` handler needs to emit `tap`, and the `tap` handler above would remove the menu during `mouseup`, before the button's own `click` is dispatched.
 
@@ -277,7 +277,7 @@ Keeps the drawn graph in step with the storage note without a plugin reload.
 
 Registers a `Zotero.Notifier` observer over `["item"]` under the id `zoterolinkedmindmaps-mindmap-live-refresh`. The observer ignores everything but a `modify` on `item` whose id list contains `storageNoteItemID`, then schedules a rebuild.
 
-A rebuild reads the note by item id (never by an id-less mindmap lookup, which would resolve to whichever mindmap sorts first), calls `refreshNote` before reading because the notification arrives while Zotero's cache may still lag, and compares `serializeDocument(doc)` against `rendered.document`. Equal means the graph already shows this, and nothing redraws. Otherwise it destroys the current instance, calls `renderMindmap` with the same container, link types, dock and state box, and then `layoutUnplacedNodes`. Failures are caught and reported through `Zotero.debug`.
+A rebuild reads the note by item id (never by an id-less mindmap lookup, which would resolve to whichever mindmap sorts first), calls `refreshNote` before reading because the notification arrives while Zotero's cache may still lag, and compares `serializeDocument(doc)` against `rendered.document`. Equal means the graph already shows this, and nothing redraws. Otherwise it destroys the current instance, calls `renderMindmap` with the same container, link types, dock and state box, and then `layoutUnplacedNodes`. Failures are caught and reported through `logFailure`.
 
 Scheduling runs one rebuild at a time and runs another straight after when a notification arrived while the first was in flight, so a prune that lands mid-rebuild is not dropped.
 

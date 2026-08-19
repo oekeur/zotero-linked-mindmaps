@@ -266,7 +266,7 @@ interface MindmapSummary {
 function readAllMindmaps(libraryID?: number): Promise<StoredMindmap[]>;
 ```
 
-Every mindmap in the library, in storage-note id order. A note whose content does not parse or does not validate is skipped and logged through `Zotero.debug`, not thrown: one corrupt mindmap must not make the others unlistable. The test suite asserts a note holding `{not valid json` drops out of the listing while a good one still appears.
+Every mindmap in the library, in storage-note id order. A note whose content does not parse or does not validate is skipped and logged through `logFailure`, not thrown: one corrupt mindmap must not make the others unlistable. The test suite asserts a note holding `{not valid json` drops out of the listing while a good one still appears.
 
 Does not call `refreshNote`, so a document written moments earlier through a path that did not go through the queue may still read stale. No side effects: notably, it never creates a storage note, which is why `deletionCleanup` and `crossMindmapCleanup` use it instead of `readMindmapDocument`.
 

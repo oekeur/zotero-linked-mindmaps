@@ -22,9 +22,9 @@ It refuses the whole document. `parseMindmapDocument` returns `{ok: false, error
 
 That is the right call for the same reason the schema carries a version. A partially-read document is a document that will be written back, and writing back a document with the fields the reader didn't understand stripped out destroys them permanently in a synced store. You can recover from a refusal to read. You cannot recover from reading badly and then saving.
 
-The refusal is graded by caller rather than by the parser. `readDocumentFromNote` throws a `StorageError` with reason `invalid-schema`, so a call site that needs one specific mindmap fails loudly. `readAllMindmaps` catches that, logs the note id through `Zotero.debug`, and skips it, so one corrupt note doesn't make the rest of the library's mindmaps unlistable. Nothing writes to a note that failed to parse, which is what leaves the door open to recovering the data by hand or with a later plugin version.
+The refusal is graded by caller rather than by the parser. `readDocumentFromNote` throws a `StorageError` with reason `invalid-schema`, so a call site that needs one specific mindmap fails loudly. `readAllMindmaps` catches that, logs the note id through `logFailure`, and skips it, so one corrupt note doesn't make the rest of the library's mindmaps unlistable. Nothing writes to a note that failed to parse, which is what leaves the door open to recovering the data by hand or with a later plugin version.
 
-There is a gap in that arrangement, and it is a real one: the skip is a debug line. A user whose mindmap stops appearing in the list gets no message telling them why, and no pointer at the note that broke.
+There is a gap in that arrangement, and it is a real one: the skip only reaches `Zotero.getErrors()`, not the interface. A user whose mindmap stops appearing in the list gets no message telling them why, and no pointer at the note that broke, unless they know to check Help -> Report Errors.
 
 ## What the parser deliberately does not check
 

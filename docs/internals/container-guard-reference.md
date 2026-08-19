@@ -22,7 +22,7 @@ Runs `reconcileContainer` once per library the user can write to, and warns abou
 
 Iterates `Zotero.Libraries.getAll()` and skips every library whose `editable` flag is false, so read-only group libraries are left alone. For each remaining library it awaits `reconcileContainer(library.libraryID)`; a `"trashed"` result raises a warning built from the `container-trashed-startup` locale string.
 
-Never rejects. A throw from any one library is caught, logged through `Zotero.debug` with that library's id, and the loop moves on.
+Never rejects. A throw from any one library is caught, logged through `logFailure` (`Zotero.logError`, see [logging-reference.md](logging-reference.md)) with that library's id, and the loop moves on.
 
 Libraries are processed one at a time, in `getAll()` order, and each call goes through the storage queue.
 
@@ -48,7 +48,7 @@ Of what remains, an item tagged `CONTAINER_TAG` warns with `container-trashed-no
 
 The container short-circuit is why one batch never produces two popups. Trashing a container takes every note under it out of reach, so the container message is the accurate one even when the same batch also names notes, and the per-note message would understate what just happened.
 
-Errors inside the detached task are caught and logged through `Zotero.debug`.
+Errors inside the detached task are caught and logged through `logFailure`.
 
 Called from `onStartup`; the returned handle is held in `hooks.ts` and passed to `unregisterContainerObserver` on shutdown.
 

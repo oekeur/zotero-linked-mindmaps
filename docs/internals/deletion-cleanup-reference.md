@@ -30,7 +30,7 @@ The observer's `notify` returns `void`, never a promise, and must keep doing so.
 
 Events other than `"delete"` on type `"item"` return immediately.
 
-For a delete, the work is started as a detached async task that first awaits `Zotero.Promise.delay(0)`. The turn's delay is deliberate: the reads that follow must see the state the transaction leaves behind, not the one it is still committing. Any error in the detached task is caught and logged through `Zotero.debug`.
+For a delete, the work is started as a detached async task that first awaits `Zotero.Promise.delay(0)`. The turn's delay is deliberate: the reads that follow must see the state the transaction leaves behind, not the one it is still committing. Any error in the detached task is caught and logged through `logFailure`.
 
 ### Reading the notification
 

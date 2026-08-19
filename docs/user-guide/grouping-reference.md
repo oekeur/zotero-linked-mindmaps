@@ -36,7 +36,7 @@ The region cannot be dragged. Dragging it would carry every member along and rew
 
 Clicking a group's region does nothing: there is no Zotero item behind it, so it does not open the dock. Right-clicking it opens the group menu.
 
-"Group selected nodes" is reached from a node's own right-click menu, alongside "Add link", rather than from a right-click on empty canvas: right-click one of the selected nodes, not the space around them.
+"Group selected nodes" is reached two ways: right-click one of the selected nodes (it appears alongside "Add link"), or right-click empty canvas while two or more nodes are selected. Right-clicking a node that is not part of the selection offers only "Add link".
 
 A selected node - shift-clicked, or caught in a shift-drag box - gets a highlighted border. That's the only feedback selection gives before you group anything, so it's what to check if a click or drag seems to have done nothing.
 
@@ -45,13 +45,14 @@ A selected node - shift-clicked, or caught in a shift-drag box - gets a highligh
 | Where                                                        | Control                        | Effect                                                                      |
 | ------------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------- |
 | Right-click a node that's part of a selection of two or more | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
+| Right-click empty canvas with a selection of two or more     | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
 | Right-click on a group's region                              | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
 | Right-click on a group's region                              | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
 | Mindmaps section, for a node in a group                      | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
 
 Everything above is mouse-driven; there are no keyboard equivalents.
 
-A grouping change is saved immediately and the graph redraws from what was stored. A failed save is reported only to Zotero's debug output, so a change that did not land reverts on screen with no message.
+A grouping change is saved immediately and the graph redraws from what was stored. A failed save is logged but not shown in the interface, so a change that did not land reverts on screen with no message.
 
 ## Related
 

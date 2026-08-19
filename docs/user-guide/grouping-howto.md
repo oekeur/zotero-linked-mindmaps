@@ -8,12 +8,12 @@ All of it happens on the graph canvas in the Mindmap tab.
 
 1. Open the mindmap in the Mindmap tab.
 2. Select the nodes: Shift-click each one in turn, or hold Shift and drag a box across them. Each selected node gets a highlighted border, so you can see the selection growing as you go.
-3. Right-click one of the selected nodes.
-4. Click "Group selected nodes", next to "Add link".
+3. Right-click one of the selected nodes, or right-click empty canvas.
+4. Click "Group selected nodes". From a selected node, it appears next to "Add link"; from empty canvas, it's the only item on the menu.
 
 A dashed region appears around the nodes. It has no name yet, so its label is blank. Renaming it is the next section.
 
-Two nodes is enough to group. Right-clicking a node that isn't itself part of the selection only offers "Add link" - right-click one of the selected nodes, not empty canvas.
+Two nodes is enough to group. Right-clicking a node that isn't itself part of the selection only offers "Add link" - to reach "Group selected nodes" from a node, right-click one of the selected ones.
 
 Your nodes stay exactly where they were. Grouping never rearranges anything.
 

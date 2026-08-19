@@ -44,7 +44,7 @@ The reason is hot reload. `npm start` reinstalls the plugin into a running Zoter
 
 A Zotero release can break this in two ways, and the code is built for both.
 
-If the method is gone or is no longer a function, `registerLibraryFilter()` logs through `Zotero.debug` and returns without patching anything. The plugin runs, and the container row is visible.
+If the method is gone or is no longer a function, `registerLibraryFilter()` logs through `logFailure` and returns without patching anything. The plugin runs, and the container row is visible.
 
 If the method is still there but the wrap throws (a condition name changed, `setScope` behaves differently, the row shape moved), the `catch` inside the replacement logs and returns the original search. One visible row, rather than an item tree that renders nothing.
 
