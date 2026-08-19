@@ -5,6 +5,7 @@
  * in schema.ts), never by label, so renaming a type's label never orphans a link.
  */
 import { config } from "../../../package.json";
+import { logFailure } from "../../utils/logging";
 
 export interface LinkType {
   id: string;
@@ -54,10 +55,17 @@ export function getLinkTypes(): LinkType[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    logFailure(
+      `[zoteroLinkedMindmaps] link-types pref would not parse, falling back to defaults: ${(err as Error).message}`,
+      err,
+    );
     return DEFAULT_LINK_TYPES;
   }
   if (!Array.isArray(parsed) || !parsed.every(isLinkType)) {
+    logFailure(
+      "[zoteroLinkedMindmaps] link-types pref has an unexpected shape, falling back to defaults",
+    );
     return DEFAULT_LINK_TYPES;
   }
   return parsed;

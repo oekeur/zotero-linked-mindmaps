@@ -18,6 +18,7 @@ import {
   updateMindmapDocument,
   StorageError,
 } from "./storage";
+import { logFailure, logTrace } from "../../utils/logging";
 import { pruneDanglingExternalNodes } from "./crossMindmapCleanup";
 import { withoutNodes } from "./mutations";
 
@@ -76,7 +77,7 @@ async function pruneLibrary(
       if (err instanceof StorageError) {
         // A mindmap that vanished or stopped parsing between the listing and
         // the update is not a reason to skip the rest of them.
-        Zotero.debug(
+        logTrace(
           `[zoteroLinkedMindmaps] deletion cleanup: could not update mindmap ${mindmap.id}: ${err.message}`,
         );
         continue;
@@ -146,8 +147,9 @@ function notify(
       await Zotero.Promise.delay(0);
       await handleDelete(ids, extraData);
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] deletion cleanup failed: ${(err as Error).message}`,
+        err,
       );
     }
   })();

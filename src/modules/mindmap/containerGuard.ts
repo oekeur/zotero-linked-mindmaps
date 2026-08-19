@@ -11,6 +11,7 @@
  * recovered into.
  */
 import { getString } from "../../utils/locale";
+import { logFailure } from "../../utils/logging";
 import { CONTAINER_TAG, reconcileContainer, STORAGE_TAG } from "./storage";
 
 const OBSERVER_ID = "zoterolinkedmindmaps-container-guard";
@@ -45,8 +46,9 @@ export async function reconcileContainers(): Promise<void> {
         warn(getString("container-trashed-startup"));
       }
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] container reconciliation failed for library ${library.libraryID}: ${(err as Error).message}`,
+        err,
       );
     }
   }
@@ -96,8 +98,9 @@ function notify(
         warn(getString("storage-note-trashed-now"));
       }
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] container trash check failed: ${(err as Error).message}`,
+        err,
       );
     }
   })();

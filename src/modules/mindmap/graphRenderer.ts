@@ -15,6 +15,7 @@ import cytoscape from "cytoscape";
 import { config } from "../../../package.json";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
 import { getLocaleID } from "../../utils/locale";
+import { logFailure } from "../../utils/logging";
 import type { FluentMessageId } from "../../../typings/i10n";
 import {
   readDocumentFromNote,
@@ -837,8 +838,9 @@ async function persistNodePositions(
       return next;
     }, mindmapId);
   } catch (err) {
-    Zotero.debug(
+    logFailure(
       `[zoteroLinkedMindmaps] persisting dragged node positions failed: ${(err as Error).message}`,
+      err,
     );
   }
 }
@@ -1084,8 +1086,9 @@ export function attachGroupingHandlers(
         return doc;
       }, mindmapId);
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] grouping change failed: ${(err as Error).message}`,
+        err,
       );
     }
   }
@@ -1295,8 +1298,9 @@ export function attachLiveRefresh(
       );
       await layoutUnplacedNodes(current, doc);
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] mindmap live refresh failed: ${(err as Error).message}`,
+        err,
       );
     }
   }

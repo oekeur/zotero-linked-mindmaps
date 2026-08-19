@@ -12,6 +12,7 @@
  * in-body button (the docked mount, which has no header of its own).
  */
 import { getLocaleID } from "../../utils/locale";
+import { logFailure, logTrace } from "../../utils/logging";
 import {
   findAllMindmapNotes,
   listMindmaps,
@@ -98,7 +99,7 @@ export class ConnectionsPanelFactory {
 
   static unregister() {
     if (!registeredPaneID) {
-      Zotero.debug(
+      logTrace(
         "[zoteroLinkedMindmaps] Connections section was never registered; skipping unregister",
       );
       return;
@@ -341,10 +342,11 @@ async function loadAddLinkForm(
       mindmaps[0]?.id,
     );
   } catch (err) {
-    Zotero.debug(
+    logFailure(
       `[zoteroLinkedMindmaps] Add-link form failed to load mindmap document: ${
         (err as Error).message
       }`,
+      err,
     );
     appendL10nText(
       formContainer,
@@ -445,10 +447,11 @@ async function findMindmapForItem(
       candidate = readDocumentFromNote(await refreshNote(note));
     } catch (err) {
       unreadable = true;
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] Connections panel skipping unreadable storage note ${
           note.id
         }: ${(err as Error).message}`,
+        err,
       );
       continue;
     }
@@ -515,10 +518,11 @@ async function renderPanelBody(
   try {
     found = await findMindmapForItem(item, mindmapId);
   } catch (err) {
-    Zotero.debug(
+    logFailure(
       `[zoteroLinkedMindmaps] Connections panel failed to read mindmap document: ${
         (err as Error).message
       }`,
+      err,
     );
     appendL10nText(container, doc, getLocaleID("item-mindmaps-error-state"));
     return undefined;
@@ -721,10 +725,11 @@ async function applyToMindmap(
     );
     await after?.();
   } catch (err) {
-    Zotero.debug(
+    logFailure(
       `[zoteroLinkedMindmaps] Connections panel failed to ${what}: ${
         (err as Error).message
       }`,
+      err,
     );
   }
   // Stays on the mindmap the change was made to, even when the change was
