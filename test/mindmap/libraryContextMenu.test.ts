@@ -1,5 +1,8 @@
 import { assert } from "chai";
-import { addToMindmap } from "../../src/modules/mindmap/libraryContextMenu";
+import {
+  addToMindmap,
+  groupOnMindmap,
+} from "../../src/modules/mindmap/libraryContextMenu";
 import {
   createMindmap,
   findMindmapNote,
@@ -111,6 +114,125 @@ describe("mindmap/libraryContextMenu", function () {
       await addToMindmap([article]);
 
       assert.lengthOf((await readMindmapDocument(first.id)).nodes, 1);
+    });
+  });
+
+  describe("groupOnMindmap", function () {
+    let article: Zotero.Item;
+    let note: Zotero.Item;
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+
+      article = new Zotero.Item("journalArticle");
+      article.libraryID = Zotero.Libraries.userLibraryID;
+      article.setField("title", "Group Test Article");
+      await article.saveTx();
+
+      note = new Zotero.Item("note");
+      note.libraryID = Zotero.Libraries.userLibraryID;
+      note.setNote("<p>Group Test Note</p>");
+      await note.saveTx();
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      await article.eraseTx();
+      await note.eraseTx();
+      await clearStorageNotes();
+    });
+
+    it("adds every selected item and wraps them in one new group, in a single write", async function () {
+      const { grouped, skipped } = await groupOnMindmap(
+        [article, note],
+        "Evidence",
+      );
+      assert.equal(grouped, 2);
+      assert.equal(skipped, 0);
+
+      const doc = await readMindmapDocument();
+      assert.lengthOf(doc.nodes, 2);
+      assert.lengthOf(doc.groups!, 1);
+      assert.equal(doc.groups![0].name, "Evidence");
+      const groupId = doc.groups![0].id;
+      assert.isTrue(doc.nodes.every((node) => node.groupId === groupId));
+    });
+
+    it("groups an already-present item by its existing node, without duplicating it", async function () {
+      await writeMindmapDocument({
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-existing",
+        title: "Mindmap",
+        nodes: [
+          {
+            membership: "member",
+            id: "existing-node",
+            position: { x: 5, y: 5 },
+            ref: {
+              kind: "item",
+              libraryID: article.libraryID,
+              key: article.key,
+            },
+          },
+        ],
+        links: [],
+      });
+
+      const { grouped } = await groupOnMindmap([article, note], "");
+      assert.equal(grouped, 2);
+
+      const doc = await readMindmapDocument();
+      assert.lengthOf(doc.nodes, 2);
+      const articleNode = doc.nodes.find((n) => n.ref.key === article.key)!;
+      assert.equal(articleNode.id, "existing-node");
+      assert.deepEqual(articleNode.position, { x: 5, y: 5 });
+      assert.lengthOf(doc.groups!, 1);
+      assert.equal(articleNode.groupId, doc.groups![0].id);
+      assert.equal(
+        doc.nodes.find((n) => n.ref.key === note.key)!.groupId,
+        doc.groups![0].id,
+      );
+    });
+
+    it("leaves out an ineligible item and reports it as skipped, grouping the rest", async function () {
+      const attachment = await Zotero.Attachments.linkFromURL({
+        url: "https://example.org/paper.pdf",
+        parentItemID: article.id,
+        title: "Linked PDF",
+      });
+
+      const { grouped, skipped } = await groupOnMindmap(
+        [article, note, attachment],
+        "Evidence",
+      );
+      assert.equal(grouped, 2);
+      assert.equal(skipped, 1);
+
+      const doc = await readMindmapDocument();
+      assert.lengthOf(doc.nodes, 2);
+      assert.isUndefined(doc.nodes.find((n) => n.ref.key === attachment.key));
+    });
+
+    it("creates an unnamed group when the name is blank", async function () {
+      await groupOnMindmap([article, note], "");
+
+      const doc = await readMindmapDocument();
+      assert.lengthOf(doc.groups!, 1);
+      assert.notProperty(doc.groups![0], "name");
+    });
+
+    it("does nothing when no eligible items are given", async function () {
+      const attachment = await Zotero.Attachments.linkFromURL({
+        url: "https://example.org/paper.pdf",
+        parentItemID: article.id,
+        title: "Linked PDF",
+      });
+
+      const { grouped, skipped } = await groupOnMindmap([attachment], "x");
+      assert.equal(grouped, 0);
+      assert.equal(skipped, 1);
+      assert.isNull(await findMindmapNote());
     });
   });
 });
