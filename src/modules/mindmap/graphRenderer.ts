@@ -931,6 +931,22 @@ export function attachNodeContextMenuHandler(
       },
     );
     addLink.classList.add(NODE_MENU_ADD_LINK_CLASS);
+    // Grouping rides this same proven cxttap path rather than the
+    // empty-canvas one: only offered when the right-clicked node is itself
+    // part of a selection of two or more non-group nodes, so right-clicking
+    // an unselected node while others are selected stays unambiguous (Add
+    // link only).
+    const selected = cy
+      .$("node:selected")
+      .filter((node) => !node.data("isGroup"));
+    if (evt.target.selected() && selected.length >= 2) {
+      const ids = selected.map((node) => node.id());
+      appendL10nButton(menu, "mindmap-group-create", () => {
+        void applyGroupingMutation(cy, mindmapId, (doc) =>
+          createGroup(doc, ids),
+        );
+      });
+    }
     positionMenuBesideNode(cy.container()!, menu, evt.target);
   });
 }
@@ -1065,6 +1081,33 @@ function appendMenuAction(
 }
 
 /**
+ * Writes a grouping mutation (create/rename/delete) to the mindmap document
+ * and closes whatever menu is open. Shared by the background and node
+ * cxttap handlers so grouping has one write path regardless of which menu it
+ * was reached from. Nothing redraws here on purpose: the write fires a
+ * modify notification and the live-refresh observer rebuilds the graph from
+ * what was stored.
+ */
+async function applyGroupingMutation(
+  cy: cytoscape.Core,
+  mindmapId: string | undefined,
+  mutate: (doc: MindmapDocument) => void,
+): Promise<void> {
+  closeMenu(cy);
+  try {
+    await updateMindmapDocument((doc) => {
+      mutate(doc);
+      return doc;
+    }, mindmapId);
+  } catch (err) {
+    logFailure(
+      `[zoteroLinkedMindmaps] grouping change failed: ${(err as Error).message}`,
+      err,
+    );
+  }
+}
+
+/**
  * Grouping, driven from right-click: on empty canvas with two or more nodes
  * selected, offer to group them; on a group's own region, offer to rename or
  * dissolve it. Selection itself is Cytoscape's (shift-click, box-select), so
@@ -1074,25 +1117,6 @@ export function attachGroupingHandlers(
   cy: cytoscape.Core,
   mindmapId: string,
 ): void {
-  /**
-   * Nothing redraws here on purpose: the write fires a modify notification and
-   * the live-refresh observer rebuilds the graph from what was stored.
-   */
-  async function apply(mutate: (doc: MindmapDocument) => void): Promise<void> {
-    closeMenu(cy);
-    try {
-      await updateMindmapDocument((doc) => {
-        mutate(doc);
-        return doc;
-      }, mindmapId);
-    } catch (err) {
-      logFailure(
-        `[zoteroLinkedMindmaps] grouping change failed: ${(err as Error).message}`,
-        err,
-      );
-    }
-  }
-
   cy.on("cxttap", (evt) => {
     if (evt.target !== cy) {
       return;
@@ -1112,7 +1136,7 @@ export function attachGroupingHandlers(
     }
     const ids = selected.map((node) => node.id());
     appendL10nButton(menu, "mindmap-group-create", () => {
-      void apply((doc) => createGroup(doc, ids));
+      void applyGroupingMutation(cy, mindmapId, (doc) => createGroup(doc, ids));
     });
     positionMenuAt(
       cy.container()!,
@@ -1138,10 +1162,14 @@ export function attachGroupingHandlers(
     menu.appendChild(nameInput);
 
     appendL10nButton(menu, "mindmap-group-rename", () => {
-      void apply((doc) => renameGroup(doc, groupId, nameInput.value.trim()));
+      void applyGroupingMutation(cy, mindmapId, (doc) =>
+        renameGroup(doc, groupId, nameInput.value.trim()),
+      );
     });
     appendL10nButton(menu, "mindmap-group-delete", () => {
-      void apply((doc) => deleteGroup(doc, groupId));
+      void applyGroupingMutation(cy, mindmapId, (doc) =>
+        deleteGroup(doc, groupId),
+      );
     });
     positionMenuAt(
       cy.container()!,
