@@ -4,9 +4,9 @@ A link whose other end is a node belonging to a different mindmap. The link is d
 
 ## How one is created
 
-From the add-link form's second target button, "Choose from another mindmap" ([links-add-reference.md](links-add-reference.md)). It reveals two dropdowns:
+From the add-link form's second target button, "Link to another mindmap…" ([links-add-reference.md](links-add-reference.md)). It reveals two dropdowns:
 
-The first lists every mindmap in the library except the one being edited. Excluding the current one is deliberate: a link inside this mindmap is what the ordinary "Choose target" button is for. With no other mindmap in the library, the message "No other mindmaps to link to yet." appears instead of the dropdowns.
+The first lists every mindmap in the library except the one being edited. Excluding the current one is deliberate: a link inside this mindmap is what the ordinary "Choose target…" button is for. With no other mindmap in the library, the message "No other mindmaps yet." appears instead of the dropdowns.
 
 The second lists that mindmap's own member nodes, by the same labels the graph uses, minus any node standing for the item the form was opened for. External stubs in the other mindmap are not offered either, so a mindmap can only lend out what belongs to it, and a chain of stubs pointing at stubs cannot be built.
 

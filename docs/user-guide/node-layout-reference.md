@@ -14,7 +14,7 @@ Positions live in the mindmap's stored document alongside its nodes and links, s
 
 A node is unplaced from the moment it is created until a layout places it. Nodes are created without a position by every route that adds one:
 
-- "Add to mindmap" in the library right-click menu.
+- "Add to Mindmap" in the library right-click menu.
 - Saving a link whose source or target is not yet a node.
 - A link into another mindmap creating the borrowed-node stub.
 

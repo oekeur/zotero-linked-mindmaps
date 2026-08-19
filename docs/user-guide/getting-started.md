@@ -30,7 +30,7 @@ A tab titled "Mindmap" opens and stays selected. Open it again later and you lan
 
 If the library has no mindmap yet, the plugin makes you one on the spot and calls it "Mindmap". The graph area will be blank, since there is nothing in it.
 
-On a fresh library that is all you should see. But if a warning turns up instead, reading "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.", then this library has had mindmaps before and they are sitting in Zotero's trash. Restore them and reopen the tab. Don't start over: the work is still there.
+On a fresh library that is all you should see. But if a warning turns up instead, reading "Mindmap data for this library is in the trash. Nothing new was created; restore it to get your mindmaps back.", then this library has had mindmaps before and they are sitting in Zotero's trash. Restore them and reopen the tab. Don't start over: the work is still there.
 
 ## 4. Find your mindmap in the sidebar
 
@@ -40,7 +40,7 @@ The `‹` button at the top collapses the strip to a narrow bar; `›` brings it
 
 ## 5. Give the mindmap a name of your own
 
-1. Click "Edit" on the "Mindmap" row. The list is replaced by a short form.
+1. Hover the "Mindmap" row and click its pencil icon (tooltip "Edit"). The list is replaced by a short form.
 2. Clear the "Title" field and type something, for example `Reading map`.
 3. Type anything you like into "Description (optional)", or leave it empty.
 4. Click "Save".
@@ -53,11 +53,11 @@ One request: leave this as the only mindmap in the library until you finish. Ste
 
 1. Click the Library tab to switch back to your items.
 2. Select two items, holding Ctrl (Cmd on macOS) to pick the second one.
-3. Right-click the selection and choose "Add to mindmap".
+3. Right-click the selection and choose "Add to Mindmap".
 
 A popup confirms with "Added 2 items to Chapter one", naming the mindmap. Both items are now nodes.
 
-Here is the reason for step 5's request. With one mindmap in the library there is nothing to choose between, so "Add to mindmap" is a single click that writes straight to it. Once you have several, that same entry opens a submenu and you pick the target by name. Neither behaviour is hard, but the one-click version is a cleaner first experience. The [library right-click menu](library-menu-howto.md) covers both, and you can do the same job from [the Mindmaps section](mindmaps-panel-howto.md).
+Here is the reason for step 5's request. With one mindmap in the library there is nothing to choose between, so "Add to Mindmap" is a single click that writes straight to it. Once you have several, that same entry opens a submenu and you pick the target by name. Neither behaviour is hard, but the one-click version is a cleaner first experience. The [library right-click menu](library-menu-howto.md) covers both, and you can do the same job from [the Mindmaps section](mindmaps-panel-howto.md).
 
 ## 7. Look at the graph
 
@@ -75,7 +75,7 @@ Click one of the nodes. A panel opens on the right of the tab with the item's ti
 
 For now the links section reads "No links yet." Leave the panel open.
 
-"Close" hides the panel again. "Show in library" jumps Zotero to that item over in the Library tab, which yanks you out of the graph, so it sits behind a deliberate button press instead of firing whenever you click a node. The [node overview panel](node-overview-reference.md) page lists everything in there.
+The close icon (tooltip "Close") hides the panel again. "Show in library" jumps Zotero to that item over in the Library tab, which yanks you out of the graph, so it sits behind a deliberate button press instead of firing whenever you click a node. The [node overview panel](node-overview-reference.md) page lists everything in there.
 
 ## 9. Link the two items
 
@@ -84,7 +84,7 @@ For now the links section reads "No links yet." Leave the panel open.
 3. Pick a value in "Type". The list ships with `cites`, `supports`, `contradicts`, `primary source for` and `related to`.
 4. Type something into "Name (optional)" if you want this one link labelled beyond its type, for example `chapter 3`.
 5. If the type you picked is directional, a "Direction" field appears. Each option names both ends using the type as the verb, so the first one means the link runs from the node you right-clicked to the target you are about to pick.
-6. Click "Choose target". Zotero's item picker opens.
+6. Click "Choose target…". Zotero's item picker opens.
 7. Pick the other item and confirm. Its title appears next to the button, and "Save" becomes clickable.
 8. Click "Save".
 

@@ -23,13 +23,13 @@ Headed "Mindmaps". Lists every mindmap in the library, ordered by the Zotero ite
 
 Each row shows the mindmap's title with its description underneath in smaller secondary text when it has one. The per-row controls stay out of the way until you need them: they appear when the row is hovered or when something inside it takes keyboard focus.
 
-| Control          | Effect                                                                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Row body (click) | Loads that mindmap into the graph. The loaded row is tinted and carries an accent bar down its leading edge.                        |
-| "Edit"           | Replaces the list with the title/description form for that row. Does not load the mindmap.                                          |
-| "Delete"         | Asks for confirmation, then erases that mindmap. See [managing mindmaps](mindmaps-manage-howto.md).                                 |
-| "+"              | In the sidebar header beside the heading, tooltip "New mindmap". Replaces the list with an empty title/description form.            |
-| `‹` / `›`        | Collapses the sidebar to a 28px bar, or expands it back to 220px. Tooltip reads "Hide the mindmap list" or "Show the mindmap list". |
+| Control                        | Effect                                                                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Row body (click)               | Loads that mindmap into the graph. The loaded row is tinted and carries an accent bar down its leading edge.                        |
+| Edit icon (tooltip "Edit")     | Replaces the list with the title/description form for that row. Does not load the mindmap.                                          |
+| Delete icon (tooltip "Delete") | Asks for confirmation, then erases that mindmap. See [managing mindmaps](mindmaps-manage-howto.md).                                 |
+| "+"                            | In the sidebar header beside the heading, tooltip "New mindmap". Replaces the list with an empty title/description form.            |
+| `‹` / `›`                      | Collapses the sidebar to a 28px bar, or expands it back to 220px. Tooltip reads "Hide the mindmap list" or "Show the mindmap list". |
 
 Edit and Delete act on the row they sit in, not on the mindmap currently loaded in the graph. Editing a mindmap you are not looking at leaves the graph where it was.
 

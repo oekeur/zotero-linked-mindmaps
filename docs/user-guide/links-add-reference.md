@@ -28,9 +28,9 @@ The first option means the link runs from the item the form was opened for to th
 
 Two buttons, and no text field:
 
-"Choose target" opens Zotero's own item-selector dialog, scoped to the library the source item is in. Only one item can be picked. Regular items and notes are selectable, including child notes, which appear as rows of their own.
+"Choose target…" opens Zotero's own item-selector dialog, scoped to the library the source item is in. Only one item can be picked. Regular items and notes are selectable, including child notes, which appear as rows of their own.
 
-"Choose from another mindmap" reveals a second pair of dropdowns for linking to a node whose membership is in a different mindmap. The node dropdown leaves out any node standing for the source item itself, so that route cannot produce a self-link either. See [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md).
+"Link to another mindmap…" reveals a second pair of dropdowns for linking to a node whose membership is in a different mindmap. The node dropdown leaves out any node standing for the source item itself, so that route cannot produce a self-link either. See [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md).
 
 Once a valid target is chosen, the form shows its name next to the buttons:
 
@@ -51,7 +51,7 @@ Picking the source item itself shows "An item can't be linked to itself." The ta
 
 Picking an attachment, or anything else that is neither a regular item nor a note, shows "Only items and notes can be linked. Attachments can't." Zotero's item-selector dialog has no filter that excludes attachments while keeping notes, so an attachment can be selected and is rejected afterwards. The plugin's own "Zotero Linked Mindmaps (plugin data)" item and the storage notes under it are refused the same way, even though the storage notes are notes.
 
-Pressing "Choose from another mindmap" in a library with no other mindmap shows "No other mindmaps to link to yet."
+Pressing "Link to another mindmap…" in a library with no other mindmap shows "No other mindmaps yet."
 
 The other-mindmap route reports nothing inline. A node standing for the source item is left out of the dropdown rather than offered and rejected, so an other-mindmap selection is either valid or absent. Where that leaves the dropdown empty, Save stays disabled.
 
@@ -83,7 +83,7 @@ Saving never modifies or removes an existing node or link. Adding a second link 
 The edit control on a link row (see [mindmaps-panel-reference.md](mindmaps-panel-reference.md)) opens this same form against that link instead of a new one. It differs from the add form in a few ways:
 
 - Type, Name and Direction are prefilled from the link being edited.
-- The endpoints are fixed: the target buttons and "Choose from another mindmap" are not shown, and the other end's title appears as plain text instead.
+- The endpoints are fixed: the target buttons and "Link to another mindmap…" are not shown, and the other end's title appears as plain text instead.
 - Save starts enabled, since the target is already known.
 - Save updates the link in place - the same `id`, `sourceNodeId` and `targetNodeId` - rather than appending a new one. Retyping to a non-directional type clears `direction` from the record rather than leaving a stale value behind.
 - A "Cancel" button is present; closing it that way leaves the link untouched.
@@ -96,7 +96,7 @@ In the Mindmaps section, the mindmap the panel is showing is the mindmap the lin
 
 The chooser appears only when the panel has no mindmap to pass on, which means the item is a node in none yet and the library holds more than one. It is the label "Add to mindmap:", a dropdown of every mindmap in the library, and a "Continue" button. With exactly one mindmap that mindmap is used without asking. With none, the library's default mindmap is created on save, titled "Mindmap".
 
-The standalone dialog opened from the library context menu is told which mindmap to use by the entry that opened it. A library holding more than one mindmap gets an "Add link" submenu listing them by title, and the entry chosen names the mindmap. A library with one mindmap or none gets a plain "Add link…" entry, which writes to the library's default mindmap: the storage note with the lowest item id, or a new one titled "Mindmap" when the library has none. A dialog that cannot read the mindmap shows `Failed to load mindmap:` followed by the error instead of the form.
+The standalone dialog opened from the library context menu is told which mindmap to use by the entry that opened it. A library holding more than one mindmap gets an "Add Link in" submenu listing them by title, and the entry chosen names the mindmap. A library with one mindmap or none gets a plain "Add Link…" entry, which writes to the library's default mindmap: the storage note with the lowest item id, or a new one titled "Mindmap" when the library has none. A dialog that cannot read the mindmap shows `Failed to load mindmap:` followed by the error instead of the form.
 
 ## Related
 

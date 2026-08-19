@@ -7,7 +7,7 @@ Expand the sidebar with `›` first if it's collapsed, since every control below
 ## Create a mindmap
 
 1. Open the Mindmap tab (File, then "Mindmap", or Shift+G).
-2. Click "New" below the last row of the mindmap list.
+2. Click the `+` icon in the sidebar header, next to the "Mindmaps" heading (tooltip "New mindmap").
 3. Type a title into "Title".
 4. Optionally type a "Description (optional)".
 5. Click "Save".
@@ -20,25 +20,26 @@ Titles don't have to be unique. Two mindmaps with the same title are two separat
 
 Opening the Mindmap tab in a library with no mindmaps creates one for you, titled "Mindmap". If that's the one you wanted, rename it rather than making a second.
 
-There's one exception, and it's the important one. When the library's plugin data is in the trash, the tab creates nothing and warns you instead: "Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back." Your mindmaps are still there and out of the plugin's reach until you restore the trashed item. See [plugin data](plugin-data-howto.md).
+There's one exception, and it's the important one. When the library's plugin data is in the trash, the tab creates nothing and warns you instead: "Mindmap data for this library is in the trash. Nothing new was created; restore it to get your mindmaps back." Your mindmaps are still there and out of the plugin's reach until you restore the trashed item. See [plugin data](plugin-data-howto.md).
 
 ## Rename a mindmap, or change its description
 
-1. Click "Edit" on the mindmap's row.
-2. Change "Title", "Description (optional)", or both.
-3. Click "Save".
+1. Hover the mindmap's row. Its Edit and Delete icons are hidden until then and appear on hover (or on keyboard focus).
+2. Click the pencil icon (tooltip "Edit").
+3. Change "Title", "Description (optional)", or both.
+4. Click "Save".
 
 Nothing else moves. Your nodes, links, groups and node positions are all untouched, and only the title and description change.
 
 Clear the description and save and it goes, leaving the row showing just the title.
 
-"Edit" acts on the row you clicked, not on whatever the graph happens to be drawing. So you can edit a mindmap you aren't looking at and the graph stays where it was.
+The Edit icon acts on the row you clicked, not on whatever the graph happens to be drawing. So you can edit a mindmap you aren't looking at and the graph stays where it was.
 
 Click "Cancel" to leave the form without saving.
 
 ## Delete a mindmap
 
-1. Click "Delete" on the mindmap's row.
+1. Hover the mindmap's row and click the trash icon (tooltip "Delete").
 2. A dialog titled "Delete mindmap" asks: `Delete "<title>"? Its links and layout go with it. The items and notes it points at stay in your library.`
 3. Confirm.
 

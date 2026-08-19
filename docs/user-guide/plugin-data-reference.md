@@ -87,7 +87,7 @@ There is no startup equivalent for a trashed storage note. A note trashed in an 
 
 When you open the Mindmap tab in a library whose registry is empty but whose trash holds plugin data, either a container or a storage note:
 
-> Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.
+> Mindmap data for this library is in the trash. Nothing new was created; restore it to get your mindmaps back.
 
 None of the messages names the library it is about. If you have several writable libraries, you have to check each one's trash.
 

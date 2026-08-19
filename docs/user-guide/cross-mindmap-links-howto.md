@@ -16,7 +16,7 @@ Use this when the item you want to point at already belongs to a different mindm
 
 The graph for the mindmap you were editing now shows the borrowed node with a dashed border, connected by the link you authored.
 
-## If the button reports "No other mindmaps to link to yet."
+## If the button reports "No other mindmaps yet."
 
 Then the library holds only the mindmap you're editing. Create the second one first, from the mindmap tab's sidebar ([mindmaps-manage-howto.md](mindmaps-manage-howto.md)), and add the target item to it.
 
@@ -30,4 +30,4 @@ The dropdown only lists nodes that belong to the other mindmap, and three things
 
 ## Undoing one
 
-Either remove the link from the Mindmaps section with its "Remove" button, or remove the stub node itself with "Remove from mindmap" while the stub is selected on the graph. Removing the stub takes every link touching it along with it. Neither one touches the other mindmap.
+Either remove the link from the Mindmaps section with its x icon (tooltip "Remove link"), or remove the stub node itself with the `−` icon (tooltip "Remove from mindmap") while the stub is selected on the graph. Removing the stub takes every link touching it along with it. Neither one touches the other mindmap.

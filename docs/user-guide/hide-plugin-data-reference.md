@@ -4,14 +4,14 @@ The plugin keeps its data in a Zotero item and its child notes (see [Plugin data
 
 ## The setting
 
-|                |                                                                              |
-| -------------- | ---------------------------------------------------------------------------- |
-| Checkbox label | Hide the Zotero Linked Mindmaps item from my library                         |
-| Location       | Zotero Settings, in the pane labelled Link Types, below the link types table |
-| Default        | on (checked)                                                                 |
-| Preference key | `extensions.zotero.zoterolinkedmindmaps.hideMindmapNotes`                    |
-| Type           | boolean                                                                      |
-| Scope          | this Zotero profile only; the setting is not synced to your other devices    |
+|                |                                                                            |
+| -------------- | -------------------------------------------------------------------------- |
+| Checkbox label | Hide the Zotero Linked Mindmaps item from my library                       |
+| Location       | Zotero Settings, in the pane labelled Mindmaps, below the link types table |
+| Default        | on (checked)                                                               |
+| Preference key | `extensions.zotero.zoterolinkedmindmaps.hideMindmapNotes`                  |
+| Type           | boolean                                                                    |
+| Scope          | this Zotero profile only; the setting is not synced to your other devices  |
 
 Hiding is opt-out. On a fresh profile the plugin's items are hidden with no interaction from you.
 

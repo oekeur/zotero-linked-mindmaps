@@ -15,7 +15,7 @@ An item joins a mindmap as a side effect of its first link. There's no "add me" 
 
 The item is now a node in that mindmap, and the layout will place it on the next render.
 
-If you want to add items without authoring a link, use the library context menu instead: select them, right-click, "Add to mindmap" ([library-menu-howto.md](library-menu-howto.md)).
+If you want to add items without authoring a link, use the library context menu instead: select them, right-click, "Add to Mindmap" ([library-menu-howto.md](library-menu-howto.md)).
 
 ## Add a link
 
@@ -29,14 +29,14 @@ Full field reference: [links-add-reference.md](links-add-reference.md).
 ## Remove a link
 
 1. Find the link in the list.
-2. Click "Remove" on that entry.
+2. Click the x icon on that entry (tooltip "Remove link").
 
 The link goes and both nodes stay on the mindmap. Be careful here: there's no confirmation and no undo, so if you remove the wrong one you'll have to author it again.
 
 ## Remove the item from a mindmap
 
 1. Check the mindmap named after "Mindmap:" at the top of the panel. That is the one the removal applies to.
-2. Click "Remove from mindmap".
+2. Click the `−` icon beside "Mindmap:" (tooltip "Remove from mindmap").
 
 The node and every link touching it come off that mindmap. Your Zotero item and any notes stay in the library, untouched. And if another mindmap was reaching into the removed node with a cross-mindmap link, that stub and its links get cleaned up too.
 
