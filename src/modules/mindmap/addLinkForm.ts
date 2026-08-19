@@ -1,9 +1,14 @@
 /**
  * "Add link" authoring UI for the Connections panel: a Type select (with a
  * Direction field that only appears for directional types), an optional
- * freeform Name field, and a Save action. Append-only by design - saving
- * only ever pushes a new node/link, never mutates or removes an existing
- * one, so parallel links between the same node pair are unaffected.
+ * freeform Name field, and a Save action. Adding a link is append-only -
+ * saving only ever pushes a new node/link, never mutates or removes an
+ * existing one, so parallel links between the same node pair are unaffected.
+ *
+ * The same form doubles as the "Edit link" UI: given an existing link, it
+ * prefills Type/Name/Direction from it, fixes the endpoints (they are not
+ * editable), and Save mutates that link in place instead of appending a new
+ * one - see `renderAddLinkForm`'s `editing` parameter.
  */
 import { getLocaleID } from "../../utils/locale";
 import { getLinkTypeById, getLinkTypes } from "./linkTypes";
@@ -18,6 +23,7 @@ import {
   createExternalNode,
   createMemberNode,
   refFor,
+  updateLink,
 } from "./mutations";
 import { buildNoteLabel, resolveNodeLabel } from "./nodeLabels";
 import { appendL10nButton, appendMindmapOptions } from "./uiElements";
@@ -195,6 +201,17 @@ export const EXTERNAL_TARGET_BUTTON_CLASS = "mindmap-choose-external-target";
 export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
 
 /**
+ * What to prefill and mutate when the form is opened on an existing link
+ * rather than to create one. `otherTitle` is the fixed endpoint's label,
+ * already resolved by the caller - the form has no way to derive it on its
+ * own once the target picker is hidden.
+ */
+export interface EditLinkParams {
+  link: MindmapLink;
+  otherTitle: string;
+}
+
+/**
  * Renders the "Add link" form into `container`: Type/Name/Direction fields,
  * a target-item picker, and a Save action that's enabled once a valid
  * target is chosen.
@@ -202,6 +219,11 @@ export const EXTERNAL_TARGET_CLASS = "mindmap-external-target";
  * `onCancel`, when given, adds a Cancel button ahead of Save in the footer.
  * The item pane and docked mounts leave it out - dismissing the form there
  * just means collapsing it again, not closing a window.
+ *
+ * `editing`, when given, switches the form to edit an existing link:
+ * Type/Name/Direction are prefilled from it, the target picker and the
+ * "Link to another mindmap…" action are hidden since the endpoints aren't
+ * editable, and Save mutates that link in place instead of appending one.
  */
 export function renderAddLinkForm(
   container: HTMLElement,
@@ -209,6 +231,7 @@ export function renderAddLinkForm(
   doc: MindmapDocument,
   onSaved: () => void,
   onCancel?: () => void,
+  editing?: EditLinkParams,
 ): void {
   const sourceRef = refFor(item);
   type ChosenTarget =
@@ -248,6 +271,11 @@ export function renderAddLinkForm(
   const nameInput = ownerDoc.createElement("input");
   nameInput.type = "text";
   grid.appendChild(nameInput);
+
+  if (editing) {
+    typeSelect.value = editing.link.typeId;
+    nameInput.value = editing.link.name ?? "";
+  }
 
   // display:contents in the sheet, so the label and the select sit in the
   // grid's own two columns rather than as one cell - and hiding the wrapper
@@ -293,6 +321,9 @@ export function renderAddLinkForm(
   }
   typeSelect.addEventListener("change", updateDirectionField);
   updateDirectionField();
+  if (editing?.link.direction) {
+    directionSelect.value = editing.link.direction;
+  }
 
   const targetFieldLabel = ownerDoc.createElement("label");
   targetFieldLabel.setAttribute(
@@ -340,6 +371,16 @@ export function renderAddLinkForm(
     "mindmap-link-external",
   );
 
+  // The endpoints of an existing link aren't editable, so the picker and the
+  // cross-mindmap action have nothing to do here - the fixed target is shown
+  // as plain text instead.
+  if (editing) {
+    targetLabel.removeAttribute("data-l10n-id");
+    targetLabel.textContent = editing.otherTitle;
+    chooseTargetButton.style.display = "none";
+    chooseExternalButton.style.display = "none";
+  }
+
   const spacer = ownerDoc.createElement("span");
   spacer.classList.add("mindmap-form-spacer");
   actions.appendChild(spacer);
@@ -381,7 +422,9 @@ export function renderAddLinkForm(
       ),
     );
   }
-  setSaveEnabled(false);
+  // Editing has nothing left to wait for: the target is already fixed, so
+  // Save starts enabled rather than waiting on a picker that isn't shown.
+  setSaveEnabled(Boolean(editing));
 
   chooseTargetButton.addEventListener("click", () => {
     void (async () => {
@@ -518,20 +561,39 @@ export function renderAddLinkForm(
 
   saveButton.addEventListener("click", () => {
     void (async () => {
-      if (!selectedTarget) {
-        return;
-      }
-      const target = selectedTarget;
       const selectedType = getLinkTypeById(typeSelect.value);
-      const common = {
-        sourceRef,
-        targetRef: target.ref,
+      const fields = {
         typeId: typeSelect.value,
         name: nameInput.value.trim() || undefined,
         direction: selectedType?.directional
           ? (directionSelect.value as "forward" | "backward")
           : undefined,
       };
+
+      if (editing) {
+        try {
+          await updateMindmapDocument(
+            (current) => {
+              updateLink(current, editing.link.id, fields);
+              return current;
+            },
+            doc.id,
+            item.libraryID,
+          );
+          onSaved();
+        } catch (err) {
+          Zotero.debug(
+            `[zoteroLinkedMindmaps] failed to save link: ${(err as Error).message}`,
+          );
+        }
+        return;
+      }
+
+      if (!selectedTarget) {
+        return;
+      }
+      const target = selectedTarget;
+      const common = { sourceRef, targetRef: target.ref, ...fields };
 
       try {
         // The link is appended to the document as it stands at write time,

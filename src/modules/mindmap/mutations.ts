@@ -109,6 +109,38 @@ export function removeLink(doc: MindmapDocument, linkId: string): void {
   doc.links = doc.links.filter((link) => link.id !== linkId);
 }
 
+export interface LinkEdits {
+  typeId: string;
+  name?: string;
+  direction?: "forward" | "backward";
+}
+
+/**
+ * Edits an existing link's type, name and direction in place. Its id and
+ * endpoints are untouched. `changes.direction` is deleted rather than left
+ * behind when the new type isn't directional - the graph and the panel both
+ * read the field's mere presence as an authored direction, so a stale value
+ * would draw an arrow the type no longer has.
+ */
+export function updateLink(
+  doc: MindmapDocument,
+  linkId: string,
+  changes: LinkEdits,
+): void {
+  doc.links = doc.links.map((link) => {
+    if (link.id !== linkId) {
+      return link;
+    }
+    const updated = { ...link, typeId: changes.typeId, name: changes.name };
+    if (changes.direction) {
+      updated.direction = changes.direction;
+    } else {
+      delete updated.direction;
+    }
+    return updated;
+  });
+}
+
 /**
  * Puts `nodeIds` in a new group and returns it. Membership is exclusive: a
  * node already in another group moves, it doesn't end up in both. That falls

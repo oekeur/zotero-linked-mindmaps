@@ -78,6 +78,16 @@ Nodes are created as needed: if the source item is not yet a node in this mindma
 
 Saving never modifies or removes an existing node or link. Adding a second link between the same two nodes leaves the first one alone, so parallel links are two separate records with their own types, names and directions. The graph fans them apart rather than drawing them on top of each other.
 
+## Editing an existing link
+
+The edit control on a link row (see [mindmaps-panel-reference.md](mindmaps-panel-reference.md)) opens this same form against that link instead of a new one. It differs from the add form in a few ways:
+
+- Type, Name and Direction are prefilled from the link being edited.
+- The endpoints are fixed: the target buttons and "Choose from another mindmap" are not shown, and the other end's title appears as plain text instead.
+- Save starts enabled, since the target is already known.
+- Save updates the link in place - the same `id`, `sourceNodeId` and `targetNodeId` - rather than appending a new one. Retyping to a non-directional type clears `direction` from the record rather than leaving a stale value behind.
+- A "Cancel" button is present; closing it that way leaves the link untouched.
+
 ## Which mindmap is written
 
 The answer comes from whatever opened the form, and the form only asks when nothing gave it one.

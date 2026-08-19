@@ -6,6 +6,7 @@ import {
   removeLink,
   removeNode,
   renameGroup,
+  updateLink,
 } from "../../src/modules/mindmap/mutations";
 import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import type { MindmapDocument } from "../../src/modules/mindmap/schema";
@@ -109,6 +110,51 @@ describe("mindmap/mutations", function () {
       const doc = docWithThreeNodes();
       removeLink(doc, "link-missing");
       assert.lengthOf(doc.links, 2);
+    });
+  });
+
+  describe("updateLink", function () {
+    it("changes type, name and direction while keeping id and endpoints", function () {
+      const doc = docWithThreeNodes();
+      updateLink(doc, "link-ab", {
+        typeId: "supports",
+        name: "see p.12",
+        direction: "backward",
+      });
+
+      const link = doc.links.find((l) => l.id === "link-ab")!;
+      assert.equal(link.typeId, "supports");
+      assert.equal(link.name, "see p.12");
+      assert.equal(link.direction, "backward");
+      assert.equal(link.sourceNodeId, "node-a");
+      assert.equal(link.targetNodeId, "node-b");
+    });
+
+    it("deletes a stale direction when retyped to a non-directional type", function () {
+      const doc = docWithThreeNodes();
+      updateLink(doc, "link-ab", { typeId: "cites", direction: "forward" });
+
+      updateLink(doc, "link-ab", { typeId: "related-to" });
+
+      const link = doc.links.find((l) => l.id === "link-ab")!;
+      assert.notProperty(link, "direction");
+    });
+
+    it("leaves the other links untouched", function () {
+      const doc = docWithThreeNodes();
+      updateLink(doc, "link-ab", { typeId: "supports" });
+
+      const other = doc.links.find((l) => l.id === "link-bc")!;
+      assert.equal(other.typeId, "contradicts");
+    });
+
+    it("is a no-op for an unknown link id", function () {
+      const doc = docWithThreeNodes();
+      updateLink(doc, "link-missing", { typeId: "supports" });
+      assert.deepEqual(
+        doc.links.map((l) => l.typeId),
+        ["cites", "contradicts"],
+      );
     });
   });
 

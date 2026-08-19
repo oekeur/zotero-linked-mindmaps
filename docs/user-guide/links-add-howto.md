@@ -41,3 +41,13 @@ Each dialog waits for the one before it, so a multi-item run can't end up with t
 ## Link to a node that lives in another mindmap
 
 Use "Link to another mindmap…" instead of "Choose target…" at step 7. The steps are in [cross-mindmap-links-howto.md](cross-mindmap-links-howto.md).
+
+## Change a link
+
+Got the type, name or direction wrong on an existing link? Edit it in place rather than removing it and adding it again.
+
+1. Find the link's row in the Mindmaps section - in the item pane, or in the docked panel beside the graph in the mindmap tab.
+2. Hover the row (or tab to it) and click the pencil icon (tooltip "Edit link"), just before "Remove link".
+3. The form opens with Type, Name and Direction already set to what the link currently has. The other end of the link is shown as plain text; it can't be changed here.
+4. Change Type, Name and/or Direction as needed.
+5. Click "Save". The row updates in place - it stays the same link, not a new one - and the graph and the panels at both ends reflect the change. Click "Cancel" instead to back out without saving.

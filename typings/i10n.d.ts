@@ -27,6 +27,7 @@ export type FluentMessageId =
   | 'item-mindmaps-choose-mindmap-continue'
   | 'item-mindmaps-choose-mindmap-label'
   | 'item-mindmaps-current-label'
+  | 'item-mindmaps-edit-link-button'
   | 'item-mindmaps-empty-state'
   | 'item-mindmaps-error-state'
   | 'item-mindmaps-no-links-state'

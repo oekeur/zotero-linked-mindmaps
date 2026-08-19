@@ -37,7 +37,12 @@ import {
   removeLink,
   removeNode,
 } from "./mutations";
-import { refsMatch, type MindmapDocument, type MindmapNode } from "./schema";
+import {
+  refsMatch,
+  type MindmapDocument,
+  type MindmapLink,
+  type MindmapNode,
+} from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
 
@@ -253,6 +258,39 @@ function openAddLinkForm(
         undefined,
     );
   }
+}
+
+/**
+ * Reveals the add-link form in edit mode, prefilled from `link`, in the same
+ * container `openAddLinkForm` shows the add form in - so a row's edit action
+ * and the panel's own add-link action are never both open at once.
+ */
+function openEditLinkForm(
+  container: HTMLElement,
+  item: Zotero.Item,
+  mindmapDoc: MindmapDocument,
+  link: MindmapLink,
+  otherTitle: string,
+) {
+  const formContainer = container.querySelector<HTMLElement>(
+    `.${ADD_LINK_FORM_CLASS}`,
+  );
+  if (!formContainer) {
+    return;
+  }
+  formContainer.style.display = "";
+  renderAddLinkForm(
+    formContainer,
+    item,
+    mindmapDoc,
+    () => {
+      void renderConnectionsContent(container, item, mindmapDoc.id);
+    },
+    () => {
+      void renderConnectionsContent(container, item, mindmapDoc.id);
+    },
+    { link, otherTitle },
+  );
 }
 
 /**
@@ -627,6 +665,16 @@ async function renderPanelBody(
     target.textContent = otherTitle;
     target.title = otherTitle;
     li.appendChild(target);
+
+    const edit = appendL10nButton(li, "item-mindmaps-edit-link-button", () => {
+      openEditLinkForm(container, item, mindmapDoc, link, otherTitle);
+    });
+    edit.classList.add("mindmap-icon-button", "mindmap-link-edit");
+    appendGlyph(
+      edit,
+      doc,
+      "M2 14l.7-3L10.5 3.2l2.3 2.3L5 13.3 2 14zM9.5 4.2l2.3 2.3",
+    );
 
     const remove = appendL10nButton(
       li,
