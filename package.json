@@ -1,7 +1,7 @@
 {
   "name": "zotero-linked-mindmaps",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Zotero 7 plugin for typed, named links between items and notes, organized into multiple named mindmaps.",
   "config": {
     "addonName": "Zotero Linked Mindmaps",
