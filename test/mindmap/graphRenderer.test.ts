@@ -2,11 +2,13 @@ import { assert } from "chai";
 import cytoscape from "cytoscape";
 import { config } from "../../package.json";
 import {
+  attachGroupingHandlers,
   attachLiveRefresh,
   attachNodeClickHandler,
   attachNodeContextMenuHandler,
   attachNodeDragHandler,
   buildParentChildTies,
+  buildStylesheet,
   computeParallelOffsets,
   EXTERNAL_NODE_CLASS,
   FIT_BUTTON_CLASS,
@@ -295,10 +297,14 @@ describe("mindmap/graphRenderer", function () {
     let dockContainer: HTMLDivElement;
     let tapHandler: (evt: {
       target: { id(): string; data(key: string): unknown };
+      originalEvent?: { shiftKey?: boolean };
     }) => void | Promise<void>;
 
-    function nodeEvent(id: string, isGroup = false) {
-      return { target: { id: () => id, data: () => isGroup || undefined } };
+    function nodeEvent(id: string, isGroup = false, shiftKey = false) {
+      return {
+        target: { id: () => id, data: () => isGroup || undefined },
+        originalEvent: { shiftKey },
+      };
     }
 
     function refTo(item: Zotero.Item): ZoteroObjectRef {
@@ -414,6 +420,18 @@ describe("mindmap/graphRenderer", function () {
       attachNodeClickHandler(fakeCy(), new Map(), dockContainer);
 
       assert.doesNotThrow(() => tapHandler(nodeEvent("n1")));
+      assert.equal(dockContainer.style.display, "none");
+    });
+
+    it("does not dock a node tapped with a modifier held, since that's building a selection", async function () {
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+      );
+
+      await tapHandler(nodeEvent("n1", false, true));
+
       assert.equal(dockContainer.style.display, "none");
     });
 
@@ -891,6 +909,98 @@ describe("mindmap/graphRenderer", function () {
       cy = await renderMindmap(container, doc, []);
 
       assert.isTrue(cy.getElementById("g-empty").empty());
+    });
+  });
+
+  describe("attachGroupingHandlers", function () {
+    let graphContainer: HTMLDivElement;
+    let cxttapHandler: (evt: {
+      target: unknown;
+      renderedPosition: { x: number; y: number };
+    }) => void;
+
+    // Selection itself is Cytoscape's, so the fake only needs to answer
+    // cy.$("node:selected") the way a real Core would - a collection whose
+    // .filter() and .map() chain the way attachGroupingHandlers uses them.
+    function collection(nodeIds: string[]): unknown {
+      const nodes = nodeIds.map((id) => ({
+        id: () => id,
+        data: () => undefined,
+      }));
+      return {
+        length: nodes.length,
+        filter: (predicate: (node: unknown) => boolean) =>
+          collection(nodes.filter(predicate).map((node) => node.id())),
+        map: (fn: (node: unknown) => unknown) => nodes.map(fn),
+      };
+    }
+
+    function fakeCy(selectedNodeIds: string[]): cytoscape.Core {
+      const cy = {
+        container: () => graphContainer,
+        $: (selector: string) =>
+          selector === "node:selected"
+            ? collection(selectedNodeIds)
+            : collection([]),
+        on(events: string, selectorOrHandler: unknown) {
+          if (events === "cxttap" && typeof selectorOrHandler === "function") {
+            cxttapHandler = selectorOrHandler as typeof cxttapHandler;
+          }
+        },
+      };
+      return cy as unknown as cytoscape.Core;
+    }
+
+    beforeEach(function () {
+      const doc = Zotero.getMainWindow().document;
+      graphContainer = doc.createElement("div");
+      graphContainer.style.cssText =
+        "position: relative; width: 200px; height: 200px;";
+      doc.documentElement.appendChild(graphContainer);
+    });
+
+    afterEach(function () {
+      graphContainer.remove();
+    });
+
+    function rightClickEmptyCanvas(cy: cytoscape.Core): void {
+      cxttapHandler({ target: cy, renderedPosition: { x: 10, y: 20 } });
+    }
+
+    it('offers "Group selected nodes" once two or more nodes are selected (AC #3)', function () {
+      const cy = fakeCy(["n-a", "n-b"]);
+      attachGroupingHandlers(cy, "doc-1");
+
+      rightClickEmptyCanvas(cy);
+
+      const button = graphContainer.querySelector(
+        `.${GROUP_MENU_CLASS} button[data-l10n-id="${config.addonRef}-mindmap-group-create"]`,
+      );
+      assert.isNotNull(button, "no group-create action offered");
+    });
+
+    it("offers nothing with fewer than two nodes selected", function () {
+      const cy = fakeCy(["n-a"]);
+      attachGroupingHandlers(cy, "doc-1");
+
+      rightClickEmptyCanvas(cy);
+
+      assert.isNull(graphContainer.querySelector(`.${GROUP_MENU_CLASS}`));
+    });
+  });
+
+  describe("buildStylesheet", function () {
+    it("draws a selected node differently from an unselected one (AC #1, #2)", function () {
+      const win = Zotero.getMainWindow();
+      const sheet = buildStylesheet(win);
+      const base = sheet.find((rule) => rule.selector === "node");
+      const selected = sheet.find((rule) => rule.selector === "node:selected");
+
+      assert.isDefined(selected, "no node:selected rule in the stylesheet");
+      assert.notEqual(
+        (selected!.style as Record<string, unknown>)["border-width"],
+        (base!.style as Record<string, unknown>)["border-width"],
+      );
     });
   });
 

@@ -7,13 +7,13 @@ All of it happens on the graph canvas in the Mindmap tab.
 ## Group several nodes
 
 1. Open the mindmap in the Mindmap tab.
-2. Select the nodes: Shift-click each one in turn, or hold Shift and drag a box across them.
+2. Select the nodes: Shift-click each one in turn, or hold Shift and drag a box across them. Each selected node gets a highlighted border, so you can see the selection growing as you go.
 3. Right-click on empty canvas, away from any node.
 4. Click "Group selected nodes".
 
 A dashed region appears around the nodes. It has no name yet, so its label is blank. Renaming it is the next section.
 
-If the menu doesn't open at all, check your selection: nothing appears on right-click with fewer than two nodes selected.
+If the menu doesn't open at all, check the border highlight: nothing appears on right-click with fewer than two nodes selected.
 
 Your nodes stay exactly where they were. Grouping never rearranges anything.
 

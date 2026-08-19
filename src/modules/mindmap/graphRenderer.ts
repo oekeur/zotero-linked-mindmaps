@@ -250,113 +250,143 @@ export function buildParentChildTies(
   return ties;
 }
 
-const STYLESHEET: cytoscape.StylesheetStyle[] = [
-  {
-    selector: "node",
-    style: {
-      shape: "ellipse",
-      label: "data(label)",
-      "text-wrap": "wrap",
-      "text-max-width": "80px",
-      "background-color": "#cfe0f5",
-      "border-color": "#4a90d9",
-      "border-width": 1,
-      "text-valign": "center",
-      "text-halign": "center",
-      "font-size": 10,
-      width: 50,
-      height: 50,
+const FALLBACK_SELECTION_COLOR = "#0a6cf5";
+
+/**
+ * Cytoscape draws to canvas, not through CSS, so a bare `var(--accent-blue)`
+ * in STYLESHEET would never resolve - the token has to be read from
+ * computed style once and baked into a literal color. Falls back to a fixed
+ * blue if the token is missing (a headless render, or Zotero's own
+ * stylesheet not yet loaded), rather than drawing selection invisibly again.
+ */
+function resolveSelectionColor(win: Window): string {
+  const value = win
+    .getComputedStyle(win.document.documentElement!)
+    ?.getPropertyValue("--accent-blue")
+    .trim();
+  return value || FALLBACK_SELECTION_COLOR;
+}
+
+export function buildStylesheet(win: Window): cytoscape.StylesheetStyle[] {
+  return [
+    {
+      selector: "node",
+      style: {
+        shape: "ellipse",
+        label: "data(label)",
+        "text-wrap": "wrap",
+        "text-max-width": "80px",
+        "background-color": "#cfe0f5",
+        "border-color": "#4a90d9",
+        "border-width": 1,
+        "text-valign": "center",
+        "text-halign": "center",
+        "font-size": 10,
+        width: 50,
+        height: 50,
+      },
     },
-  },
-  {
-    // The region drawn around a group's members. Low-opacity fill and a label
-    // above the cluster, so it reads as a backdrop rather than as another node
-    // sitting among them.
-    selector: `node.${GROUP_NODE_CLASS}`,
-    style: {
-      shape: "round-rectangle",
-      label: "data(label)",
-      "background-color": "#f2f4f7",
-      "background-opacity": 0.6,
-      "border-style": "dashed",
-      "border-color": "#aab4c2",
-      "border-width": 1,
-      "text-valign": "top",
-      "text-halign": "center",
-      "font-size": 11,
-      padding: "14px",
+    {
+      // The region drawn around a group's members. Low-opacity fill and a label
+      // above the cluster, so it reads as a backdrop rather than as another node
+      // sitting among them.
+      selector: `node.${GROUP_NODE_CLASS}`,
+      style: {
+        shape: "round-rectangle",
+        label: "data(label)",
+        "background-color": "#f2f4f7",
+        "background-opacity": 0.6,
+        "border-style": "dashed",
+        "border-color": "#aab4c2",
+        "border-width": 1,
+        "text-valign": "top",
+        "text-halign": "center",
+        "font-size": 11,
+        padding: "14px",
+      },
     },
-  },
-  {
-    // A node borrowed from another mindmap: same shape and size, dashed
-    // border and a paler fill. Shape was left alone because shape is how a
-    // future node-kind distinction (item vs note) would read; a dashed
-    // outline says "not really from here" without spending that channel, and
-    // stays legible for anyone who can't rely on the colour difference.
-    selector: `node.${EXTERNAL_NODE_CLASS}`,
-    style: {
-      "background-color": "#eef3fa",
-      "border-style": "dashed",
-      "border-color": "#7aa7d9",
-      "border-width": 2,
+    {
+      // A node borrowed from another mindmap: same shape and size, dashed
+      // border and a paler fill. Shape was left alone because shape is how a
+      // future node-kind distinction (item vs note) would read; a dashed
+      // outline says "not really from here" without spending that channel, and
+      // stays legible for anyone who can't rely on the colour difference.
+      selector: `node.${EXTERNAL_NODE_CLASS}`,
+      style: {
+        "background-color": "#eef3fa",
+        "border-style": "dashed",
+        "border-color": "#7aa7d9",
+        "border-width": 2,
+      },
     },
-  },
-  {
-    selector: "edge",
-    style: {
-      "curve-style": "bezier",
-      label: "data(label)",
-      "font-size": 8,
-      "text-rotation": "autorotate",
-      "text-background-color": "#fff",
-      "text-background-opacity": 1,
-      "text-background-padding": "2px",
-      width: 2,
-      "line-color": "#666",
-      "target-arrow-color": "#666",
-      "control-point-distances": "data(parallelOffset)",
-      "control-point-weights": 0.5,
+    {
+      selector: "edge",
+      style: {
+        "curve-style": "bezier",
+        label: "data(label)",
+        "font-size": 8,
+        "text-rotation": "autorotate",
+        "text-background-color": "#fff",
+        "text-background-opacity": 1,
+        "text-background-padding": "2px",
+        width: 2,
+        "line-color": "#666",
+        "target-arrow-color": "#666",
+        "control-point-distances": "data(parallelOffset)",
+        "control-point-weights": 0.5,
+      },
     },
-  },
-  {
-    selector: "edge.directional",
-    style: {
-      "line-style": "dashed",
-      "target-arrow-shape": "triangle",
+    {
+      selector: "edge.directional",
+      style: {
+        "line-style": "dashed",
+        "target-arrow-shape": "triangle",
+      },
     },
-  },
-  {
-    selector: "edge.undirectional",
-    style: {
-      "line-style": "solid",
-      "target-arrow-shape": "none",
+    {
+      selector: "edge.undirectional",
+      style: {
+        "line-style": "solid",
+        "target-arrow-shape": "none",
+      },
     },
-  },
-  {
-    selector: "edge.unknown-type",
-    style: {
-      "line-style": "dotted",
-      "line-color": "#999",
-      "target-arrow-color": "#999",
-      "target-arrow-shape": "none",
+    {
+      selector: "edge.unknown-type",
+      style: {
+        "line-style": "dotted",
+        "line-color": "#999",
+        "target-arrow-color": "#999",
+        "target-arrow-shape": "none",
+      },
     },
-  },
-  {
-    // Lighter than the unknown-type dotted line so the two don't read alike,
-    // and labelless on purpose: every real edge carries a label, even the
-    // unknown-type fallback, so an unlabelled line cannot be mistaken for an
-    // authored relationship.
-    selector: `edge.${PARENT_CHILD_TIE_CLASS}`,
-    style: {
-      "line-style": "dotted",
-      "line-color": "#ddd",
-      width: 1,
-      label: "",
-      "target-arrow-shape": "none",
-      "source-arrow-shape": "none",
+    {
+      // Lighter than the unknown-type dotted line so the two don't read alike,
+      // and labelless on purpose: every real edge carries a label, even the
+      // unknown-type fallback, so an unlabelled line cannot be mistaken for an
+      // authored relationship.
+      selector: `edge.${PARENT_CHILD_TIE_CLASS}`,
+      style: {
+        "line-style": "dotted",
+        "line-color": "#ddd",
+        width: 1,
+        label: "",
+        "target-arrow-shape": "none",
+        "source-arrow-shape": "none",
+      },
     },
-  },
-];
+    {
+      // Listed last so it wins over every node/group/external rule above for
+      // the properties it sets: a selected node is otherwise drawn identically
+      // to an unselected one, which is what made shift-click and box-select
+      // look like they weren't doing anything.
+      selector: "node:selected",
+      style: {
+        "border-width": 3,
+        "border-color": resolveSelectionColor(win),
+      },
+    },
+  ];
+}
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -731,6 +761,13 @@ export function attachNodeClickHandler(
   cy.on("tap", "node", (evt) => {
     // A group container is a node to Cytoscape but has no item behind it.
     if (evt.target.data("isGroup")) {
+      return;
+    }
+    // A modifier held on the tap means the user is building a multi-select,
+    // not asking to see a node's detail - docking here would change the
+    // tab's layout mid-gesture instead of just growing the selection.
+    const original = evt.originalEvent as MouseEvent | undefined;
+    if (original?.shiftKey || original?.metaKey || original?.ctrlKey) {
       return;
     }
     const ref = nodeRefsById.get(evt.target.id());
@@ -1195,7 +1232,7 @@ export async function renderMindmap(
         ...buildParentChildTies(doc.nodes),
       ],
     },
-    style: STYLESHEET,
+    style: buildStylesheet(win),
     layout: { name: "preset" },
   });
   observeContainerSize(cy, container, win);
