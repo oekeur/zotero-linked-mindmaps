@@ -37,12 +37,14 @@ import {
 } from "../../src/modules/mindmap/nodeOverview";
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
+  createMindmap,
   findMindmapNote,
   readMindmapDocument,
   updateMindmapDocument,
   whenStorageIdle,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
+import { createMemberNode, refFor } from "../../src/modules/mindmap/mutations";
 import type { LinkType } from "../../src/modules/mindmap/linkTypes";
 import {
   CURRENT_SCHEMA_VERSION,
@@ -433,6 +435,59 @@ describe("mindmap/graphRenderer", function () {
 
       assert.equal(dockContainer.style.display, "none");
       assert.equal(dockContainer.textContent, "");
+    });
+
+    it("reaches the same link edit control the item pane offers (AC #4)", async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+
+      const mindmap = await createMindmap("Dock edit test");
+      const here = createMemberNode(refFor(article));
+      const other = createMemberNode({
+        kind: "item",
+        libraryID: article.libraryID,
+        key: "NOSUCHDOCK",
+      });
+      await updateMindmapDocument(
+        (doc) => {
+          doc.nodes.push(here, other);
+          doc.links.push({
+            id: "dock-edit-link",
+            typeId: "cites",
+            sourceNodeId: here.id,
+            targetNodeId: other.id,
+            direction: "forward",
+          });
+          return doc;
+        },
+        mindmap.id,
+        article.libraryID,
+      );
+
+      attachNodeClickHandler(
+        fakeCy(),
+        new Map([["n1", refTo(article)]]),
+        dockContainer,
+        mindmap.id,
+      );
+      await tapHandler(nodeEvent("n1"));
+      // showNodeInDock fires the Connections content off without waiting on
+      // it, so the link row isn't there yet the instant the tap resolves.
+      await Zotero.Promise.delay(300);
+
+      const edit = dockContainer.querySelector(
+        ".mindmap-link-edit",
+      ) as HTMLButtonElement;
+      assert.isNotNull(edit, "the dock's link row has no edit control");
+      edit.click();
+      await Zotero.Promise.delay(300);
+
+      const typeSelect = dockContainer.querySelector(
+        "select",
+      ) as HTMLSelectElement;
+      assert.equal(typeSelect.value, "cites");
+
+      await clearStorageNotes();
     });
   });
 

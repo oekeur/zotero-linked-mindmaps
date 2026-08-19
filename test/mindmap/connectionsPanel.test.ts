@@ -6,6 +6,7 @@ import {
 import { SAVE_BUTTON_CLASS } from "../../src/modules/mindmap/addLinkForm";
 import {
   createMindmap,
+  readMindmapDocument,
   updateMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
@@ -403,6 +404,7 @@ describe("mindmap/connectionsPanel", function () {
         "mindmap-link-type",
         "mindmap-link-arrow",
         "mindmap-link-target",
+        "mindmap-icon-button mindmap-link-edit",
         "mindmap-icon-button mindmap-link-remove",
       ]);
     });
@@ -415,6 +417,118 @@ describe("mindmap/connectionsPanel", function () {
 
       assert.equal(countArrows(label), 0, `an arrow in "${label}"`);
       assert.include(label, "related to");
+    });
+  });
+
+  describe("editing a link", function () {
+    beforeEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+    });
+
+    async function seedDirectionalLink(): Promise<{
+      mindmapId: string;
+      linkId: string;
+    }> {
+      const created = await createMindmap("Editable");
+      const here = createMemberNode(refFor(article));
+      const other = createMemberNode({
+        kind: "item",
+        libraryID: article.libraryID,
+        key: "NOSUCH03",
+      });
+      await updateMindmapDocument(
+        (doc) => {
+          doc.nodes.push(here, other);
+          doc.links.push({
+            id: "edit-me",
+            typeId: "cites",
+            sourceNodeId: here.id,
+            targetNodeId: other.id,
+            direction: "forward",
+          });
+          return doc;
+        },
+        created.id,
+        article.libraryID,
+      );
+      return { mindmapId: created.id, linkId: "edit-me" };
+    }
+
+    it("opens prefilled from the existing link with Save already enabled (AC #1, #2)", async function () {
+      this.timeout(30000);
+      const { mindmapId } = await seedDirectionalLink();
+      await renderConnectionsContent(container, article, mindmapId);
+
+      (
+        container.querySelector(".mindmap-link-edit") as HTMLButtonElement
+      ).click();
+      await Zotero.Promise.delay(300);
+
+      const typeSelect = container.querySelector("select") as HTMLSelectElement;
+      assert.equal(typeSelect.value, "cites");
+      const save = container.querySelector(
+        `.${SAVE_BUTTON_CLASS}`,
+      ) as HTMLButtonElement;
+      assert.isNotNull(save);
+      assert.isFalse(save.disabled);
+    });
+
+    it("updates the link in place and clears direction when retyped to a non-directional type (AC #3)", async function () {
+      this.timeout(30000);
+      const { mindmapId, linkId } = await seedDirectionalLink();
+      await renderConnectionsContent(container, article, mindmapId);
+
+      (
+        container.querySelector(".mindmap-link-edit") as HTMLButtonElement
+      ).click();
+      await Zotero.Promise.delay(300);
+
+      const typeSelect = container.querySelector("select") as HTMLSelectElement;
+      typeSelect.value = "related-to";
+      typeSelect.dispatchEvent(new Event("change"));
+      (
+        container.querySelector(`.${SAVE_BUTTON_CLASS}`) as HTMLButtonElement
+      ).click();
+      await Zotero.Promise.delay(600);
+
+      const doc = await readMindmapDocument(mindmapId, article.libraryID);
+      assert.lengthOf(doc.links, 1, "editing must not create a duplicate link");
+      assert.equal(doc.links[0].id, linkId);
+      assert.equal(doc.links[0].typeId, "related-to");
+      assert.notProperty(doc.links[0], "direction");
+
+      const row = container.querySelector(".mindmap-link-row")!;
+      assert.notInclude(row.textContent!, "→");
+    });
+
+    it("closes without changing the link when cancelled", async function () {
+      this.timeout(30000);
+      const { mindmapId, linkId } = await seedDirectionalLink();
+      await renderConnectionsContent(container, article, mindmapId);
+
+      (
+        container.querySelector(".mindmap-link-edit") as HTMLButtonElement
+      ).click();
+      await Zotero.Promise.delay(300);
+
+      const cancel = container.querySelector(
+        ".mindmap-form-cancel",
+      ) as HTMLButtonElement;
+      assert.isNotNull(cancel);
+      cancel.click();
+      await Zotero.Promise.delay(300);
+
+      const doc = await readMindmapDocument(mindmapId, article.libraryID);
+      assert.lengthOf(doc.links, 1);
+      assert.equal(doc.links[0].typeId, "cites");
+      assert.equal(doc.links[0].direction, "forward");
+      assert.equal(doc.links[0].id, linkId);
     });
   });
 });

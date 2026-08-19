@@ -30,12 +30,12 @@ Nothing at all. The selected object is neither a regular item nor a note, so the
 
 "No links yet. Add one to link this to another item." The item is a node in the shown mindmap but no link touches it. The mindmap title, the remove-node button, and the add-link controls are all present.
 
-Links listed. One row per link where this item's node is either end. A row is a type chip, a direction mark, the other end's title, and a remove control:
+Links listed. One row per link where this item's node is either end. A row is a type chip, a direction mark, the other end's title, an edit control, and a remove control:
 
 - The chip carries the type label, with the link's name appended after a colon when it has one (`cites: see p.12`), and a small line drawing the same style the graph uses for that type: dashed with an arrowhead for a directional type, solid for an undirected one, dotted for a type no longer in the vocabulary. The chip says what the type looks like, not which way this link points.
 - The direction mark is that second fact. It is drawn from this item's point of view: a right arrow when the stored direction runs away from this item, a left arrow when it runs toward it, and a middle dot when the link has no direction at all. An arrow on a row therefore always means a direction somebody authored.
 - The title is elided rather than wrapped, with the full text as a tooltip.
-- The remove control appears when the row is hovered or when something inside it takes keyboard focus, so the resting list is content rather than controls.
+- The edit and remove controls appear when the row is hovered or when something inside it takes keyboard focus, so the resting list is content rather than controls.
 
 A link whose type is no longer in the vocabulary is listed as "(unknown type)", the same label the graph draws on that link's edge. The raw stored type id is never shown.
 
@@ -54,6 +54,8 @@ Either control writes to the mindmap the panel is showing, the one named at the 
 Remove from mindmap, the icon control beside the mindmap name (tooltip "Remove from mindmap"). Removes this item's node from the shown mindmap, along with every link touching it. Afterwards the plugin reconciles cross-mindmap stubs in the library, dropping any that pointed at the removed node (see [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md)). The Zotero item is untouched.
 
 "Remove from group". Shown only when the node is in a group. Takes the node out of the group and leaves the group itself in place. See [grouping-reference.md](grouping-reference.md).
+
+An edit control on each link row (tooltip "Edit link"), revealed on hover or keyboard focus. Opens the add-link form prefilled with that link's type, name and direction; the endpoints are shown as fixed text rather than a picker, since they cannot be changed here. Saving updates the link in place - same id, no new link created. Cancelling leaves it untouched. See [links-add-reference.md](links-add-reference.md).
 
 A remove control on each link row (tooltip "Remove link"), revealed on hover or keyboard focus. Removes that link and nothing else. Both nodes stay on the mindmap.
 

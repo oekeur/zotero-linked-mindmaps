@@ -113,12 +113,15 @@
  * keyboard user could not reach it at all. Opacity also keeps the row from
  * reflowing as the pointer crosses it.
  */
-.mindmap-link-remove {
+.mindmap-link-remove,
+.mindmap-link-edit {
   opacity: 0;
 }
 
 .mindmap-link-row:hover .mindmap-link-remove,
-.mindmap-link-remove:focus-visible {
+.mindmap-link-remove:focus-visible,
+.mindmap-link-row:hover .mindmap-link-edit,
+.mindmap-link-edit:focus-visible {
   opacity: 1;
 }
 
