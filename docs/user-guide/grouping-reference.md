@@ -36,6 +36,8 @@ The region cannot be dragged. Dragging it would carry every member along and rew
 
 Clicking a group's region does nothing: there is no Zotero item behind it, so it does not open the dock. Right-clicking it opens the group menu.
 
+A selected node - shift-clicked, or caught in a shift-drag box - gets a highlighted border. That's the only feedback selection gives before you group anything, so it's what to check if a click or drag seems to have done nothing.
+
 ## Controls
 
 | Where                                                   | Control                        | Effect                                                                      |
