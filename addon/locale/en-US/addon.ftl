@@ -32,8 +32,22 @@ mindmap-data-trashed-open = Mindmap data for this library is in the trash. Nothi
 itemmenu-add-to-mindmap = Add to Mindmap
 itemmenu-add-link = Add Link…
 itemmenu-add-link-submenu = Add Link in
+itemmenu-group-on-mindmap = Group Items on Mindmap…
+itemmenu-group-on-mindmap-submenu = Group Items on Mindmap
 add-to-mindmap-progress =
     { $count ->
         [one] Added { $count } item to { $mindmap }
        *[other] Added { $count } items to { $mindmap }
+    }
+group-on-mindmap-dialog-title = Group items
+group-on-mindmap-dialog-message = Name for the group (optional)
+group-on-mindmap-progress =
+    { $count ->
+        [one] Grouped { $count } item on { $mindmap }
+       *[other] Grouped { $count } items on { $mindmap }
+    }
+group-on-mindmap-skipped =
+    { $count ->
+        [one] { $count } item was left out: only items and notes can be grouped.
+       *[other] { $count } items were left out: only items and notes can be grouped.
     }

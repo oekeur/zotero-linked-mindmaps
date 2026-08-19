@@ -32,8 +32,22 @@ mindmap-data-trashed-open = De mindmapgegevens van deze bibliotheek staan in de 
 itemmenu-add-to-mindmap = Aan mindmap toevoegen
 itemmenu-add-link = Koppeling toevoegen…
 itemmenu-add-link-submenu = Koppeling toevoegen in
+itemmenu-group-on-mindmap = Items groeperen op mindmap…
+itemmenu-group-on-mindmap-submenu = Items groeperen op mindmap
 add-to-mindmap-progress =
     { $count ->
         [one] { $count } item toegevoegd aan { $mindmap }
        *[other] { $count } items toegevoegd aan { $mindmap }
+    }
+group-on-mindmap-dialog-title = Items groeperen
+group-on-mindmap-dialog-message = Naam voor de groep (optioneel)
+group-on-mindmap-progress =
+    { $count ->
+        [one] { $count } item gegroepeerd op { $mindmap }
+       *[other] { $count } items gegroepeerd op { $mindmap }
+    }
+group-on-mindmap-skipped =
+    { $count ->
+        [one] { $count } item is niet meegenomen: alleen items en notities kunnen worden gegroepeerd.
+       *[other] { $count } items zijn niet meegenomen: alleen items en notities kunnen worden gegroepeerd.
     }

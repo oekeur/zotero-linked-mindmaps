@@ -24,6 +24,19 @@ They all go in one pass. Don't be surprised if the count comes out lower than wh
 
 Attachments in the selection get skipped, as do the plugin's own "Zotero Linked Mindmaps (plugin data)" item and the mindmap notes under it. Select nothing but those and the entry still appears; clicking it reports "Added 0 items to Chapter one", naming the mindmap it targeted.
 
+## Group several items into one
+
+1. Select two or more items in the library list, with Ctrl-click or Shift-click.
+2. Right-click the selection and choose "Group Items on Mindmap", then a mindmap if you are asked.
+3. A dialog asks for the group's name. Type one, leave it blank for an unnamed group, or cancel to add and group nothing.
+4. The popup reports how many items were grouped.
+
+This is the add step and the grouping step in one action: every item that isn't already on the mindmap gets a node first, then all of them - the ones just added and the ones already there - land in a single new group. An item already on the mindmap keeps its existing node and position rather than gaining a second one.
+
+The entry doesn't appear for a single selected item, since grouping one item says nothing a node doesn't already.
+
+Attachments in the selection are left out of the group and reported by count in the popup, the same eligibility rule as "Add to Mindmap". A selection with nothing eligible in it groups nothing and writes nothing.
+
 ## Notes on where they land
 
 With one mindmap in the library, or none at all, there's nothing to choose between and the entry writes without asking. An empty library gets a mindmap titled "Mindmap" created on the spot, which you can rename afterwards from the mindmap tab's sidebar ([mindmaps-manage-howto.md](mindmaps-manage-howto.md)).
