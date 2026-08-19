@@ -16,7 +16,7 @@ if (typeof console === "undefined") {
 }
 ```
 
-The object it installs has seven members. `log`, `warn`, `error`, `group` and `groupCollapsed` each take `...args: any[]` and forward `args.join(" ")` to `Zotero.debug`. `groupEnd` and `trace` are no-ops.
+The object it installs has seven members. `log`, `warn`, `error`, `group` and `groupCollapsed` each take `...args: any[]` and forward `args.join(" ")` to `src/utils/logging.ts`'s `logTrace`/`logFailure`, not to `Zotero.debug` directly - `error` goes through `logFailure` (reaches `Zotero.getErrors()` even without debug logging enabled), `warn` through `logTrace` at a distinct level, and `log`/`group`/`groupCollapsed` through plain `logTrace`. See [logging-reference.md](logging-reference.md). `groupEnd` and `trace` are no-ops.
 
 **When it must run:** before anything that transitively imports Cytoscape. Cytoscape's bundle references `console` at module top level, unguarded, so importing it into a scope without a `console` throws and aborts plugin startup before any hook runs.
 

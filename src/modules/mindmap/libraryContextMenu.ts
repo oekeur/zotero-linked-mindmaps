@@ -10,6 +10,7 @@
  * screen saying which one that was.
  */
 import { getString } from "../../utils/locale";
+import { logFailure } from "../../utils/logging";
 import {
   listMindmaps,
   updateMindmapDocument,
@@ -159,8 +160,9 @@ function mindmapsForPopup(
     return cached;
   }
   const listing = listMindmaps(libraryID).catch((err: Error) => {
-    Zotero.debug(
+    logFailure(
       `[zoteroLinkedMindmaps] could not list mindmaps for the item menu: ${err.message}`,
+      err,
     );
     return [] as MindmapSummary[];
   });

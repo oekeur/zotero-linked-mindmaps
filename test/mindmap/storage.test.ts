@@ -369,6 +369,31 @@ describe("mindmap/storage", function () {
       assert.equal(listed.length, 1);
       assert.equal(listed[0].id, good.id);
     });
+
+    it("skips an unreadable note while resolving an id by name, and logs it", async function () {
+      // Ordered before the readable mindmap: findMindmapById returns as soon
+      // as it finds a match, so the broken note only gets read (and only
+      // reaches the catch block this test is about) if it sorts first.
+      const broken = new Zotero.Item("note");
+      broken.libraryID = Zotero.Libraries.userLibraryID;
+      broken.setNote('<p>warn</p><pre id="x">{not valid json</pre>');
+      broken.addTag(STORAGE_TAG);
+      await broken.saveTx();
+      const good = await createMindmap("Readable");
+
+      const logErrorCalls: Error[] = [];
+      const originalLogError = Zotero.logError;
+      Zotero.logError = (err: Error) => {
+        logErrorCalls.push(err);
+      };
+      try {
+        const doc = await readMindmapDocument(good.id);
+        assert.equal(doc.id, good.id);
+      } finally {
+        Zotero.logError = originalLogError;
+      }
+      assert.isNotEmpty(logErrorCalls);
+    });
   });
 
   describe("container item", function () {

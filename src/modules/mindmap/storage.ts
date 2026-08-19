@@ -18,6 +18,7 @@ import {
   type MindmapNode,
 } from "./schema";
 import { parseMindmapDocument } from "./validate";
+import { logFailure } from "../../utils/logging";
 
 export const STORAGE_TAG = "_zoterolinkedmindmaps-storage-v1";
 
@@ -402,8 +403,12 @@ async function findMindmapById(
     let doc: MindmapDocument;
     try {
       doc = readDocumentFromNote(await refreshNote(item));
-    } catch {
+    } catch (err) {
       // One unreadable note must not hide the mindmap being looked for.
+      logFailure(
+        `[zoteroLinkedMindmaps] skipping unreadable storage note ${item.id}: ${(err as Error).message}`,
+        err,
+      );
       continue;
     }
     if (doc.id === id) {
@@ -493,8 +498,9 @@ export async function readAllMindmaps(
     try {
       stored.push({ item, doc: readDocumentFromNote(item) });
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] skipping unreadable storage note ${item.id}: ${(err as Error).message}`,
+        err,
       );
     }
   }

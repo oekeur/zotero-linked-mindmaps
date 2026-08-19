@@ -13,6 +13,7 @@
  */
 import { config } from "../../../package.json";
 import { getLocaleID, getString } from "../../utils/locale";
+import { logFailure } from "../../utils/logging";
 import type { FluentMessageId } from "../../../typings/i10n";
 import {
   createMindmap,
@@ -430,8 +431,9 @@ export function createMindmapTabController(
       // refresh load the saved one.
       currentDocument = undefined;
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] mindmap save failed: ${(err as Error).message}`,
+        err,
       );
     }
     formMode = "none";
@@ -464,8 +466,9 @@ export function createMindmapTabController(
       }
       await deleteMindmap(target.id);
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] mindmap delete failed: ${(err as Error).message}`,
+        err,
       );
     }
     await refresh();

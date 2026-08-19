@@ -84,10 +84,10 @@ body:
   - type: textarea
     id: debug-output
     attributes:
-      label: Debug output
+      label: Error output
       description: |
-        Help -> Debug Output Logging -> Enable, reproduce the bug, then View Output. Paste the lines around the failure.
-        The plugin writes no log file, so this is often the only signal available. Leave it blank if the panel shows nothing; that is worth knowing too.
+        Help -> Report Errors… - it opens without sending anything. Copy the text from its first page and paste it here; don't click through to submit it to Zotero.
+        This works even if you never turned on debug logging: plugin failures are logged in a way that survives to that panel regardless. Debug Output Logging (Help -> Debug Output Logging -> Enable, then reproduce and View Output) still helps for anything that isn't a hard failure, e.g. a step that silently did the wrong thing - paste that here too if you have it.
       render: text
 
   - type: textarea

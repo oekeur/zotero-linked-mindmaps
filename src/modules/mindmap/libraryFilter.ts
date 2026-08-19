@@ -16,6 +16,7 @@
  * instead of an item tree that renders nothing.
  */
 import { getPref } from "../../utils/prefs";
+import { logFailure } from "../../utils/logging";
 import { config } from "../../../package.json";
 import { CONTAINER_TAG, STORAGE_TAG } from "./storage";
 
@@ -90,7 +91,7 @@ export function registerLibraryFilter(): void {
     Zotero as unknown as { CollectionTreeRow?: { prototype: any } }
   ).CollectionTreeRow?.prototype;
   if (typeof proto?.getSearchObject !== "function") {
-    Zotero.debug(
+    logFailure(
       "[zoteroLinkedMindmaps] no CollectionTreeRow.getSearchObject to patch; the plugin container stays visible",
     );
     return;
@@ -109,8 +110,9 @@ export function registerLibraryFilter(): void {
       }
       return isFilterable(this) ? withoutContainer(this, result) : result;
     } catch (err) {
-      Zotero.debug(
+      logFailure(
         `[zoteroLinkedMindmaps] hiding the plugin container failed, leaving it visible: ${(err as Error).message}`,
+        err,
       );
       return result;
     }

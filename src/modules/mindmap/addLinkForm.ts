@@ -11,6 +11,7 @@
  * one - see `renderAddLinkForm`'s `editing` parameter.
  */
 import { getLocaleID } from "../../utils/locale";
+import { logFailure } from "../../utils/logging";
 import { getLinkTypeById, getLinkTypes } from "./linkTypes";
 import {
   listMindmaps,
@@ -582,8 +583,9 @@ export function renderAddLinkForm(
           );
           onSaved();
         } catch (err) {
-          Zotero.debug(
+          logFailure(
             `[zoteroLinkedMindmaps] failed to save link: ${(err as Error).message}`,
+            err,
           );
         }
         return;
@@ -630,8 +632,9 @@ export function renderAddLinkForm(
           onSaved();
         }
       } catch (err) {
-        Zotero.debug(
+        logFailure(
           `[zoteroLinkedMindmaps] failed to save link: ${(err as Error).message}`,
+          err,
         );
       }
     })();
