@@ -5,10 +5,10 @@ This is the fastest way to get items onto a mindmap: they arrive as nodes, with 
 ## Add one item
 
 1. Select the item in the library list.
-2. Right-click it and choose "Add to mindmap".
+2. Right-click it and choose "Add to Mindmap".
 3. Read the popup that appears in the corner: "Added 1 item to Chapter one", naming the mindmap it went to.
 
-If the library holds more than one mindmap, "Add to mindmap" opens a submenu rather than acting straight away. Pick the one you want from it. The entries are mindmap titles, oldest first.
+If the library holds more than one mindmap, "Add to Mindmap" opens a submenu rather than acting straight away. Pick the one you want from it. The entries are mindmap titles, oldest first.
 
 ![Zotero's item right-click menu with "Add to Mindmap" open, listing Mindmap 1 and Mindmap 2, above the separate "Add Link in" entry](../images/library-context-menu.png)
 
@@ -17,7 +17,7 @@ Your item is now a node with no position yet. Open the mindmap tab to see where 
 ## Add several items at once
 
 1. Select them in the library list, with Ctrl-click or Shift-click.
-2. Right-click the selection and choose "Add to mindmap", then a mindmap if you are asked.
+2. Right-click the selection and choose "Add to Mindmap", then a mindmap if you are asked.
 3. The popup reports how many nodes were added.
 
 They all go in one pass. Don't be surprised if the count comes out lower than what you selected: it only counts items that weren't already on the mindmap, so a selection that's entirely there reports 0.

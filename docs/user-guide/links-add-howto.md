@@ -10,7 +10,7 @@ Four places open the add-link form, and they all produce the same link record. W
 4. Pick a link type under "Type".
 5. Type a label under "Name (optional)" if you want one. Leave it blank otherwise.
 6. If a "Direction" dropdown appeared, choose which way the relation runs. Both options spell it out using the type as the verb, so for `cites` you are picking between "This item cites the target" and "The target cites this item".
-7. Click "Choose target" and pick the item or note to link to in Zotero's item selector.
+7. Click "Choose target…" and pick the item or note to link to in Zotero's item selector.
 8. Click "Save". The links list redraws with the new link.
 
 ## From a node in the mindmap tab
@@ -32,7 +32,7 @@ The panel in the mindmap tab has no section header, so it carries an in-body "Ad
 ## From the library context menu
 
 1. Select one or more items in the library list.
-2. Right-click the selection. With more than one mindmap in the library you get an "Add link" submenu: open it and click the mindmap the link belongs in. With one mindmap or none, you get a plain "Add link…" entry that uses the library's default mindmap.
+2. Right-click the selection. With more than one mindmap in the library you get an "Add Link in" submenu: open it and click the mindmap the link belongs in. With one mindmap or none, you get a plain "Add Link…" entry that uses the library's default mindmap.
 3. A dialog titled "Add link" opens for the first eligible item, already pointed at the mindmap you chose in step 2. Fill it in and click "Save", or close it to skip that item.
 4. The dialog for the next eligible item opens once the previous one has closed. Anything that's neither a regular item nor a note gets skipped without a dialog, as do the plugin's own data item and storage notes.
 

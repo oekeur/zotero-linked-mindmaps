@@ -20,7 +20,7 @@ The cost of scoping it that tightly is that new nodes land in a block off to the
 
 ## Why the grid exists behind the force layout
 
-Force-directed layouts push connected nodes apart along their edges. Nodes with no edges have nothing pushing them, and a batch of freshly added nodes usually has no edges yet. "Add to mindmap" on a dozen library items creates twelve nodes and zero links.
+Force-directed layouts push connected nodes apart along their edges. Nodes with no edges have nothing pushing them, and a batch of freshly added nodes usually has no edges yet. "Add to Mindmap" on a dozen library items creates twelve nodes and zero links.
 
 Run `cose` on twelve unconnected nodes all starting from the same coordinate and it can hand you back twelve nodes on that same coordinate. Nothing is wrong with the algorithm. There is simply no force in the system to separate them.
 

@@ -47,7 +47,7 @@ and closing itself after three seconds. The count is nodes actually added, so it
 
 A failed write reports nothing. The popup only appears after the write succeeds, and the error goes to the debug output. The case to know about is a trashed container: with "Zotero Linked Mindmaps (plugin data)" in the trash and no reachable mindmap left, the write is refused rather than allowed to create a second copy, and the menu says nothing about it. Opening the mindmap tab is what surfaces it, with
 
-> Mindmap data for this library is in the trash. Nothing new was created - restore it to get your mindmaps back.
+> Mindmap data for this library is in the trash. Nothing new was created; restore it to get your mindmaps back.
 
 Trashing a single mindmap's storage note takes that mindmap out of the submenu. The plugin reports that once, when it happens:
 
