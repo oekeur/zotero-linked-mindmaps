@@ -18,7 +18,7 @@ The tags it filters on, `CONTAINER_TAG` and `STORAGE_TAG`, are imported from `st
 
 Returns early if `original` is already set, so calling it twice does not stack a second wrapper.
 
-Reads `Zotero.CollectionTreeRow?.prototype`. If `getSearchObject` on it is not a function, logs `no CollectionTreeRow.getSearchObject to patch; the plugin container stays visible` through `Zotero.debug` and returns without patching. The plugin keeps working; the container row stays visible.
+Reads `Zotero.CollectionTreeRow?.prototype`. If `getSearchObject` on it is not a function, logs `no CollectionTreeRow.getSearchObject to patch; the plugin container stays visible` through `logFailure` and returns without patching. The plugin keeps working; the container row stays visible.
 
 Otherwise it saves the original into `original`, and installs a replacement with the same signature:
 
@@ -90,7 +90,7 @@ The row's search is cached per row, and the refresh clears that cache before reb
 
 ## Failure behavior
 
-The wrap fails open. Any exception from `isFilterable` or `withoutContainer` is caught, logged through `Zotero.debug` as `hiding the plugin container failed, leaving it visible: <message>`, and the original search is returned. A Zotero change that breaks the wrap costs one visible row rather than an item tree that renders nothing. `test/mindmap/libraryFilter.test.ts` exercises this by throwing from `Zotero.Search.prototype.addCondition` for the container tag and asserting the container id is still in the result.
+The wrap fails open. Any exception from `isFilterable` or `withoutContainer` is caught, logged through `logFailure` as `hiding the plugin container failed, leaving it visible: <message>`, and the original search is returned. A Zotero change that breaks the wrap costs one visible row rather than an item tree that renders nothing. `test/mindmap/libraryFilter.test.ts` exercises this by throwing from `Zotero.Search.prototype.addCondition` for the container tag and asserting the container id is still in the result.
 
 ## See also
 

@@ -75,7 +75,7 @@ void (async () => {
 
 The `delay(0)` is a second, separate reason for the same shape. Pruning starts with reads, and those reads have to see the state the transaction leaves behind rather than the one it is still committing. Deferring a macrotask puts the work after the commit.
 
-Since nothing awaits the work, errors have nowhere to propagate to. They get caught and sent to `Zotero.debug`.
+Since nothing awaits the work, errors have nowhere to propagate to. They get caught and sent to `logFailure` (see [logging-reference.md](logging-reference.md)).
 
 **`graphRenderer.ts`'s `attachLiveRefresh`** returns void and starts a rebuild it doesn't await. The rebuild reads the storage note and redraws the graph. Its comment names the same mechanism: awaiting the rebuild would park it on a queue whose head is the task waiting for this very notification to return.
 
