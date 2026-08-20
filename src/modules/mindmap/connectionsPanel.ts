@@ -38,12 +38,7 @@ import {
   removeLink,
   removeNode,
 } from "./mutations";
-import {
-  refsMatch,
-  type MindmapDocument,
-  type MindmapLink,
-  type MindmapNode,
-} from "./schema";
+import { refsMatch, type MindmapDocument, type MindmapLink } from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
 

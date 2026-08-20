@@ -17,7 +17,7 @@
  */
 import { readAllMindmaps, updateMindmapDocument } from "./storage";
 import { withoutNodes } from "./mutations";
-import type { MindmapDocument, MindmapNode } from "./schema";
+import type { MindmapNode } from "./schema";
 
 function isDangling(
   node: MindmapNode,
