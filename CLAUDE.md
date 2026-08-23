@@ -42,7 +42,10 @@ zoteroMindmap is a **Zotero 7 plugin** (item pane panel + main-window tab, per Z
 - `test/` — Mocha tests run against a live Zotero instance via `zotero-plugin test`.
 - `zotero-plugin.config.ts` — scaffold build/serve/test config (source dirs, esbuild options, update URL).
 - `.env` (gitignored, copy from `.env.example`) — local Zotero binary/profile paths for `npm start`.
-- `project/` — a **separate nested git repository**, not part of this repo's history (gitignored here). It holds product/project management: `PRODUCT.md` (charter) and a Backlog.md task tracker (`project/backlog/`). Don't edit Backlog task/decision/milestone files directly — use `scripts/backlog.sh` so metadata stays consistent (see `project/AGENTS.md` for the enforced workflow).
+- `project/` — a **separate nested git repository**, not part of this repo's history (gitignored here). It holds product/project management: `PRODUCT.md` (charter), `ui-design.md` (the UI rules m-9 settled) and a Backlog.md task tracker (`project/backlog/`). Don't edit Backlog task/decision/milestone files directly — use `scripts/backlog.sh` so metadata stays consistent (see `project/AGENTS.md` for the enforced workflow).
+
+  **Read `project/ui-design.md` before adding or changing any surface**: item-pane section, tab, sidebar, node dock, preferences pane, context menu, standalone window. It carries the stylesheet mechanism and its three loading paths, the Zotero colour variables and why `--color-accent` may never fill a region, the canvas exception for Cytoscape, the settled graph notation and its legend contract, the six copy rules, and the decisions left deliberately open. Those rules were rebuilt into the plugin by m-9 and lived only in its seven closed tasks, which is not where anyone looks before building a fifth surface.
+
 - `zotero-plugin-docs/` — a gitignored, vendored local clone of the community Zotero plugin dev docs (VitePress site, `docs/` subtree of `windingwind/doc-for-zotero-plugin-dev`). Read files under it directly for Zotero plugin API/lifecycle questions instead of fetching GitHub. Refresh with `cd zotero-plugin-docs && git pull`. The docs' own disclaimer: content may lag behind Zotero itself — cross-check against Zotero's source when something looks off.
 
   Map of `zotero-plugin-docs/docs/`:
