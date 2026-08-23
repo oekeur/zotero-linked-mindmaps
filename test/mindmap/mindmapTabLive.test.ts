@@ -7,6 +7,7 @@ import {
 } from "../../src/modules/mindmap/mindmapTab";
 import { createMindmap } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
+import { waitFor } from "../waitFor";
 
 /**
  * The real tab, opened the way the menu item and the shortcut open it, rather
@@ -23,6 +24,15 @@ describe("mindmap/mindmapTab live tab", function () {
     return Zotero.getMainWindow().document;
   }
 
+  /** Opens the tab and hands back its sidebar once the tab has built one. */
+  async function openTab(): Promise<Element> {
+    await openMindmapTab();
+    return waitFor(
+      () => mainDocument().querySelector(SIDEBAR),
+      "the tab's sidebar",
+    );
+  }
+
   before(function () {
     const instance = (Zotero as any)[config.addonInstance];
     (globalThis as any).addon = instance;
@@ -34,7 +44,10 @@ describe("mindmap/mindmapTab live tab", function () {
   afterEach(async function () {
     this.timeout(30000);
     closeMindmapTab();
-    await Zotero.Promise.delay(200);
+    await waitFor(
+      () => mainDocument().querySelector(SIDEBAR) === null || null,
+      "the tab to close",
+    );
     Zotero.Prefs.clear(`${config.prefsPrefix}.sidebarCollapsed`, true);
     await clearStorageNotes();
   });
@@ -43,20 +56,24 @@ describe("mindmap/mindmapTab live tab", function () {
     this.timeout(30000);
     await createMindmap("Live tab check", "opened for real");
 
-    await openMindmapTab();
-    await Zotero.Promise.delay(1000);
+    const sidebar = await openTab();
+    // Fluent translates after the elements are in the document, so the
+    // heading is the last thing to arrive and the one worth waiting on.
+    await waitFor(
+      () =>
+        sidebar.textContent?.includes(getString("mindmap-sidebar-heading")) ||
+        null,
+      "Fluent to translate the sidebar",
+    );
 
-    const sidebar = mainDocument().querySelector(SIDEBAR);
-    assert.isNotNull(sidebar, "the tab did not build a sidebar");
-    const text = sidebar!.textContent ?? "";
-    assert.include(text, getString("mindmap-sidebar-heading"));
+    const text = sidebar.textContent ?? "";
     assert.include(text, "Live tab check");
     // Edit, Delete and the header's plus control are icon-only, translated
     // through their title attribute rather than through visible text - the
     // bug this guards against would show up there instead of in textContent.
-    const editButton = sidebar!.querySelector(".mindmap-sidebar-edit");
-    const deleteButton = sidebar!.querySelector(".mindmap-sidebar-delete");
-    const newButton = sidebar!.querySelector(
+    const editButton = sidebar.querySelector(".mindmap-sidebar-edit");
+    const deleteButton = sidebar.querySelector(".mindmap-sidebar-delete");
+    const newButton = sidebar.querySelector(
       "#zoterolinkedmindmaps-mindmap-new",
     );
     assert.isNotNull(editButton);
@@ -73,8 +90,7 @@ describe("mindmap/mindmapTab live tab", function () {
 
   it("titles the tab from the locale rather than an id", async function () {
     this.timeout(30000);
-    await openMindmapTab();
-    await Zotero.Promise.delay(1000);
+    await openTab();
 
     const tab = (Zotero.getMainWindow() as any).Zotero_Tabs._tabs.find(
       (entry: { type: string }) =>
@@ -86,24 +102,24 @@ describe("mindmap/mindmapTab live tab", function () {
 
   it("lays the tab out as sidebar, graph and dock in one row", async function () {
     this.timeout(30000);
-    await openMindmapTab();
-    await Zotero.Promise.delay(1000);
-
+    const sidebar = await openTab();
     const doc = mainDocument();
-    const sidebar = doc.querySelector(SIDEBAR);
-    const graph = doc.querySelector(GRAPH);
+    // Laid out, not merely present: the width assertion below is the point of
+    // the test, and it reads zero until the row has been through layout.
+    const graph = await waitFor(() => {
+      const found = doc.querySelector(GRAPH) as HTMLElement | null;
+      return found?.getBoundingClientRect().width ? found : null;
+    }, "the graph area to be laid out");
     const dock = doc.querySelector(DOCK);
-    assert.isNotNull(sidebar);
-    assert.isNotNull(graph);
     assert.isNotNull(dock);
     // Siblings in the order they are read in, left to right.
-    assert.equal(sidebar!.nextElementSibling, graph);
-    assert.equal(graph!.nextElementSibling, dock);
+    assert.equal(sidebar.nextElementSibling, graph);
+    assert.equal(graph.nextElementSibling, dock);
     // The header the sidebar replaced.
     assert.isNull(doc.querySelector("#zoterolinkedmindmaps-mindmap-toolbar"));
     // The graph has to end up with real width, or Cytoscape piles every node
     // on the origin.
-    assert.isAbove((graph as HTMLElement).getBoundingClientRect().width, 0);
+    assert.isAbove(graph.getBoundingClientRect().width, 0);
   });
 
   /**
@@ -113,15 +129,17 @@ describe("mindmap/mindmapTab live tab", function () {
    */
   it("opens the dock inside the tab rather than off its right edge", async function () {
     this.timeout(30000);
-    await openMindmapTab();
-    await Zotero.Promise.delay(1000);
+    await openTab();
 
     const doc = mainDocument();
     const dock = doc.querySelector(DOCK) as HTMLElement;
     const graph = doc.querySelector(GRAPH) as HTMLElement;
     const row = dock.parentElement!;
     dock.style.display = "";
-    await Zotero.Promise.delay(200);
+    await waitFor(
+      () => dock.getBoundingClientRect().width || null,
+      "the dock to take up width",
+    );
 
     const rowRect = row.getBoundingClientRect();
     const dockRect = dock.getBoundingClientRect();
@@ -142,19 +160,24 @@ describe("mindmap/mindmapTab live tab", function () {
 
   it("gives the graph the width back when the sidebar collapses", async function () {
     this.timeout(30000);
-    await openMindmapTab();
-    await Zotero.Promise.delay(1000);
+    await openTab();
 
     const doc = mainDocument();
     const graph = doc.querySelector(GRAPH) as HTMLElement;
-    const before = graph.getBoundingClientRect().width;
+    const before = await waitFor(
+      () => graph.getBoundingClientRect().width || null,
+      "the graph area to be laid out",
+    );
 
     (
       doc.querySelector(
         "#zoterolinkedmindmaps-mindmap-sidebar-toggle",
       ) as HTMLButtonElement
     ).click();
-    await Zotero.Promise.delay(400);
+    await waitFor(
+      () => graph.getBoundingClientRect().width > before || null,
+      "the graph to take the collapsed sidebar's width",
+    );
 
     assert.isAbove(graph.getBoundingClientRect().width, before);
   });

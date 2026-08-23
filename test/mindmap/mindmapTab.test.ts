@@ -20,6 +20,7 @@ import {
   readMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
+import { waitFor } from "../waitFor";
 
 const NEW = `#${SIDEBAR_NEW_BUTTON_ID}`;
 const SAVE = "#zoterolinkedmindmaps-mindmap-save";
@@ -41,6 +42,10 @@ describe("mindmap/mindmapTab", function () {
 
   function rows(): HTMLElement[] {
     return [...surfaces.sidebar.querySelectorAll(ROW)] as HTMLElement[];
+  }
+
+  function waitForSidebar(selector: string, description: string) {
+    return waitFor(() => surfaces.sidebar.querySelector(selector), description);
   }
 
   function rowFor(id: string): HTMLElement {
@@ -237,12 +242,14 @@ describe("mindmap/mindmapTab", function () {
     await controller.refresh();
 
     pick<HTMLButtonElement>(NEW).click();
-    await Zotero.Promise.delay(100);
+    await waitForSidebar(TITLE_INPUT, "the new-mindmap form");
 
     pick<HTMLInputElement>(TITLE_INPUT).value = "Fieldwork";
     pick<HTMLInputElement>(DESCRIPTION_INPUT).value = "interviews and notes";
     pick<HTMLButtonElement>(SAVE).click();
-    await Zotero.Promise.delay(600);
+    // Saving redraws the sidebar, so a row standing there means the write
+    // finished and the storage read below sees it.
+    await waitFor(() => rows().length === 1 || null, "the new mindmap's row");
 
     const listed = await listMindmaps();
     assert.equal(listed.length, 1);
@@ -261,7 +268,7 @@ describe("mindmap/mindmapTab", function () {
         `.${SIDEBAR_EDIT_CLASS}`,
       ) as HTMLButtonElement
     ).click();
-    await Zotero.Promise.delay(100);
+    await waitForSidebar(TITLE_INPUT, "the rename form");
 
     const titleInput = pick<HTMLInputElement>(TITLE_INPUT);
     const descriptionInput = pick<HTMLInputElement>(DESCRIPTION_INPUT);
@@ -270,12 +277,19 @@ describe("mindmap/mindmapTab", function () {
     titleInput.value = "Final title";
     descriptionInput.value = "second pass";
     pick<HTMLButtonElement>(SAVE).click();
-    await Zotero.Promise.delay(600);
+    // querySelector rather than rowFor: the row is gone from the sidebar
+    // while the redraw runs, and rowFor asserts it is there.
+    await waitFor(
+      () =>
+        surfaces.sidebar
+          .querySelector(`${ROW}[data-mindmap-id="${created.id}"]`)
+          ?.textContent?.includes("Final title") || null,
+      "the renamed row",
+    );
 
     const doc = await readMindmapDocument(created.id);
     assert.equal(doc.title, "Final title");
     assert.equal(doc.description, "second pass");
-    assert.include(rowFor(created.id).textContent ?? "", "Final title");
   });
 
   it("keeps the form open on a blank title rather than saving one", async function () {
@@ -283,9 +297,11 @@ describe("mindmap/mindmapTab", function () {
     await controller.refresh();
 
     pick<HTMLButtonElement>(NEW).click();
-    await Zotero.Promise.delay(100);
+    await waitForSidebar(TITLE_INPUT, "the new-mindmap form");
     pick<HTMLInputElement>(TITLE_INPUT).value = "   ";
     pick<HTMLButtonElement>(SAVE).click();
+    // Nothing to poll for: the assertion is that the blank title is refused,
+    // so the wait has to give a write that should never happen time to land.
     await Zotero.Promise.delay(300);
 
     assert.isEmpty(await listMindmaps());
@@ -299,7 +315,10 @@ describe("mindmap/mindmapTab", function () {
     await controller.refresh();
 
     rowFor(second.id).click();
-    await Zotero.Promise.delay(800);
+    await waitFor(
+      () => selectedRowId() === second.id || null,
+      "the clicked row to become the selected one",
+    );
 
     assert.equal(selectedRowId(), second.id);
     assert.equal((await readMindmapDocument(second.id)).title, "Second");
@@ -318,9 +337,8 @@ describe("mindmap/mindmapTab", function () {
     assert.isNotEmpty(rows());
 
     pick<HTMLButtonElement>(`#${SIDEBAR_TOGGLE_ID}`).click();
-    await Zotero.Promise.delay(300);
+    await waitFor(() => rows().length === 0 || null, "the sidebar to collapse");
 
-    assert.isEmpty(rows());
     assert.isNull(surfaces.sidebar.querySelector(NEW));
 
     // A second controller stands in for reopening the tab: collapsed is read
@@ -331,8 +349,10 @@ describe("mindmap/mindmapTab", function () {
       assert.isEmpty(rows());
 
       pick<HTMLButtonElement>(`#${SIDEBAR_TOGGLE_ID}`).click();
-      await Zotero.Promise.delay(300);
-      assert.isNotEmpty(rows());
+      await waitFor(
+        () => rows().length > 0 || null,
+        "the sidebar to expand again",
+      );
     } finally {
       reopened.teardown();
     }

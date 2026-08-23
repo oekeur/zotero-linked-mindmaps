@@ -14,6 +14,7 @@ import { createMemberNode, refFor } from "../../src/modules/mindmap/mutations";
 import { addToMindmap } from "../../src/modules/mindmap/libraryContextMenu";
 import { getLocaleID } from "../../src/utils/locale";
 import { clearStorageNotes } from "./storageNotes";
+import { waitFor } from "../waitFor";
 
 describe("mindmap/connectionsPanel", function () {
   let article: Zotero.Item;
@@ -64,6 +65,20 @@ describe("mindmap/connectionsPanel", function () {
       return container.querySelector<HTMLElement>(".mindmap-add-link-form")!;
     }
 
+    function waitForMindmapChoice() {
+      return waitFor(
+        () => form().querySelector(`.${MINDMAP_CHOICE_CLASS}`),
+        "the mindmap picker",
+      );
+    }
+
+    function waitForMountedForm() {
+      return waitFor(
+        () => form().querySelector(`.${SAVE_BUTTON_CLASS}`),
+        "the add-link form's save button",
+      );
+    }
+
     beforeEach(async function () {
       this.timeout(30000);
       await clearStorageNotes();
@@ -81,11 +96,9 @@ describe("mindmap/connectionsPanel", function () {
       await renderConnectionsContent(container, article);
 
       addLinkButton().click();
-      await Zotero.Promise.delay(500);
+      const choice = await waitForMindmapChoice();
 
-      const choice = form().querySelector(`.${MINDMAP_CHOICE_CLASS}`);
-      assert.isNotNull(choice);
-      const picker = choice!.querySelector("select") as HTMLSelectElement;
+      const picker = choice.querySelector("select") as HTMLSelectElement;
       assert.deepEqual(
         [...picker.options].map((option) => option.textContent),
         ["Chapter one", "Methods"],
@@ -102,15 +115,13 @@ describe("mindmap/connectionsPanel", function () {
       await renderConnectionsContent(container, article);
 
       addLinkButton().click();
-      await Zotero.Promise.delay(500);
+      const choice = await waitForMindmapChoice();
 
-      const choice = form().querySelector(`.${MINDMAP_CHOICE_CLASS}`)!;
       (choice.querySelector("select") as HTMLSelectElement).value = second.id;
       (choice.querySelector("button") as HTMLButtonElement).click();
-      await Zotero.Promise.delay(600);
+      await waitForMountedForm();
 
       assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
-      assert.isNotNull(form().querySelector(`.${SAVE_BUTTON_CLASS}`));
     });
 
     it("skips the question with exactly one mindmap (AC #2)", async function () {
@@ -119,10 +130,9 @@ describe("mindmap/connectionsPanel", function () {
       await renderConnectionsContent(container, article);
 
       addLinkButton().click();
-      await Zotero.Promise.delay(600);
+      await waitForMountedForm();
 
       assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
-      assert.isNotNull(form().querySelector(`.${SAVE_BUTTON_CLASS}`));
     });
 
     it("skips the question with no mindmap at all", async function () {
@@ -130,10 +140,9 @@ describe("mindmap/connectionsPanel", function () {
       await renderConnectionsContent(container, article);
 
       addLinkButton().click();
-      await Zotero.Promise.delay(600);
+      await waitForMountedForm();
 
       assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
-      assert.isNotNull(form().querySelector(`.${SAVE_BUTTON_CLASS}`));
     });
 
     it("skips the question for a mindmap the panel already resolved", async function () {
@@ -146,10 +155,9 @@ describe("mindmap/connectionsPanel", function () {
       // and opening the form must not ask which one that was.
       await renderConnectionsContent(container, article);
       addLinkButton().click();
-      await Zotero.Promise.delay(600);
+      await waitForMountedForm();
 
       assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
-      assert.isNotNull(form().querySelector(`.${SAVE_BUTTON_CLASS}`));
     });
 
     it("skips the question when the caller already named the mindmap", async function () {
@@ -159,10 +167,9 @@ describe("mindmap/connectionsPanel", function () {
       await renderConnectionsContent(container, article, second.id);
 
       addLinkButton().click();
-      await Zotero.Promise.delay(600);
+      await waitForMountedForm();
 
       assert.isNull(form().querySelector(`.${MINDMAP_CHOICE_CLASS}`));
-      assert.isNotNull(form().querySelector(`.${SAVE_BUTTON_CLASS}`));
     });
   });
 
@@ -468,14 +475,13 @@ describe("mindmap/connectionsPanel", function () {
       (
         container.querySelector(".mindmap-link-edit") as HTMLButtonElement
       ).click();
-      await Zotero.Promise.delay(300);
+      const save = (await waitFor(
+        () => container.querySelector(`.${SAVE_BUTTON_CLASS}`),
+        "the edit form's save button",
+      )) as HTMLButtonElement;
 
       const typeSelect = container.querySelector("select") as HTMLSelectElement;
       assert.equal(typeSelect.value, "cites");
-      const save = container.querySelector(
-        `.${SAVE_BUTTON_CLASS}`,
-      ) as HTMLButtonElement;
-      assert.isNotNull(save);
       assert.isFalse(save.disabled);
     });
 
@@ -487,23 +493,30 @@ describe("mindmap/connectionsPanel", function () {
       (
         container.querySelector(".mindmap-link-edit") as HTMLButtonElement
       ).click();
-      await Zotero.Promise.delay(300);
+      await waitFor(
+        () => container.querySelector(`.${SAVE_BUTTON_CLASS}`),
+        "the edit form's save button",
+      );
 
       const typeSelect = container.querySelector("select") as HTMLSelectElement;
       typeSelect.value = "related-to";
       typeSelect.dispatchEvent(new Event("change"));
+      // Saving redraws the panel, so a fresh row element means the write
+      // finished and the document is safe to read back.
+      const staleRow = container.querySelector(".mindmap-link-row");
       (
         container.querySelector(`.${SAVE_BUTTON_CLASS}`) as HTMLButtonElement
       ).click();
-      await Zotero.Promise.delay(600);
+      const row = await waitFor(() => {
+        const redrawn = container.querySelector(".mindmap-link-row");
+        return redrawn && redrawn !== staleRow ? redrawn : null;
+      }, "the link row to redraw after saving");
 
       const doc = await readMindmapDocument(mindmapId, article.libraryID);
       assert.lengthOf(doc.links, 1, "editing must not create a duplicate link");
       assert.equal(doc.links[0].id, linkId);
       assert.equal(doc.links[0].typeId, "related-to");
       assert.notProperty(doc.links[0], "direction");
-
-      const row = container.querySelector(".mindmap-link-row")!;
       assert.notInclude(row.textContent!, "→");
     });
 
@@ -515,13 +528,14 @@ describe("mindmap/connectionsPanel", function () {
       (
         container.querySelector(".mindmap-link-edit") as HTMLButtonElement
       ).click();
-      await Zotero.Promise.delay(300);
+      const cancel = (await waitFor(
+        () => container.querySelector(".mindmap-form-cancel"),
+        "the edit form's cancel button",
+      )) as HTMLButtonElement;
 
-      const cancel = container.querySelector(
-        ".mindmap-form-cancel",
-      ) as HTMLButtonElement;
-      assert.isNotNull(cancel);
       cancel.click();
+      // Nothing to poll for: the assertion is that no write happens, and a
+      // condition that is already true cannot be waited on.
       await Zotero.Promise.delay(300);
 
       const doc = await readMindmapDocument(mindmapId, article.libraryID);

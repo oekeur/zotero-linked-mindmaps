@@ -1,9 +1,27 @@
 import { assert } from "chai";
 import { logFailure, logTrace } from "../src/utils/logging";
+import { waitFor } from "./waitFor";
 
-async function waitForError(marker: string): Promise<string[]> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
+function errorsMatching(marker: string): string[] {
   return (Zotero.getErrors(true) as string[]).filter((e) => e.includes(marker));
+}
+
+/** Resolves with the matching entries once the log reaches getErrors. */
+function waitForError(marker: string): Promise<string[]> {
+  return waitFor(() => {
+    const matches = errorsMatching(marker);
+    return matches.length > 0 ? matches : null;
+  }, `a getErrors entry containing "${marker}"`);
+}
+
+/**
+ * The counterpart for a log that must never arrive. There is no condition to
+ * poll for an absence, so this stays a flat wait: long enough that an entry
+ * on its way would have landed.
+ */
+async function waitForNoError(marker: string): Promise<string[]> {
+  await Zotero.Promise.delay(200);
+  return errorsMatching(marker);
 }
 
 describe("logging", function () {
@@ -36,7 +54,7 @@ describe("logging", function () {
     const marker = `[zoteroLinkedMindmaps] logging test trace ${Date.now()}`;
     logTrace(marker);
 
-    const matches = await waitForError(marker);
+    const matches = await waitForNoError(marker);
     assert.isEmpty(matches);
   });
 });

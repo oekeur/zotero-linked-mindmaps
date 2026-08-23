@@ -59,6 +59,7 @@ import type {
   ZoteroObjectRef,
 } from "../../src/modules/mindmap/schema";
 import { clearStorageNotes } from "./storageNotes";
+import { waitFor } from "../waitFor";
 
 const LEGEND_COLLAPSED_PREF_KEY = `${config.prefsPrefix}.legendCollapsed`;
 
@@ -491,18 +492,16 @@ describe("mindmap/graphRenderer", function () {
       await tapHandler(nodeEvent("n1"));
       // showNodeInDock fires the Connections content off without waiting on
       // it, so the link row isn't there yet the instant the tap resolves.
-      await Zotero.Promise.delay(300);
+      const edit = (await waitFor(
+        () => dockContainer.querySelector(".mindmap-link-edit"),
+        "the dock's link row and its edit control",
+      )) as HTMLButtonElement;
 
-      const edit = dockContainer.querySelector(
-        ".mindmap-link-edit",
-      ) as HTMLButtonElement;
-      assert.isNotNull(edit, "the dock's link row has no edit control");
       edit.click();
-      await Zotero.Promise.delay(300);
-
-      const typeSelect = dockContainer.querySelector(
-        "select",
-      ) as HTMLSelectElement;
+      const typeSelect = (await waitFor(
+        () => dockContainer.querySelector("select"),
+        "the edit form's type dropdown",
+      )) as HTMLSelectElement;
       assert.equal(typeSelect.value, "cites");
 
       await clearStorageNotes();
@@ -648,7 +647,12 @@ describe("mindmap/graphRenderer", function () {
 
       cxttapHandler(nodeEvent("n1"));
       menuButton()!.click();
-      await Zotero.Promise.delay(500);
+      // The dock's own header is written synchronously; the Connections
+      // content behind it is not, and the form is what the action promises.
+      await waitFor(
+        () => dockContainer.querySelector(".mindmap-add-link-form"),
+        "the dock's add-link form",
+      );
 
       assert.notEqual(dockContainer.style.display, "none");
       assert.include(dockContainer.textContent ?? "", "Context Menu Test");
@@ -1492,6 +1496,9 @@ describe("mindmap/graphRenderer", function () {
 
         dragTo(cy, { "node-a": { x: 640, y: 480 } });
         await settle();
+        // Nothing to poll for: the assertion is that the graph does not
+        // rebuild, so the wait has to give a rebuild that should never come
+        // time to arrive.
         await Zotero.Promise.delay(300);
 
         assert.equal(rendered.destroyed, before);
@@ -1524,7 +1531,10 @@ describe("mindmap/graphRenderer", function () {
 
         dragTo(cy, { "node-a": { x: 640, y: 480 } });
         await settle();
-        await Zotero.Promise.delay(300);
+        await waitFor(
+          () => other.destroyed > before || null,
+          "the other graph to rebuild",
+        );
 
         assert.isAbove(other.destroyed, before);
       });
@@ -1541,7 +1551,10 @@ describe("mindmap/graphRenderer", function () {
         const before = rendered.destroyed;
 
         await updateMindmapDocument((doc) => ({ ...doc, title: "renamed" }));
-        await Zotero.Promise.delay(300);
+        await waitFor(
+          () => rendered.destroyed > before || null,
+          "the graph to rebuild for someone else's write",
+        );
 
         assert.isAbove(rendered.destroyed, before);
       });

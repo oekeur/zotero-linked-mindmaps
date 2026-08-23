@@ -16,6 +16,7 @@ import {
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
+import { waitFor } from "../waitFor";
 
 function emptyDoc(): MindmapDocument {
   return {
@@ -337,6 +338,28 @@ describe("mindmap/addLinkForm", function () {
         ) as HTMLElement;
       }
 
+      /**
+       * The click handler builds the area in two steps: it lists the other
+       * mindmaps, appends both dropdowns, and only then reads the chosen
+       * mindmap's document to fill the node dropdown. Waiting for the
+       * dropdowns covers the first read, and for their options the second.
+       */
+      function waitForExternalPickers() {
+        return waitFor(() => {
+          const selects = externalArea()?.querySelectorAll("select");
+          return selects?.length === 2 ? selects : null;
+        }, "the other-mindmap dropdowns");
+      }
+
+      function waitForBorrowableNodes() {
+        return waitFor(() => {
+          const selects = externalArea()?.querySelectorAll("select");
+          return selects?.length === 2 && selects[1].options.length > 0
+            ? selects
+            : null;
+        }, "the borrowable-node options");
+      }
+
       // The borrowed node stands for a different item than the one the form is
       // editing. A node for `item` itself is not a valid external target - it
       // would draw one item as two nodes with a link between them - and the
@@ -388,9 +411,8 @@ describe("mindmap/addLinkForm", function () {
 
         renderAddLinkForm(container, item, hereDoc, () => {});
         externalButton().click();
-        await Zotero.Promise.delay(700);
+        const selects = await waitForBorrowableNodes();
 
-        const selects = externalArea().querySelectorAll("select");
         assert.lengthOf(selects, 2);
         assert.deepEqual(
           [...selects[0].options].map((option) => option.textContent),
@@ -423,9 +445,11 @@ describe("mindmap/addLinkForm", function () {
 
         renderAddLinkForm(container, item, hereDoc, () => {});
         externalButton().click();
-        await Zotero.Promise.delay(700);
+        // The node dropdown stays empty here, so there is no filled-in state
+        // to wait for past the dropdowns themselves. Both the empty options
+        // and the disabled Save hold from the moment they exist.
+        const selects = await waitForExternalPickers();
 
-        const selects = externalArea().querySelectorAll("select");
         assert.lengthOf(selects, 2);
         assert.isEmpty([...selects[1].options]);
         const saveButton = Array.from(
@@ -443,12 +467,13 @@ describe("mindmap/addLinkForm", function () {
 
         renderAddLinkForm(container, item, hereDoc, () => {});
         externalButton().click();
-        await Zotero.Promise.delay(700);
+        await waitFor(
+          () =>
+            externalArea()?.querySelector('[data-l10n-id*="external-none"]'),
+          "the nothing-to-link-to message",
+        );
 
         assert.isEmpty(externalArea().querySelectorAll("select"));
-        assert.isNotNull(
-          externalArea().querySelector('[data-l10n-id*="external-none"]'),
-        );
       });
 
       it("saves the link into the mindmap being edited, leaving the other alone (AC #2)", async function () {
@@ -458,7 +483,7 @@ describe("mindmap/addLinkForm", function () {
 
         renderAddLinkForm(container, item, hereDoc, () => {});
         externalButton().click();
-        await Zotero.Promise.delay(700);
+        await waitForBorrowableNodes();
 
         const saveButton = Array.from(
           container.querySelectorAll("button"),
@@ -467,9 +492,13 @@ describe("mindmap/addLinkForm", function () {
         ) as HTMLButtonElement;
         assert.isFalse(saveButton.disabled);
         saveButton.click();
-        await Zotero.Promise.delay(900);
 
-        const saved = await readMindmapDocument(here.id);
+        const saved = await waitFor(async () => {
+          const written = await readMindmapDocument(here.id);
+          return written.nodes.some((node) => node.membership === "external")
+            ? written
+            : null;
+        }, "the borrowed node to reach the mindmap document");
         const stub = saved.nodes.find((node) => node.membership === "external");
         assert.isDefined(stub);
         assert.equal(stub!.homeMindmapId, there.id);

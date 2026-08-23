@@ -5,6 +5,7 @@ import {
   setLinkTypes,
   type LinkType,
 } from "../../src/modules/mindmap/linkTypes";
+import { waitFor } from "../waitFor";
 
 const PANE_ID = "zoterolinkedmindmaps-link-types-pane";
 
@@ -17,12 +18,13 @@ describe("mindmap preferences pane", function () {
     const opened = Zotero.Utilities.Internal.openPreferences(PANE_ID);
     assert.isNotNull(opened);
     win = opened!;
-    await Zotero.Promise.delay(500);
-    const found = win.document.querySelector(
-      ".zoterolinkedmindmaps-link-types-container",
+    root = await waitFor(
+      () =>
+        win.document.querySelector(
+          ".zoterolinkedmindmaps-link-types-container",
+        ),
+      "the link-types pane to load",
     );
-    assert.isNotNull(found);
-    root = found!;
   });
 
   after(function () {
@@ -162,7 +164,10 @@ describe("mindmap preferences pane", function () {
         ".zoterolinkedmindmaps-type-remove",
       ) as HTMLButtonElement
     ).click();
-    await Zotero.Promise.delay(500);
+    await waitFor(
+      () => getLinkTypes().length === 0 || null,
+      "the deleted type to leave the pref",
+    );
 
     assert.equal(getLinkTypes().length, 0);
   });

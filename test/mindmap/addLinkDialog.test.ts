@@ -7,6 +7,7 @@ import {
   openAddLinkDialog,
 } from "../../src/modules/mindmap/addLinkForm";
 import { clearStorageNotes } from "./storageNotes";
+import { waitFor } from "../waitFor";
 
 /**
  * The standalone "Add link" window, opened the way the library context menu
@@ -46,7 +47,10 @@ describe("mindmap/addLinkForm standalone dialog", function () {
     for (const win of dialogWindows()) {
       win.close();
     }
-    await Zotero.Promise.delay(300);
+    await waitFor(
+      () => dialogWindows().length === 0 || null,
+      "the open dialogs to close",
+    );
   }
 
   interface OpenDialog {
