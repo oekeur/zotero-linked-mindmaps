@@ -4,7 +4,7 @@ const SITE_BASE = "/zotero-linked-mindmaps/";
 const SITE_URL = `https://oekeur.github.io${SITE_BASE}`;
 const SITE_TITLE = "Zotero Linked Mindmaps";
 const SITE_DESCRIPTION =
-  "A Zotero 7 plugin for organizing interconnected sources as named mindmaps, with typed, named links between items and notes.";
+  "A Zotero 7 mind map plugin. Build a knowledge graph of your sources with typed, named links between items and notes, across multiple named mindmaps.";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({

@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Zotero Linked Mindmaps
   text: Map how your sources connect
-  tagline: Typed, named links between Zotero items and notes, organized into named mindmaps and rendered as a graph.
+  tagline: A Zotero mind map plugin. Typed, named links between items and notes, organized into named mindmaps and rendered as a knowledge graph.
   actions:
     - theme: brand
       text: Get started
@@ -59,7 +59,7 @@ The [user guide](./user-guide/getting-started.md) covers the mindmap tab, the Mi
 
 ## Status
 
-Version 0.1.0 is published. Download the `.xpi` from the [latest release](https://github.com/oekeur/zotero-linked-mindmaps/releases/latest) and install it through Tools, then Plugins, then the gear icon. [Getting started](./user-guide/getting-started.md) covers the steps in order.
+Version 0.2.0 is published. Download the `.xpi` from the [latest release](https://github.com/oekeur/zotero-linked-mindmaps/releases/latest) and install it through Tools, then Plugins, then the gear icon. [Getting started](./user-guide/getting-started.md) covers the steps in order.
 
 Building from source still works and is what you want if you're changing the plugin: see [development setup](./contributing/development-setup.md).
 

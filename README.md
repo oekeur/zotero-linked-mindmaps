@@ -2,13 +2,19 @@
 
 # Zotero Linked Mindmaps
 
-A Zotero 7 plugin for organizing and visualizing interconnected sources as one or more mindmaps, with typed, named links between items and notes.
+A Zotero 7 mind map plugin. Build a knowledge graph of your sources with typed, named links between items and notes, organized into multiple named mindmaps and rendered as a graph you arrange yourself.
 
 ## Why
 
 Zotero's tags and `relatedItem` field connect two items, but not how they're connected. Whether one critiques the other or is the primary source for one specific chapter gets flattened into the same untyped link. For a highly interconnected source corpus, that loses most of the structure worth mapping.
 
-An existing plugin, [samreading/zotero-mindmap](https://github.com/samreading/zotero-mindmap), covers basic note-linking, but has no typed or named links, no way to split sources across more than one mindmap, and no central graph view. This isn't a fork of it and doesn't share its data format.
+An existing plugin, samreading/zotero-mindmap, covers basic note-linking, but has no typed or named links, no way to split sources across more than one mindmap, and no central graph view. This isn't a fork of it and doesn't share its data format.
+
+## Who this is for
+
+Researchers holding a corpus where the connections matter as much as the sources: a literature review where one paper answers another, a thesis chapter with its own primary sources, a citation network you want to see rather than reconstruct each time.
+
+If you want a concept map of one PDF's argument, samreading/zotero-mindmap fits better.
 
 ## What it does
 
@@ -40,7 +46,7 @@ The build carries an update URL, so Zotero's own plugin updater offers later ver
 
 ## Status
 
-Version 0.1.0, the first published build. The feature set above works. Expect rough edges, and read [the plugin data guide](./docs/user-guide/plugin-data-howto.md) before you go poking at the "Zotero Linked Mindmaps (plugin data)" item in your library. Trashing it hides every mindmap in that library until you restore it.
+Version 0.2.0 is the current published build. The feature set above works. Expect rough edges, and read [the plugin data guide](./docs/user-guide/plugin-data-howto.md) before you go poking at the "Zotero Linked Mindmaps (plugin data)" item in your library. Trashing it hides every mindmap in that library until you restore it.
 
 See [ROADMAP.md](./ROADMAP.md) for what came in which phase and what's still open.
 

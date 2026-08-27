@@ -2,7 +2,7 @@
   "name": "zotero-linked-mindmaps",
   "type": "module",
   "version": "0.2.0",
-  "description": "Zotero 7 plugin for typed, named links between items and notes, organized into multiple named mindmaps.",
+  "description": "Zotero 7 mind map plugin: build a knowledge graph of your sources with typed, named links between items and notes, across multiple mindmaps.",
   "config": {
     "addonName": "Zotero Linked Mindmaps",
     "addonID": "zoterolinkedmindmaps@oekeur.github.io",

@@ -44,6 +44,6 @@ Select several nodes on a mindmap and group them, separate from a typed or named
 
 ## Open
 
-- Version 0.1.0 is published as a `.xpi` on GitHub Releases. It has had no use outside development.
+- Version 0.2.0 is published as a `.xpi` on GitHub Releases. It has had no use outside development.
 - A trashed plugin-data container hides every mindmap in that library. The plugin does warn, and the warning stays up until clicked, but it says nothing about how to undo the state it reports. A trashed individual storage note is worse: no warning fires at all. See [plugin data recovery](./docs/user-guide/plugin-data-howto.md).
 - Sync conflicts on a mindmap document are a knowingly accepted risk, not a solved problem.
