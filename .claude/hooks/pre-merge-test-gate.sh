@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# PreToolUse gate for `git merge` (see .claude/settings.json's `if` filter,
-# which only invokes this for Bash(git merge *) commands). Blocks a merge into
-# main unless the full `npm test` suite passes on the MERGE RESULT.
+# PreToolUse gate for `git merge`. .claude/settings.json registers this with
+# an `if: Bash(git merge *)` filter meant to restrict invocation to merge
+# commands, but that filter does not reliably do so -- this hook runs on
+# every Bash command reaching it. The extractor below is what actually tells
+# a merge apart from anything else and allows non-merges through. Blocks a
+# merge into main unless the full `npm test` suite passes on the MERGE RESULT.
 #
 # Testing main's pre-merge working tree instead would gate the state being
 # left rather than the state being created: a branch whose whole purpose is
@@ -38,19 +41,73 @@ fi
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# The ref being merged: first non-flag token after `merge`, skipping the
-# values of flags that take one. shlex keeps quoted -m messages in one piece.
+# Determines what, if anything, the command merges. Prints one of:
+#   NOMERGE  - no `merge` token follows a git invocation: not a merge
+#              invocation at all (allow).
+#   NOREF    - it is a `git merge`, but no ref could be extracted, or the
+#              command could not even be tokenized (block).
+#   <ref>    - the first non-flag token after `git merge`, skipping the
+#              values of flags that take one. shlex keeps quoted -m messages
+#              in one piece.
 ref=$(printf '%s' "$cmd" | python3 -c '
 import shlex, sys
+
 try:
     t = shlex.split(sys.stdin.read())
-    i = t.index("merge") + 1
 except ValueError:
+    print("NOREF")
     sys.exit(0)
+
+# Git global options between the invocation word and the subcommand. Ones
+# without a value; ones with a value either as a separate following token or
+# joined with "=" (--exec-path only ever takes the joined form, but treating
+# it like the rest costs nothing and stays on the safe, over-matching side).
+NOARG_GLOBAL = {"-p", "--paginate", "-P", "--no-pager", "--bare",
+                "--no-replace-objects", "--literal-pathspecs",
+                "--glob-pathspecs", "--noglob-pathspecs",
+                "--icase-pathspecs", "--no-optional-locks"}
+VALUE_GLOBAL = {"-C", "-c", "--git-dir", "--work-tree", "--namespace",
+                 "--exec-path", "--config-env"}
+
+
+def is_git_word(tok):
+    base = tok.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    if base.endswith(".exe"):
+        base = base[:-4]
+    return base == "git"
+
+
+def skip_global_opts(tokens, j):
+    while j < len(tokens):
+        tok = tokens[j]
+        if tok in NOARG_GLOBAL:
+            j += 1
+        elif tok in VALUE_GLOBAL:
+            j += 2
+        elif any(tok.startswith(opt + "=") for opt in VALUE_GLOBAL):
+            j += 1
+        else:
+            break
+    return j
+
+
+merge_idx = None
+for i, tok in enumerate(t):
+    if not is_git_word(tok):
+        continue
+    j = skip_global_opts(t, i + 1)
+    if j < len(t) and t[j] == "merge":
+        merge_idx = j
+        break
+
+if merge_idx is None:
+    print("NOMERGE")
+    sys.exit(0)
+
 takes_value = {"-m", "--message", "-F", "--file", "-s", "--strategy",
                "-X", "--strategy-option", "-S", "--gpg-sign"}
 skip = False
-for tok in t[i:]:
+for tok in t[merge_idx + 1:]:
     if skip:
         skip = False
         continue
@@ -60,15 +117,28 @@ for tok in t[i:]:
     if tok.startswith("-"):
         continue
     print(tok)
-    break
+    sys.exit(0)
+
+print("NOREF")
 ')
 
-if [ -z "$ref" ]; then
+# An empty $ref means the extractor crashed or exited non-zero without
+# printing anything -- that must still block, not fail open.
+if [ -z "$ref" ] || [ "$ref" = "NOREF" ]; then
   block "pre-merge gate could not determine which ref '$cmd' merges, so it could not test the merge result. Merge manually if this is intended."
+fi
+
+if [ "$ref" = "NOMERGE" ]; then
+  allow
 fi
 
 if ! git rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then
   block "pre-merge gate could not resolve '$ref' to a commit."
+fi
+
+# The merge would be a no-op: the ref is already contained in HEAD.
+if git merge-base --is-ancestor "$ref" HEAD 2>/dev/null; then
+  allow
 fi
 
 tmp=$(mktemp -d /tmp/zoteromindmap-premerge.XXXXXX)
