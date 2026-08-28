@@ -17,6 +17,7 @@ import {
 } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
+import { query, queryAll } from "../dom";
 
 function emptyDoc(): MindmapDocument {
   return {
@@ -269,7 +270,9 @@ describe("mindmap/addLinkForm", function () {
 
       const doc = Zotero.getMainWindow().document;
       container = doc.createElement("div");
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(async function () {
@@ -280,14 +283,15 @@ describe("mindmap/addLinkForm", function () {
     it("renders a Choose target button and starts with Save disabled and no target label shown", function () {
       renderAddLinkForm(container, item, emptyDoc(), () => {});
 
-      const chooseTargetButton = Array.from(
-        container.querySelectorAll("button"),
+      const chooseTargetButton = queryAll<HTMLButtonElement>(
+        container,
+        "button",
       ).find((button) =>
         button.getAttribute("data-l10n-id")?.includes("choose-target"),
       );
       assert.isDefined(chooseTargetButton);
 
-      const saveButton = Array.from(container.querySelectorAll("button")).find(
+      const saveButton = queryAll<HTMLButtonElement>(container, "button").find(
         (button) => button.getAttribute("data-l10n-id")?.includes("save"),
       ) as HTMLButtonElement;
       assert.isDefined(saveButton);
@@ -452,8 +456,9 @@ describe("mindmap/addLinkForm", function () {
 
         assert.lengthOf(selects, 2);
         assert.isEmpty([...selects[1].options]);
-        const saveButton = Array.from(
-          container.querySelectorAll("button"),
+        const saveButton = queryAll<HTMLButtonElement>(
+          container,
+          "button",
         ).find((button) =>
           button.getAttribute("data-l10n-id")?.includes("save"),
         ) as HTMLButtonElement;
@@ -485,8 +490,9 @@ describe("mindmap/addLinkForm", function () {
         externalButton().click();
         await waitForBorrowableNodes();
 
-        const saveButton = Array.from(
-          container.querySelectorAll("button"),
+        const saveButton = queryAll<HTMLButtonElement>(
+          container,
+          "button",
         ).find((button) =>
           button.getAttribute("data-l10n-id")?.includes("save"),
         ) as HTMLButtonElement;

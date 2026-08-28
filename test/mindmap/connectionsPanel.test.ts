@@ -15,6 +15,7 @@ import { addToMindmap } from "../../src/modules/mindmap/libraryContextMenu";
 import { getLocaleID } from "../../src/utils/locale";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
+import { query } from "../dom";
 
 describe("mindmap/connectionsPanel", function () {
   let article: Zotero.Item;
@@ -28,7 +29,9 @@ describe("mindmap/connectionsPanel", function () {
 
     const doc = Zotero.getMainWindow().document;
     container = doc.createElement("div");
-    doc.documentElement.appendChild(container);
+    query<HTMLElement>(doc, ":root", "the document root").appendChild(
+      container,
+    );
   });
 
   afterEach(async function () {
@@ -103,7 +106,10 @@ describe("mindmap/connectionsPanel", function () {
         [...picker.options].map((option) => option.textContent),
         ["Chapter one", "Methods"],
       );
-      assert.equal(picker.options[0].title, "sources for ch. 1");
+      assert.equal(
+        (picker.options[0] as HTMLOptionElement).title,
+        "sources for ch. 1",
+      );
       // The form itself waits for an answer.
       assert.isNull(form().querySelector(`.${SAVE_BUTTON_CLASS}`));
     });

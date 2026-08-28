@@ -35,7 +35,10 @@ function libraryRow(): Zotero.CollectionTreeRow {
 async function libraryItemIDs(options?: {
   unfiltered: boolean;
 }): Promise<number[]> {
-  const search = await libraryRow().getSearchObject(options);
+  const row = libraryRow() as Zotero.CollectionTreeRow & {
+    getSearchObject(options?: { unfiltered: boolean }): Promise<Zotero.Search>;
+  };
+  const search = await row.getSearchObject(options);
   return search.search();
 }
 

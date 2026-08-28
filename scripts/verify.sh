@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# The verification gate: build, lint, and the live-Zotero startup check, in the
-# order that fails cheapest first.
+# The verification gate: build, lint, typecheck, and the live-Zotero startup
+# check, in the order that fails cheapest first.
 #
 #   scripts/verify.sh [--no-test] [--test-only]
 #
-#   --no-test    build and lint only; no Zotero is launched
-#   --test-only  skip build and lint, run the live test suite only
+#   --no-test    build, lint, and typecheck only; no Zotero is launched
+#   --test-only  skip build, lint, and typecheck; run the live test suite only
 #
 # Runs every requested stage even after one fails, then exits non-zero naming
-# the stages that failed. `npm run build` covers tsc --noEmit for src/ but not
-# for test/, so the test stage is the only thing that catches a changed export
-# signature breaking a test file.
+# the stages that failed. `npm run typecheck` covers tsc --noEmit for both
+# src/ and test/, so a changed export signature that breaks a spec fails here
+# instead of only surfacing once the live suite runs.
 
 set -uo pipefail
 
@@ -84,6 +84,7 @@ clear_stale_test_zotero() {
 if [ "$RUN_STATIC" = 1 ]; then
   run_stage build npm run build
   run_stage lint npm run lint:check
+  run_stage typecheck npm run typecheck
 fi
 
 # Safe next to a dev Zotero from `npm start`: `npm run test:fast` kills its own

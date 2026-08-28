@@ -8,6 +8,7 @@ import {
 } from "../../src/modules/mindmap/addLinkForm";
 import { clearStorageNotes } from "./storageNotes";
 import { reportableError, waitFor } from "../waitFor";
+import { queryAll } from "../dom";
 
 /**
  * The standalone "Add link" window, opened the way the library context menu
@@ -66,8 +67,8 @@ describe("mindmap/addLinkForm standalone dialog", function () {
    */
   function isLocalized(content: HTMLElement): boolean {
     const filled = (el: Element) => (el.textContent?.trim() ?? "") !== "";
-    const labels = Array.from(content.querySelectorAll("label"));
-    const buttons = Array.from(content.querySelectorAll("button"));
+    const labels = queryAll<HTMLLabelElement>(content, "label");
+    const buttons = queryAll<HTMLButtonElement>(content, "button");
     return (
       labels.length > 0 &&
       buttons.length > 0 &&
@@ -148,7 +149,7 @@ describe("mindmap/addLinkForm standalone dialog", function () {
   it("fills in every field label", async function () {
     this.timeout(45000);
     const { content, win, closed } = await openDialog();
-    const labels = Array.from(content.querySelectorAll("label"));
+    const labels = queryAll<HTMLLabelElement>(content, "label");
 
     assert.isNotEmpty(labels);
     for (const label of labels) {
@@ -162,7 +163,7 @@ describe("mindmap/addLinkForm standalone dialog", function () {
   it("fills in every button", async function () {
     this.timeout(45000);
     const { content, win, closed } = await openDialog();
-    const buttons = Array.from(content.querySelectorAll("button"));
+    const buttons = queryAll<HTMLButtonElement>(content, "button");
 
     assert.isNotEmpty(buttons);
     for (const button of buttons) {
@@ -232,7 +233,7 @@ describe("mindmap/addLinkForm standalone dialog", function () {
   it("sizes the window so the whole form is on screen", async function () {
     this.timeout(45000);
     const { content, win, closed } = await openDialog();
-    const buttons = Array.from(content.querySelectorAll("button"));
+    const buttons = queryAll<HTMLButtonElement>(content, "button");
     const save = buttons[buttons.length - 1];
 
     assert.isAtMost(

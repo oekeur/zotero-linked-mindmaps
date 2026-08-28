@@ -7,6 +7,7 @@ import {
   TYPE_CLASS,
   renderNodeOverview,
 } from "../../src/modules/mindmap/nodeOverview";
+import { query } from "../dom";
 
 /**
  * Direct coverage of the dock's own summary, rather than only reaching it
@@ -28,7 +29,9 @@ describe("mindmap/nodeOverview", function () {
 
     const doc = Zotero.getMainWindow().document;
     container = doc.createElement("div");
-    doc.documentElement.appendChild(container);
+    query<HTMLElement>(doc, ":root", "the document root").appendChild(
+      container,
+    );
   });
 
   afterEach(async function () {

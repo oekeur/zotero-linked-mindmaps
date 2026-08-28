@@ -20,7 +20,8 @@ import {
   readMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
-import { waitFor } from "../waitFor";
+import { reportableError, waitFor } from "../waitFor";
+import { query } from "../dom";
 
 const NEW = `#${SIDEBAR_NEW_BUTTON_ID}`;
 const SAVE = "#zoterolinkedmindmaps-mindmap-save";
@@ -46,6 +47,15 @@ describe("mindmap/mindmapTab", function () {
 
   function waitForSidebar(selector: string, description: string) {
     return waitFor(() => surfaces.sidebar.querySelector(selector), description);
+  }
+
+  /** `Window.getComputedStyle` is typed nullable in the gecko lib. */
+  function computedStyle(win: Window, el: Element): CSSStyleDeclaration {
+    const style = win.getComputedStyle(el);
+    if (!style) {
+      throw reportableError(`getComputedStyle returned null for ${el}`);
+    }
+    return style;
   }
 
   function rowFor(id: string): HTMLElement {
@@ -76,7 +86,7 @@ describe("mindmap/mindmapTab", function () {
 
     const doc = Zotero.getMainWindow().document;
     root = doc.createElement("div");
-    doc.documentElement.appendChild(root);
+    query<HTMLElement>(doc, ":root", "the document root").appendChild(root);
 
     const sidebar = doc.createElement("div");
     const graph = doc.createElement("div");
@@ -157,7 +167,7 @@ describe("mindmap/mindmapTab", function () {
     assert.isNotNull(actions, "expected an actions container on the row");
     const win = surfaces.sidebar.ownerDocument!.defaultView as Window;
 
-    assert.equal(win.getComputedStyle(actions).opacity, "0");
+    assert.equal(computedStyle(win, actions).opacity, "0");
 
     // The live test harness never gives the Zotero window real OS focus, so
     // :focus-within never matches even though .focus() does move
@@ -192,8 +202,8 @@ describe("mindmap/mindmapTab", function () {
     const selected = rowFor(first.id);
     const other = rows().find((row) => row !== selected)!;
     const win = surfaces.sidebar.ownerDocument!.defaultView as Window;
-    const selectedStyle = win.getComputedStyle(selected);
-    const otherStyle = win.getComputedStyle(other);
+    const selectedStyle = computedStyle(win, selected);
+    const otherStyle = computedStyle(win, other);
 
     assert.notEqual(
       selectedStyle.borderLeftColor,

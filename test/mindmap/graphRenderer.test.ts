@@ -60,6 +60,7 @@ import type {
 } from "../../src/modules/mindmap/schema";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
+import { query } from "../dom";
 
 const LEGEND_COLLAPSED_PREF_KEY = `${config.prefsPrefix}.legendCollapsed`;
 
@@ -324,7 +325,9 @@ describe("mindmap/graphRenderer", function () {
       const doc = Zotero.getMainWindow().document;
       dockContainer = doc.createElement("div");
       dockContainer.style.display = "none";
-      doc.documentElement.appendChild(dockContainer);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        dockContainer,
+      );
     });
 
     afterEach(async function () {
@@ -575,11 +578,15 @@ describe("mindmap/graphRenderer", function () {
       const doc = Zotero.getMainWindow().document;
       dockContainer = doc.createElement("div");
       dockContainer.style.display = "none";
-      doc.documentElement.appendChild(dockContainer);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        dockContainer,
+      );
       graphContainer = doc.createElement("div");
       graphContainer.style.cssText =
         "position: relative; width: 200px; height: 200px;";
-      doc.documentElement.appendChild(graphContainer);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        graphContainer,
+      );
     });
 
     afterEach(async function () {
@@ -769,7 +776,9 @@ describe("mindmap/graphRenderer", function () {
       // ancestor, so the container has to establish one itself.
       container.style.cssText =
         "position: relative; width: 200px; height: 200px;";
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(function () {
@@ -823,7 +832,9 @@ describe("mindmap/graphRenderer", function () {
       container = doc.createElement("div");
       container.style.cssText =
         "position: relative; width: 200px; height: 200px;";
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(async function () {
@@ -900,7 +911,7 @@ describe("mindmap/graphRenderer", function () {
       const doc = Zotero.getMainWindow().document;
       const dock = doc.createElement("div");
       dock.style.display = "none";
-      doc.documentElement.appendChild(dock);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(dock);
       try {
         cy = await renderMindmap(container, docWithExternal(), [], dock);
 
@@ -930,7 +941,9 @@ describe("mindmap/graphRenderer", function () {
       container = doc.createElement("div");
       container.style.cssText =
         "position: relative; width: 300px; height: 300px;";
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(async function () {
@@ -1085,7 +1098,9 @@ describe("mindmap/graphRenderer", function () {
       graphContainer = doc.createElement("div");
       graphContainer.style.cssText =
         "position: relative; width: 200px; height: 200px;";
-      doc.documentElement.appendChild(graphContainer);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        graphContainer,
+      );
     });
 
     afterEach(function () {
@@ -1277,6 +1292,7 @@ describe("mindmap/graphRenderer", function () {
             data: { id, label: id },
             position: { ...positions[id] },
           })),
+          edges: [],
         },
       });
     }
@@ -1459,7 +1475,9 @@ describe("mindmap/graphRenderer", function () {
         container = doc.createElement("div");
         container.style.cssText =
           "position: relative; width: 200px; height: 200px;";
-        doc.documentElement.appendChild(container);
+        query<HTMLElement>(doc, ":root", "the document root").appendChild(
+          container,
+        );
       });
 
       afterEach(function () {
@@ -1593,7 +1611,9 @@ describe("mindmap/graphRenderer", function () {
       // size left every node piled on the origin.
       container.style.cssText =
         "position: relative; width: 0px; height: 0px; overflow: hidden;";
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(async function () {
@@ -1644,7 +1664,9 @@ describe("mindmap/graphRenderer", function () {
       container = doc.createElement("div");
       container.style.cssText =
         "position: relative; width: 200px; height: 200px;";
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(function () {
@@ -1752,7 +1774,7 @@ describe("mindmap/graphRenderer", function () {
       const doc = Zotero.getMainWindow().document;
       const el = doc.createElement("div");
       el.style.cssText = `position: relative; width: ${width}px; height: ${height}px;`;
-      doc.documentElement.appendChild(el);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(el);
       return el;
     }
 
@@ -1766,7 +1788,7 @@ describe("mindmap/graphRenderer", function () {
       const doc = Zotero.getMainWindow().document;
       dock = doc.createElement("div");
       dock.style.display = "none";
-      doc.documentElement.appendChild(dock);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(dock);
     });
 
     afterEach(async function () {
@@ -1864,7 +1886,9 @@ describe("mindmap/graphRenderer", function () {
       const doc = container.ownerDocument!;
       const win = doc.defaultView as unknown as Window;
       const outside = doc.createElement("div");
-      doc.documentElement.appendChild(outside);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        outside,
+      );
       try {
         outside.dispatchEvent(
           new (win as any).MouseEvent("mousedown", { bubbles: true }),
@@ -1929,11 +1953,13 @@ describe("mindmap/graphRenderer", function () {
       const doc = Zotero.getMainWindow().document;
       dock = doc.createElement("div");
       dock.style.display = "none";
-      doc.documentElement.appendChild(dock);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(dock);
       container = doc.createElement("div");
       container.style.cssText =
         "position: relative; width: 400px; height: 300px;";
-      doc.documentElement.appendChild(container);
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
     });
 
     afterEach(async function () {

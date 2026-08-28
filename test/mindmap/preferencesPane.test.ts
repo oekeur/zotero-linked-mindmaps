@@ -6,6 +6,7 @@ import {
   type LinkType,
 } from "../../src/modules/mindmap/linkTypes";
 import { waitFor } from "../waitFor";
+import { queryAll } from "../dom";
 
 const PANE_ID = "zoterolinkedmindmaps-link-types-pane";
 
@@ -116,9 +117,9 @@ describe("mindmap preferences pane", function () {
       { id: "undirected-type", label: "undirected type", directional: false },
     ]);
     rerender();
-    const rows = root.querySelectorAll(".zoterolinkedmindmaps-type-row");
+    const rows = queryAll(root, ".zoterolinkedmindmaps-type-row");
     assert.equal(rows.length, 2);
-    for (const row of Array.from(rows)) {
+    for (const row of rows) {
       assert.include(row.textContent ?? "", "type");
       assert.isNotNull(
         row.querySelector(".zoterolinkedmindmaps-type-line svg"),

@@ -56,6 +56,7 @@ function headlessCy(nodes: MindmapNode[]) {
         // to the position object it is given.
         position: isUnplaced(n.position) ? { x: 0, y: 0 } : { ...n.position! },
       })),
+      edges: [],
     },
   });
 }
