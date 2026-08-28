@@ -8,13 +8,15 @@ The suite runs inside a live Zotero. Every run builds the plugin, launches Zoter
 npm run test:fast
 ```
 
-Expect roughly ten seconds for the common case: build, launch, run, exit. Output is one line per test as results stream back, then a summary line:
+Expect about 150 seconds (2.5 minutes) for the 274 tests in the suite as of this writing, measured with `time npm run test:fast` on an idle machine (no other Zotero instance running): build, launch, run, exit. A loaded machine takes longer, several-fold if other Zotero instances are running at the same time; the pre-merge gate allows up to 12 minutes for that reason (see `.claude/hooks/pre-merge-test-gate.sh`). Output is one line per test as results stream back, then a summary line:
 
 ```
-Test run completed - 87 passed
+Test run completed - 274 passed
 ```
 
 Exit code 0 means every test passed, 1 means at least one failed or the run hung. `test:fast` kills Zotero the moment that summary line appears instead of waiting around for the GUI to quit.
+
+For a faster inner loop, run `scripts/verify.sh --no-test` (build, lint, typecheck) instead: no Zotero launch, done in seconds. It won't catch anything that needs a live Zotero: XUL rendering, Cytoscape layout, or live Zotero API interop. Reach for it while iterating on logic that doesn't touch those, and reach for `test:fast` before you consider a change done.
 
 ## Run the suite in watch mode
 

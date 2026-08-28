@@ -115,7 +115,7 @@ Spawns `npx zotero-plugin test` with `detached: true`, pipes its stdout through 
 
 Because it kills a process group rather than matching on process names, it leaves every Zotero it did not start alone, so it is safe to run alongside `npm start` or a test run in another worktree. Detaching also means Ctrl-C no longer reaches Zotero through the terminal, so the script traps `SIGINT` and `SIGTERM` and kills the group itself.
 
-A 240-second timer starts at launch. If no completion line has appeared by then, the script prints `run-tests: no completion line after 240s, treating as a hang` and exits 1. The timer covers the whole suite, not the gap since the last line, because several tests wait on Zotero's own notification timing and cannot be shortened.
+A 900-second timer starts at launch. If no completion line has appeared by then, the script prints `run-tests: no completion line after 900s, treating as a hang` and exits 1. The timer covers the whole suite, not the gap since the last line, because several tests wait on Zotero's own notification timing and cannot be shortened.
 
 If the child exits before the completion line appears, the script exits with the child's code, or 1 if the code is null.
 
