@@ -7,7 +7,7 @@ import {
   openAddLinkDialog,
 } from "../../src/modules/mindmap/addLinkForm";
 import { clearStorageNotes } from "./storageNotes";
-import { waitFor } from "../waitFor";
+import { reportableError, waitFor } from "../waitFor";
 
 /**
  * The standalone "Add link" window, opened the way the library context menu
@@ -118,7 +118,7 @@ describe("mindmap/addLinkForm standalone dialog", function () {
       await settled(win);
       return { content: content as HTMLElement, win, closed };
     }
-    throw new Error(
+    throw reportableError(
       "the Add link dialog never opened, or Fluent never filled it in",
     );
   }

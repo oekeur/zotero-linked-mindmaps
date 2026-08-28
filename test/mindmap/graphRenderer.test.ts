@@ -2007,17 +2007,7 @@ describe("mindmap/graphRenderer", function () {
 
     it("offers Group selected nodes on a node that is part of a real two-node selection, and grouping it writes the group", async function () {
       this.timeout(30000);
-      try {
-        await runGroupFromNodeMenuGesture();
-      } catch (err) {
-        // The test harness ships thrown errors to the reporter via
-        // JSON.stringify, which drops a native Error's non-enumerable
-        // `message` - assert.fail's message is a plain enumerable property,
-        // so it survives that trip and the real cause is visible.
-        assert.fail(
-          `${(err as Error)?.message ?? err}\n${(err as Error)?.stack ?? ""}`,
-        );
-      }
+      await runGroupFromNodeMenuGesture();
     });
 
     async function runGroupFromNodeMenuGesture(): Promise<void> {

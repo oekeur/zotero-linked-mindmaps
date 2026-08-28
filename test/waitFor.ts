@@ -1,4 +1,25 @@
 /**
+ * Builds an Error whose `message` survives the test harness's reporter.
+ *
+ * `Error` defines `message` as a non-enumerable own property, so
+ * `JSON.stringify(new Error("x"))` is `{}` and the scaffold reporter (which
+ * ships failures to the server as JSON and reads `data.error.message`)
+ * prints `undefined` next to the spec title. Redefining the property as
+ * enumerable keeps everything else about the Error - `instanceof`, `stack` -
+ * unchanged.
+ */
+export function reportableError(message: string): Error {
+  const error = new Error(message);
+  Object.defineProperty(error, "message", {
+    value: message,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  return error;
+}
+
+/**
  * Polls `get` until it returns something truthy, then hands that value back.
  *
  * Sleeping a flat number of milliseconds after a click encodes a guess about
@@ -33,7 +54,7 @@ export async function waitFor<T>(
       return found;
     }
     if (Date.now() >= deadline) {
-      throw new Error(
+      throw reportableError(
         `waitFor: timed out after ${timeout}ms waiting for ${description}`,
       );
     }

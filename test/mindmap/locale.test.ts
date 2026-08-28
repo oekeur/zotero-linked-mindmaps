@@ -107,6 +107,11 @@ describe("locales", function () {
         english = messageIds(await localeSource("en-US", file));
         dutch = messageIds(await localeSource("nl-NL", file));
       } catch (err) {
+        // localeSource reads through Zotero.File.getContentsFromURLAsync, not
+        // waitFor, so waitFor's reportableError fix doesn't cover its
+        // failures. assert.fail keeps them legible the same way, and adds
+        // rootURI - useful here because the URL it was built into is the
+        // most likely thing to be wrong.
         assert.fail(
           `could not read locale files: ${(err as Error)?.message} (rootURI=${(globalThis as any).rootURI})`,
         );
