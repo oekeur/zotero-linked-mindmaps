@@ -23,6 +23,7 @@ export type FluentMessageId =
   | 'add-to-mindmap-progress'
   | 'container-trashed-now'
   | 'container-trashed-startup'
+  | 'cross-library-refused'
   | 'group-on-mindmap-dialog-message'
   | 'group-on-mindmap-dialog-title'
   | 'group-on-mindmap-progress'
