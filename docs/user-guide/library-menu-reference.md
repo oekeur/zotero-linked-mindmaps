@@ -39,7 +39,11 @@ The target is the mindmap picked from the submenu, or the library's default when
 
 Items already present as a node are skipped rather than duplicated. New nodes are created unplaced, with no position, so the mindmap tab's layout places them the next time the graph is drawn ([node-layout-reference.md](node-layout-reference.md)). No links are created.
 
-The library is taken from the first eligible item in the selection. A selection spanning two libraries is not a case the entry handles.
+A mindmap belongs to one library, so a selection spanning two is refused: nothing is written and the plugin reports "A mindmap belongs to one library. Select items from a single library and try again." All three entries behave this way.
+
+This matters under Zotero 10, which allows selecting more than one collection at a time, so the items list can show My Library and a group library together. Before the refusal existed, such a selection wrote nodes carrying one library's identifiers into the other library's mindmap, with no error.
+
+Cross-library mindmaps may be reconsidered later; today the rule is one mindmap, one library, enforced when the mindmap is saved rather than only in the menu.
 
 ### What it reports
 

@@ -39,6 +39,7 @@ add-to-mindmap-progress =
         [one] Added { $count } item to { $mindmap }
        *[other] Added { $count } items to { $mindmap }
     }
+cross-library-refused = A mindmap belongs to one library. Select items from a single library and try again.
 group-on-mindmap-dialog-title = Group items
 group-on-mindmap-dialog-message = Name for the group (optional)
 group-on-mindmap-progress =

@@ -54,7 +54,8 @@ export type StorageErrorReason =
   | "parse-failed"
   | "invalid-schema"
   | "not-found"
-  | "container-trashed";
+  | "container-trashed"
+  | "cross-library";
 
 export class StorageError extends Error {
   reason: StorageErrorReason;
@@ -711,6 +712,20 @@ export async function updateMindmapDocument(
     if (next === null) {
       return null;
     }
+    // A mindmap belongs to one library, so every node it holds must point into
+    // that same library. Checked here rather than at each caller because this
+    // is the one place every write passes through: Zotero 10 turned on
+    // multi-select in the collection tree, so a selection can span libraries
+    // and the resulting nodes would otherwise be written into whichever
+    // library the first item happened to belong to, silently.
+    const foreign = next.nodes.find((node) => node.ref.libraryID !== libraryID);
+    if (foreign) {
+      throw new StorageError(
+        "cross-library",
+        `node ${foreign.id} points at library ${foreign.ref.libraryID}, but this mindmap lives in library ${libraryID}`,
+      );
+    }
+
     const result = parseMindmapDocument(next);
     if (!result.ok) {
       throw new StorageError("invalid-schema", result.error);

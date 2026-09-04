@@ -52,6 +52,34 @@ function eligibleSelection(win: _ZoteroTypes.MainWindow): Zotero.Item[] {
   return win.ZoteroPane.getSelectedItems().filter(canBeMindmapNode);
 }
 
+/**
+ * The one library every item in `items` belongs to, or null if they span more
+ * than one. Empty input has no library either, so it also returns null.
+ *
+ * Zotero 10 turned on multi-select in the collection tree, so the items list
+ * can show My Library and a group library at once and a selection can span
+ * both. A mindmap belongs to one library, so an action over such a selection
+ * has no single answer and is refused. `updateMindmapDocument` enforces the
+ * same rule at the write itself; this exists so the refusal can be a message
+ * rather than a thrown error.
+ */
+export function singleLibraryOf(items: Zotero.Item[]): number | null {
+  if (items.length === 0) {
+    return null;
+  }
+  const first = items[0].libraryID;
+  return items.every((item) => item.libraryID === first) ? first : null;
+}
+
+function reportCrossLibraryRefusal(): void {
+  new ztoolkit.ProgressWindow(addon.data.config.addonName)
+    .createLine({
+      text: getString("cross-library-refused"),
+      type: "default",
+    })
+    .show();
+}
+
 // Unfiltered, unlike eligibleSelection above: "Group items on mindmap" gates
 // on how many items the user picked, not on how many of them turn out to be
 // linkable - grouping a mixed selection is still meaningful, it just leaves
@@ -71,13 +99,16 @@ function rawSelection(win: _ZoteroTypes.MainWindow): Zotero.Item[] {
 export async function addToMindmap(
   items: Zotero.Item[],
   mindmapId?: string,
-): Promise<{ added: number; mindmapTitle: string }> {
+): Promise<{ added: number; mindmapTitle: string; crossLibrary?: true }> {
   const eligible = items.filter(canBeMindmapNode);
   if (eligible.length === 0) {
     return { added: 0, mindmapTitle: "" };
   }
 
-  const libraryID = eligible[0].libraryID;
+  const libraryID = singleLibraryOf(eligible);
+  if (libraryID === null) {
+    return { added: 0, mindmapTitle: "", crossLibrary: true };
+  }
   let addedCount = 0;
   // Reported back so the confirmation can name where the items landed. The
   // caller may have passed no id at all, in which case only the write knows
@@ -118,14 +149,22 @@ export async function groupOnMindmap(
   items: Zotero.Item[],
   name: string,
   mindmapId?: string,
-): Promise<{ grouped: number; skipped: number; mindmapTitle: string }> {
+): Promise<{
+  grouped: number;
+  skipped: number;
+  mindmapTitle: string;
+  crossLibrary?: true;
+}> {
   const eligible = items.filter(canBeMindmapNode);
   const skipped = items.length - eligible.length;
   if (eligible.length === 0) {
     return { grouped: 0, skipped, mindmapTitle: "" };
   }
 
-  const libraryID = eligible[0].libraryID;
+  const libraryID = singleLibraryOf(eligible);
+  if (libraryID === null) {
+    return { grouped: 0, skipped, mindmapTitle: "", crossLibrary: true };
+  }
   let mindmapTitle = "";
   await updateMindmapDocument(
     (doc) => {
@@ -159,7 +198,16 @@ async function addLinkForSelection(
   items: Zotero.Item[],
   mindmapId?: string,
 ): Promise<void> {
-  for (const item of items.filter(canBeMindmapNode)) {
+  const eligible = items.filter(canBeMindmapNode);
+  // The submenu that supplied `mindmapId` was built from the first selected
+  // item's library, so over a selection spanning two it would offer one
+  // library's mindmaps for the other library's items. Refuse the whole action
+  // rather than open a dialog that cannot be saved.
+  if (eligible.length > 0 && singleLibraryOf(eligible) === null) {
+    reportCrossLibraryRefusal();
+    return;
+  }
+  for (const item of eligible) {
     await openAddLinkDialog(win, item, mindmapId);
   }
 }
@@ -345,7 +393,11 @@ function groupSelectionOnMindmap(
     return;
   }
   void groupOnMindmap(rawSelection(win), name, mindmapId).then(
-    ({ grouped, skipped, mindmapTitle }) => {
+    ({ grouped, skipped, mindmapTitle, crossLibrary }) => {
+      if (crossLibrary) {
+        reportCrossLibraryRefusal();
+        return;
+      }
       const popup = new ztoolkit.ProgressWindow(addon.data.config.addonName);
       if (grouped > 0) {
         popup.createLine({
@@ -381,7 +433,11 @@ export class LibraryContextMenuFactory {
       "",
       (mindmapId) => {
         void addToMindmap(eligibleSelection(win), mindmapId).then(
-          ({ added, mindmapTitle }) => {
+          ({ added, mindmapTitle, crossLibrary }) => {
+            if (crossLibrary) {
+              reportCrossLibraryRefusal();
+              return;
+            }
             new ztoolkit.ProgressWindow(addon.data.config.addonName)
               .createLine({
                 text: getString("add-to-mindmap-progress", {
