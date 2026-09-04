@@ -580,8 +580,10 @@ export async function openMindmapTab(): Promise<void> {
   await controller.refresh();
 }
 
+// Tools, not File: File holds Zotero's own import and export actions, and
+// Tools is where a plugin entry is looked for, next to Tools > Plugins.
 export function registerMindmapMenu(): void {
-  ztoolkit.Menu.register("menuFile", {
+  ztoolkit.Menu.register("menuTools", {
     tag: "menuitem",
     id: MENU_ID,
     label: getString("menuitem-mindmap-open"),

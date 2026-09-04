@@ -24,7 +24,7 @@ Before you do anything else: don't empty the trash. That erases the item and its
 
 ### Confirm your mindmaps came back
 
-1. Open the Mindmap tab with File > Mindmap, or press Shift+G.
+1. Open the Mindmap tab with Tools > Mindmap, or press Shift+G.
 2. The sidebar under the heading "Mindmaps" should list your mindmaps again, with their nodes and links intact.
 3. Select an item that was on a mindmap and check the Mindmaps section in the item pane. It should show the mindmap and its links rather than the empty state.
 

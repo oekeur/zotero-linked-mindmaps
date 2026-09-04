@@ -6,7 +6,7 @@ Opening, moving around, and closing the tab. For what each control is, see the [
 
 Either:
 
-1. Open the File menu.
+1. Open the Tools menu.
 2. Click "Mindmap".
 
 Or press Shift+G. The shortcut is ignored while your cursor is in a text field, a search box, or a note editor, so it won't fire on you mid-sentence.
