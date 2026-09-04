@@ -189,9 +189,11 @@ before=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
 # WAYLAND_DISPLAY and count children of the Xvfb root. Absence of visible
 # windows is not the test; the bare wrapper hides nothing, it paints elsewhere.
 #
-# The kill machinery below is unaffected: it compares pgrep snapshots taken
-# before and after, which xvfb-run does not change. Absent xvfb-run the suite
-# runs on the real display, as before.
+# The Zotero half of the kill machinery below is unaffected: it compares pgrep
+# snapshots taken before and after, which xvfb-run does not change. The Xvfb
+# half exists because of the wrapper -- see the note on xvfb_before. Absent
+# xvfb-run the suite runs on the real display, as before.
+xvfb_before=$(pgrep -x Xvfb 2>/dev/null | sort -u)
 if command -v xvfb-run >/dev/null 2>&1; then
   ( cd "$work" && env -u WAYLAND_DISPLAY xvfb-run -a npm test >"$log" 2>&1 ) &
 else
@@ -217,6 +219,18 @@ done
 
 after=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
 for pid in $(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after")); do
+  kill -9 "$pid" >/dev/null 2>&1
+done
+
+# xvfb-run kills its Xvfb from an EXIT trap, which a SIGKILL to the process
+# group never lets run, so without this every gated merge would strand an X
+# server for the life of the login session. Measured: one `Xvfb :101` survived
+# a gate run before this was added. Matched the same way as Zotero above --
+# only displays that appeared during this run are killed, so a dev instance's
+# Xvfb or another worktree's gate keeps its own. `pgrep -x` matches the
+# executable name, so a shell command merely mentioning Xvfb cannot be hit.
+xvfb_after=$(pgrep -x Xvfb 2>/dev/null | sort -u)
+for pid in $(comm -13 <(printf '%s\n' "$xvfb_before") <(printf '%s\n' "$xvfb_after")); do
   kill -9 "$pid" >/dev/null 2>&1
 done
 pkill -9 -P "$test_pid" >/dev/null 2>&1
