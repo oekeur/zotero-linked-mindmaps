@@ -18,8 +18,9 @@
 # "Test run completed" appears in its own output. Because of that, this script
 # does not trust `npm test`'s exit code (a killed process reports an exit code
 # reflecting the kill, not the actual outcome) -- it parses the printed summary
-# line directly instead. Only Zotero processes this script started are killed;
-# a dev instance from `npm start` is left alone.
+# line directly instead. Only this run's own Zoteros are killed, identified by
+# the temp worktree path in their arguments rather than by when they appeared,
+# so any other Zotero on the machine survives whenever it started.
 
 set -u
 
@@ -148,6 +149,12 @@ log="$tmp/test.log"
 cleanup() {
   git worktree remove --force "$work" >/dev/null 2>&1
   git worktree prune >/dev/null 2>&1
+  # Remove the mktemp dir itself, not just the worktree inside it. Without this
+  # every gated merge leaves /tmp/zoteromindmap-premerge.XXXXXX behind holding
+  # test.log. The guard is against an unset $tmp turning this into `rm -rf /`;
+  # the kept log on a failure path is mktemp'd outside $tmp and survives, which
+  # the block message's "Full log:" pointer depends on.
+  [ -n "${tmp:-}" ] && [ -d "$tmp" ] && rm -rf "$tmp"
 }
 trap cleanup EXIT
 
@@ -170,9 +177,79 @@ if [ -f "$repo_root/.env" ]; then
       "$repo_root/.env" > "$work/.env"
 fi
 
-# Zotero processes already running (a dev instance from `npm start`) must
-# survive this run, so record them and kill only what appears afterwards.
-before=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
+# Zotero processes belonging to THIS run, identified by path rather than by a
+# time window. The scaffold resolves the test profile and data dir relative to
+# CWD, so both land under $work and appear in the process's own arguments:
+#
+#   zotero-bin ... -profile $work/.scaffold/test/profile --dataDir $work/...
+#
+# $work is a fresh mktemp path, so nothing outside this run can name it. The
+# previous approach diffed `pgrep -f zotero-bin` before and after and killed
+# the difference, which killed any Zotero that happened to start while the gate
+# was running, including one launched by hand.
+#
+# Two things this deliberately does not do. It does not match `pgrep -f` alone,
+# because any command line merely mentioning zotero-bin matches itself. And it
+# does not expect content processes to carry the path: they are spawned as
+# `-contentproc ... -parentPid <pid>` with no profile argument, so they are
+# swept separately below, after their parents are gone.
+gate_zotero_pids() {
+  local pid args
+  ps -ww -e -o pid=,args= 2>/dev/null | while read -r pid args; do
+    case "$args" in
+      *"$work"*) ;;
+      *) continue ;;
+    esac
+    case "$args" in
+      */zotero-bin\ * | */zotero\ * | */zotero-bin | */zotero) printf '%s\n' "$pid" ;;
+    esac
+  done
+}
+
+# Content processes of the pids just killed. They exit with their parent, but
+# sweep any that outlive it rather than leaving orphans holding the profile.
+gate_zotero_children() {
+  local parents="$1" pid args parent
+  [ -n "$parents" ] || return 0
+  ps -ww -e -o pid=,args= 2>/dev/null | while read -r pid args; do
+    case "$args" in
+      *-contentproc*) ;;
+      *) continue ;;
+    esac
+    for parent in $parents; do
+      case "$args" in
+        *"-parentPid $parent "* | *"-parentPid $parent") printf '%s\n' "$pid" ;;
+      esac
+    done
+  done
+}
+
+# The Xvfb that xvfb-run starts for this run, found by descent from $test_pid
+# rather than by a before/after window, for the same reason as the Zoteros
+# above: a window kills whatever else happened to start inside it. xvfb-run
+# launches Xvfb from its own shell, which is a child of the subshell below, so
+# this run's Xvfb is always a descendant of $test_pid and nothing else is.
+# Must be called BEFORE the children of $test_pid are killed, or the ancestry
+# it walks is already gone.
+gate_descendants() {
+  local queue="$1" next pid
+  while [ -n "$queue" ]; do
+    next=""
+    for pid in $queue; do
+      printf '%s\n' "$pid"
+      next="$next $(pgrep -P "$pid" 2>/dev/null | tr '\n' ' ')"
+    done
+    queue="$next"
+  done
+}
+
+gate_xvfb_pids() {
+  local descendants pid
+  descendants=$(gate_descendants "$test_pid" | sort -u)
+  for pid in $(pgrep -x Xvfb 2>/dev/null); do
+    printf '%s\n' "$descendants" | grep -qx "$pid" && printf '%s\n' "$pid"
+  done
+}
 
 # The suite drives a live Zotero GUI, so without a wrapper the gate takes over
 # the real desktop for its whole run and competes for focus with whatever is on
@@ -189,11 +266,10 @@ before=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
 # WAYLAND_DISPLAY and count children of the Xvfb root. Absence of visible
 # windows is not the test; the bare wrapper hides nothing, it paints elsewhere.
 #
-# The Zotero half of the kill machinery below is unaffected: it compares pgrep
-# snapshots taken before and after, which xvfb-run does not change. The Xvfb
-# half exists because of the wrapper -- see the note on xvfb_before. Absent
-# xvfb-run the suite runs on the real display, as before.
-xvfb_before=$(pgrep -x Xvfb 2>/dev/null | sort -u)
+# The kill machinery below is unaffected: it identifies this run's Zoteros by
+# the $work path in their arguments, which xvfb-run does not change, and this
+# run's Xvfb by descent from the subshell. Absent xvfb-run the suite runs on
+# the real display, as before.
 if command -v xvfb-run >/dev/null 2>&1; then
   ( cd "$work" && env -u WAYLAND_DISPLAY xvfb-run -a npm test >"$log" 2>&1 ) &
 else
@@ -217,20 +293,24 @@ while [ "$elapsed" -lt 720 ]; do
   elapsed=$((elapsed + 2))
 done
 
-after=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
-for pid in $(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after")); do
+# Resolved before anything is killed: gate_xvfb_pids walks the process tree
+# down from $test_pid, and killing its children first would erase the ancestry
+# it needs.
+xvfb_mine=$(gate_xvfb_pids | sort -u)
+
+mine=$(gate_zotero_pids | sort -u)
+for pid in $mine; do
+  kill -9 "$pid" >/dev/null 2>&1
+done
+for pid in $(gate_zotero_children "$mine" | sort -u); do
   kill -9 "$pid" >/dev/null 2>&1
 done
 
 # xvfb-run kills its Xvfb from an EXIT trap, which a SIGKILL to the process
 # group never lets run, so without this every gated merge would strand an X
 # server for the life of the login session. Measured: one `Xvfb :101` survived
-# a gate run before this was added. Matched the same way as Zotero above --
-# only displays that appeared during this run are killed, so a dev instance's
-# Xvfb or another worktree's gate keeps its own. `pgrep -x` matches the
-# executable name, so a shell command merely mentioning Xvfb cannot be hit.
-xvfb_after=$(pgrep -x Xvfb 2>/dev/null | sort -u)
-for pid in $(comm -13 <(printf '%s\n' "$xvfb_before") <(printf '%s\n' "$xvfb_after")); do
+# a gate run before this was added.
+for pid in $xvfb_mine; do
   kill -9 "$pid" >/dev/null 2>&1
 done
 pkill -9 -P "$test_pid" >/dev/null 2>&1
