@@ -77,11 +77,13 @@ Be aware that there's no log file to tail. `zotero-plugin-scaffold` discards Zot
 
 ## Clean up leftover processes
 
-`npm test` interrupted with Ctrl-C can leave the test Zotero running. Kill only that one, not your dev instance:
+`npm test` interrupted with Ctrl-C can leave the test Zotero running. Kill only that one, not your dev instance and not another checkout's:
 
 ```sh
-pkill -f "scaffold/test/profile"
+pkill -f "$PWD/.scaffold/test/profile"
 ```
+
+The `$PWD` matters. A bare `scaffold/test/profile` matches every checkout on the machine, so it reaches into a sibling project's in-flight suite. SIGTERM lets Zotero shut down cleanly, so the victim run just ends partway through with exit code 0 and no failed assertion, which is very hard to read as an external kill from the inside.
 
 Kill everything, dev instance included, when nothing else works:
 

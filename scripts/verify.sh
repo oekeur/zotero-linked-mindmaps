@@ -15,6 +15,8 @@
 
 set -uo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 RUN_STATIC=1
 RUN_TEST=1
 
@@ -65,12 +67,23 @@ pid_cmdline() {
 # A test instance left behind by an interrupted run holds the profile the next
 # run wants. Safe to kill: the path proves it belongs to a test run. Killed by
 # PID rather than `pkill -f`, which would also match an unrelated shell.
+# Scoped to THIS checkout's test profile, by absolute path.
+#
+# `*scaffold/test*` stood here and matched every Zotero on the machine running
+# any checkout's test profile, so this gate reached into a sibling project's
+# in-flight suite and SIGTERMed it. Measured 2026-09-04 from the receiving end:
+# a zoteroMindmap gate killed two of three zoteroTimeline runs mid-suite, and
+# because SIGTERM lets Zotero shut down cleanly the symptom is an exit code of
+# 0 with no crash dump and no failed assertions -- indistinguishable, from the
+# inside, from the suite quietly deciding to stop. Two hours went into blaming
+# the code under test for it.
 clear_stale_test_zotero() {
   local pid cmd killed=0
+  local own_profile="$REPO_ROOT/.scaffold/test"
   for pid in $(zotero_pids); do
     cmd="$(pid_cmdline "$pid")"
     case "$cmd" in
-      *scaffold/test*) kill "$pid" 2>/dev/null && killed=1 ;;
+      *"$own_profile"*) kill "$pid" 2>/dev/null && killed=1 ;;
     esac
   done
   if [ "$killed" = 1 ]; then
@@ -89,8 +102,9 @@ fi
 
 # Safe next to a dev Zotero from `npm start`: `npm run test:fast` kills its own
 # process group and the test profile is CWD-relative, so the dev instance is
-# left alone. clear_stale_test_zotero below still matches any `scaffold/test`
-# profile, including another worktree's in-flight test run.
+# left alone. clear_stale_test_zotero below is scoped to this checkout's own
+# test profile by absolute path, so another worktree's or another project's
+# in-flight run survives it too.
 #
 # The suite drives a live Zotero GUI, so without a wrapper it opens windows on
 # the real desktop and competes for focus with whatever is on it. xvfb-run puts
