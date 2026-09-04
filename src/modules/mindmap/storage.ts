@@ -20,6 +20,23 @@ import {
 import { parseMindmapDocument } from "./validate";
 import { logFailure } from "../../utils/logging";
 
+/**
+ * The leading underscore is decoration, not a mechanism: Zotero has no
+ * convention that hides an underscore-prefixed tag, and both plugin tags are
+ * ordinary manual tags (type 0) as far as it is concerned.
+ *
+ * What actually keeps them out of the tag selector is libraryFilter's
+ * getSearchObject wrap, which the selector inherits for free: its scoped tag
+ * list comes from CollectionTreeRow.getTags, derived from the same search
+ * object the wrap narrows. Measured 2026-09-05 against 10.0-beta.25 -- with
+ * hideMindmapNotes at its shipped default the selector lists neither tag, with
+ * the preference off it lists both, and that stays true with "Display All Tags
+ * in This Library" on.
+ *
+ * So the tags being visible is exactly the escape hatch the preference is for,
+ * not a leak. Do not "fix" it by renaming the tags: they are stored, synced
+ * data that already-synced libraries resolve mindmaps by.
+ */
 export const STORAGE_TAG = "_zoterolinkedmindmaps-storage-v1";
 
 /**

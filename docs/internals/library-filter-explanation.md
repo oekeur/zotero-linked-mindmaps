@@ -52,6 +52,25 @@ What neither path gives you is a signal. There is no error dialog, no failed sta
 
 The mitigation available today is the preference. `hideMindmapNotes` defaults to on but can be turned off, and the container is a normal item, so a user who does see it can work out what it is. That is why it is named "Zotero Linked Mindmaps (plugin data)" instead of something opaque. See [plugin-data-explanation.md](../user-guide/plugin-data-explanation.md).
 
+## What it also hides, without being asked to
+
+The tag selector inherits the filter. Its scoped tag list comes from
+`CollectionTreeRow.getTags`, which derives from the same search object the wrap
+narrows, so excluding the plugin's two tagged items from a row's search also
+takes their tags out of the tag pane.
+
+That is worth writing down because the tags look like they ought to leak. Both
+are ordinary manual tags (type 0); the leading underscore in
+`_zoterolinkedmindmaps-storage-v1` is decoration and hides nothing on its own,
+and Zotero's `tagSelector.showAutomatic` defaults to `true`, so converting them
+to automatic tags would not have hidden them either.
+
+Measured against 10.0-beta.25 on 2026-09-05: with `hideMindmapNotes` at its
+shipped default the tag selector lists neither tag; with the preference off it
+lists both; and that holds with "Display All Tags in This Library" switched on,
+which takes the other code path. The tags becoming visible when hiding is
+turned off is the escape hatch working, not a defect.
+
 ## Related
 
 - [library-filter-reference.md](library-filter-reference.md) for the function-level detail.
