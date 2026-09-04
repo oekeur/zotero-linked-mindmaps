@@ -174,7 +174,29 @@ fi
 # survive this run, so record them and kill only what appears afterwards.
 before=$(pgrep -f zotero-bin 2>/dev/null | sort -u)
 
-( cd "$work" && npm test >"$log" 2>&1 ) &
+# The suite drives a live Zotero GUI, so without a wrapper the gate takes over
+# the real desktop for its whole run and competes for focus with whatever is on
+# it. xvfb-run puts it on a virtual display instead.
+#
+# `xvfb-run` alone is not enough on a Wayland session, and it fails silently:
+# the Zotero launcher exports MOZ_ENABLE_WAYLAND=1, so Gecko connects to the
+# compositor named by the inherited WAYLAND_DISPLAY and paints on the real
+# screen while DISPLAY points at an Xvfb nothing ever draws on. The launcher's
+# own export cannot be overridden from outside, so removing WAYLAND_DISPLAY is
+# the only lever there is -- do not reduce this back to a bare `xvfb-run -a`.
+# The probe that tells the two apart is written up in scripts/verify.sh, which
+# carries the same wrapper: read the Zotero process's environ for
+# WAYLAND_DISPLAY and count children of the Xvfb root. Absence of visible
+# windows is not the test; the bare wrapper hides nothing, it paints elsewhere.
+#
+# The kill machinery below is unaffected: it compares pgrep snapshots taken
+# before and after, which xvfb-run does not change. Absent xvfb-run the suite
+# runs on the real display, as before.
+if command -v xvfb-run >/dev/null 2>&1; then
+  ( cd "$work" && env -u WAYLAND_DISPLAY xvfb-run -a npm test >"$log" 2>&1 ) &
+else
+  ( cd "$work" && npm test >"$log" 2>&1 ) &
+fi
 test_pid=$!
 
 # Wait up to 12 minutes for the summary line to appear, polling every 2s.
