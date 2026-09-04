@@ -91,9 +91,40 @@ fi
 # process group and the test profile is CWD-relative, so the dev instance is
 # left alone. clear_stale_test_zotero below still matches any `scaffold/test`
 # profile, including another worktree's in-flight test run.
+#
+# The suite drives a live Zotero GUI, so without a wrapper it opens windows on
+# the real desktop and competes for focus with whatever is on it. xvfb-run puts
+# it on a virtual display instead.
+#
+# `xvfb-run` alone is not enough on a Wayland session, and it fails silently:
+# the Zotero launcher exports MOZ_ENABLE_WAYLAND=1, so Gecko connects to the
+# compositor named by the inherited WAYLAND_DISPLAY and paints on the real
+# screen while DISPLAY points at an Xvfb nothing ever draws on. The launcher's
+# own export cannot be overridden from outside, so removing WAYLAND_DISPLAY is
+# the only lever there is -- do not reduce this back to a bare `xvfb-run -a`.
+#
+# The probe that tells the two apart, measured here 2026-09-04: with the suite
+# running, read the Zotero process's own environ for WAYLAND_DISPLAY, then run
+# `xwininfo -root -children` on its DISPLAY (xvfb-run keeps a private
+# Xauthority, so pass XAUTHORITY from the Xvfb process's -auth argument, or
+# every query fails on the cookie rather than on the display being empty).
+# Bare xvfb-run: WAYLAND_DISPLAY=wayland-0 survives and the Xvfb root has 0
+# children. With it unset: absent from the environ, and the root lists 18
+# windows including "My Library - Zotero". Absence of visible windows is not
+# the test -- the bare wrapper hides nothing, it just paints elsewhere.
+#
+# The kill machinery above is unaffected: it matches Zotero by /proc/<pid>/comm
+# and the profile path in its arguments, neither of which xvfb-run changes.
+# Absent xvfb-run (CI images without it, macOS) the suite runs on the real
+# display, as before, so this is a wrapper and not a requirement.
 if [ "$RUN_TEST" = 1 ]; then
   clear_stale_test_zotero
-  run_stage test npm run test:fast
+  if command -v xvfb-run >/dev/null 2>&1; then
+    run_stage test env -u WAYLAND_DISPLAY xvfb-run -a npm run test:fast
+  else
+    warn "xvfb-run not found; running the suite on the real display"
+    run_stage test npm run test:fast
+  fi
 fi
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
