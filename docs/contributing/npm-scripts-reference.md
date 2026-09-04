@@ -54,6 +54,18 @@ Devtools are on (`server.devtools` defaults to true) and the profile is created 
 
 Do not run two `npm start` instances against the same profile path.
 
+## start:headless
+
+```
+env -u WAYLAND_DISPLAY xvfb-run -a npm start
+```
+
+The same serve on a virtual display, so the dev Zotero does not take over the desktop. An agent working unattended uses this; a human watching the UI uses `npm start`.
+
+**`xvfb-run` alone does not make Zotero headless on a Wayland session.** The Zotero launcher exports `MOZ_ENABLE_WAYLAND=1`, so Gecko connects to the compositor named by the inherited `WAYLAND_DISPLAY` and paints on the real screen while `DISPLAY` points at an Xvfb nothing ever draws on, silently. The launcher's own export cannot be overridden from outside, so removing `WAYLAND_DISPLAY` is the lever. Measured 2026-09-04: under a bare `xvfb-run -a` the Zotero process still carried `WAYLAND_DISPLAY=wayland-0` and the Xvfb root had 0 children; with it unset the same probe listed 18 windows.
+
+To check which display a run actually used, read the Zotero process's own `environ` for `WAYLAND_DISPLAY` and count children of the Xvfb root with `xwininfo -root -children`. Pass `XAUTHORITY` from the Xvfb process's `-auth` argument or the query fails on the cookie rather than telling you anything.
+
 ## build
 
 ```
@@ -71,7 +83,7 @@ It also regenerates two typings files in place from the Fluent and prefs sources
 
 `tsc --noEmit` then type-checks using the root `tsconfig.json`, which extends `zotero-types/entries/sandbox/` (that preset sets `"strict": true`) and has `include: ["src", "typings"]`.
 
-`test/` is not in that include list. `npm run build` does not type-check the test suite. `test/tsconfig.json` exists and extends the root config, but no script invokes `tsc` against it. After changing an exported signature in `src/`, run the test suite (or point `tsc --noEmit -p test` at it yourself) to find test-side breakage; the build will not.
+`test/` is not in that include list, so `npm run build` still does not type-check the test suite. `npm run typecheck` is what covers both: it runs `tsc --noEmit` against the root config and then `tsc --noEmit -p test` against `test/tsconfig.json`, which extends it. `scripts/verify.sh` runs that as its own stage, so a changed export signature that breaks a spec fails there rather than waiting for the live suite.
 
 ## lint:check
 
@@ -92,6 +104,14 @@ prettier --write . && eslint . --fix
 ```
 
 Same two tools, writing fixes. Reformats every Prettier-eligible file in the repo and applies ESLint autofixes. Anything ESLint cannot fix automatically is still reported and still exits nonzero.
+
+## typecheck
+
+```
+tsc --noEmit && tsc --noEmit -p test
+```
+
+Type-checks `src/` and `typings/` through the root `tsconfig.json`, then `test/` through `test/tsconfig.json`, which extends it. The second half is the point: `npm run build` only ever checks the root config's `include`, so before this existed a changed export signature broke specs silently and only surfaced when the live suite ran. `scripts/verify.sh` runs this as its own stage, after lint and before Zotero is launched.
 
 ## test
 
