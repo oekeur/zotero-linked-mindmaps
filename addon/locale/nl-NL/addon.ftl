@@ -39,6 +39,7 @@ add-to-mindmap-progress =
         [one] { $count } item toegevoegd aan { $mindmap }
        *[other] { $count } items toegevoegd aan { $mindmap }
     }
+cross-library-refused = Een mindmap hoort bij één bibliotheek. Selecteer items uit één bibliotheek en probeer het opnieuw.
 group-on-mindmap-dialog-title = Items groeperen
 group-on-mindmap-dialog-message = Naam voor de groep (optioneel)
 group-on-mindmap-progress =
