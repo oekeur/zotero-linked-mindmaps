@@ -217,6 +217,14 @@ export default defineConfig({
               link: "/contributing/testing-explanation",
             },
             {
+              text: "Debugging a running Zotero",
+              link: "/contributing/mcp-observability-howto",
+            },
+            {
+              text: "Why the MCP rig was adopted",
+              link: "/contributing/mcp-observability-explanation",
+            },
+            {
               text: "Configuration",
               link: "/contributing/configuration-reference",
             },

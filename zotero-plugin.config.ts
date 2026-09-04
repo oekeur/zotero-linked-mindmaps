@@ -1,6 +1,18 @@
 import { defineConfig } from "zotero-plugin-scaffold";
 import pkg from "./package.json";
 
+// The RDP port the MCP observability bridge listens on, written per checkout
+// into .env by ~/.claude/worktree-hooks/zoteroMindmap.sh. Parsed rather than
+// coerced: a malformed value must land on the default, because the bridge
+// treats a non-numeric port as a pipe path and opens successfully, so a bad
+// value costs an unreachable Zotero with nothing in the log to say why.
+//
+// The fallback is this repo's own main-checkout port, not the bridge's 6100
+// default: 6100 is zoteroTimeline's, and falling back onto it would attach this
+// checkout to that project's MCP entry.
+const mcpRdpPort =
+  Number.parseInt(process.env.ZOTERO_MCP_RDP_PORT ?? "", 10) || 6106;
+
 export default defineConfig({
   source: ["src", "addon"],
   dist: ".scaffold/build",
@@ -37,6 +49,23 @@ export default defineConfig({
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
       },
     ],
+  },
+
+  server: {
+    // Written into the dev profile's prefs.js before every launch, which is
+    // what makes debug.store work at all: Zotero's Debug.init reads it once and
+    // immediately clears it, so it has to be re-armed per launch, and turning
+    // it on by hand later has already missed every startup line. debug.log is
+    // deliberately absent — it routes output to a stdout scaffold discards.
+    //
+    // The clearing is also why debug.store is absent from prefs.js after a
+    // launch: setting a preference back to its default drops the user_pref line
+    // entirely. extensions.mcp-rdp.port does persist, so that is the one to
+    // grep for when checking a profile.
+    prefs: {
+      "extensions.mcp-rdp.port": mcpRdpPort,
+      "extensions.zotero.debug.store": true,
+    },
   },
 
   release: {
