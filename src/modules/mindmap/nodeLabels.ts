@@ -8,6 +8,7 @@ import type { ZoteroObjectRef } from "./schema";
 
 export const MISSING_ITEM_LABEL = "(missing item)";
 export const EMPTY_NOTE_LABEL = "(empty note)";
+export const UNTITLED_ITEM_LABEL = "(untitled item)";
 
 // Long enough to tell two notes apart at a glance, short enough that the
 // label still wraps inside a node.
@@ -61,5 +62,11 @@ export function resolveNodeLabel(ref: ZoteroObjectRef): string {
   }
   // Checks the item rather than ref.kind: a ref can outlive what it points at
   // being replaced, and the label should describe what is actually there.
-  return target.isNote() ? buildNoteLabel(target) : target.getDisplayTitle();
+  if (target.isNote()) {
+    return buildNoteLabel(target);
+  }
+  // getDisplayTitle() is empty for an item with no title, and an empty label
+  // draws as a bare circle with nothing to say what it is — the same problem
+  // buildNoteLabel already guards against, reached by a different route.
+  return target.getDisplayTitle().trim() || UNTITLED_ITEM_LABEL;
 }

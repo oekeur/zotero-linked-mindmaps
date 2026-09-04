@@ -30,6 +30,7 @@ import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
 import {
   EMPTY_NOTE_LABEL,
   MISSING_ITEM_LABEL,
+  UNTITLED_ITEM_LABEL,
   resolveNodeLabel,
 } from "../../src/modules/mindmap/nodeLabels";
 import {
@@ -92,6 +93,24 @@ describe("mindmap/graphRenderer", function () {
         key: article.key,
       });
       assert.equal(label, "Graph Renderer Test Article");
+    });
+
+    it("falls back to an untitled-item label when the item has no title", async function () {
+      // An empty label draws as a bare circle with nothing to say what it is,
+      // which is the same failure the empty-note placeholder exists to avoid.
+      const untitled = new Zotero.Item("journalArticle");
+      untitled.libraryID = Zotero.Libraries.userLibraryID;
+      await untitled.saveTx();
+      try {
+        const label = resolveNodeLabel({
+          kind: "item",
+          libraryID: untitled.libraryID,
+          key: untitled.key,
+        });
+        assert.equal(label, UNTITLED_ITEM_LABEL);
+      } finally {
+        await untitled.eraseTx();
+      }
     });
 
     it("falls back to a missing-item label for an unresolvable ref", function () {
