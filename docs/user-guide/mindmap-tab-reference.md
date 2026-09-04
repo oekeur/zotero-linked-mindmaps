@@ -4,10 +4,10 @@ The Mindmap tab is a main-window Zotero tab that shows one mindmap at a time. It
 
 ## Opening and closing
 
-| Route                | Detail                                                                                                                                              |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File menu, "Mindmap" | Registered per main window. Present in every open Zotero window.                                                                                    |
-| Shift+G              | Ignored while focus is in a text input, a textarea, or any editable element, so typing a capital G in a note or a search box does not open the tab. |
+| Route                 | Detail                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tools menu, "Mindmap" | Registered per main window. Present in every open Zotero window.                                                                                    |
+| Shift+G               | Ignored while focus is in a text input, a textarea, or any editable element, so typing a capital G in a note or a search box does not open the tab. |
 
 Only one Mindmap tab exists at a time. Invoking either route while the tab is open selects the existing tab instead of adding a second one.
 
