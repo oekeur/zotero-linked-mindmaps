@@ -24,7 +24,7 @@ It is easy to miss. If you did, open Tools, then Plugins, and look for Zotero Li
 
 ## 3. Open the Mindmap tab
 
-Open the File menu and click "Mindmap". Shift+G does the same thing from anywhere that isn't a text field.
+Open the Tools menu and click "Mindmap". Shift+G does the same thing from anywhere that isn't a text field.
 
 A tab titled "Mindmap" opens and stays selected. Open it again later and you land back on the same tab, so you can't end up with four of them.
 
