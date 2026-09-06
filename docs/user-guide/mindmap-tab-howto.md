@@ -42,6 +42,17 @@ The same toolbar carries a legend toggle. The legend names every line and node s
 
 Shift-click each node in turn, or hold Shift and drag a box across empty canvas. The selection is what the grouping menu acts on. See [grouping](grouping-howto.md).
 
+## Re-lay-out the nodes
+
+Use this when a mindmap has drifted into a tangle and you would rather start from a computed arrangement than drag every node yourself.
+
+1. Click the re-layout button in the toolbar at the top right of the graph.
+2. Read which scope the confirm names, then accept it.
+
+With nothing selected it recomputes every node on the open mindmap. To rearrange only part of it, select those nodes first (see above) and the rest keep their positions.
+
+This replaces the positions in scope and there is no undo, so the confirm is the last chance to back out. Cancelling changes nothing.
+
 ## Find a node's item in the library
 
 1. Click the node. The dock opens on the right of the tab.

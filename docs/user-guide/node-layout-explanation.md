@@ -50,4 +50,14 @@ That rule stays deliberately narrow. It fires only when every placed node is on 
 
 Positions are part of the stored mindmap, so they sync, and two devices editing the same mindmap can conflict over them the same way they conflict over anything else in the document. Dragging a node writes to the mindmap's storage note, and the last write wins.
 
-Positions also outlive the thing they were chosen for. Remove a node and its position goes with it, but a mindmap that has been reshaped heavily over time will still be carrying positions picked against a graph that no longer looks like that. Nothing recomputes them, by design, and the plugin offers no way to re-lay-out an existing mindmap.
+Positions also outlive the thing they were chosen for. Remove a node and its position goes with it, but a mindmap that has been reshaped heavily over time will still be carrying positions picked against a graph that no longer looks like that. Nothing recomputes them on its own, by design.
+
+## Re-laying out on purpose
+
+The one way positions are ever recomputed for a node that already has one is the re-layout control in the tab's toolbar, and it only runs when you ask.
+
+It has two scopes, and which one you get depends on what is selected on the canvas rather than on a second button. With nothing selected it lays out the whole mindmap. With nodes selected it lays out only those, and every other node keeps its stored position, so you can untangle one corner without disturbing an arrangement you are happy with elsewhere. The confirm names which of the two is about to happen, because otherwise the two are told apart only by what you remember selecting.
+
+What it overwrites is the arrangement itself. Every node in scope gets a fresh position and the old one is gone; there is no undo, which is why it asks first. Cancelling writes nothing at all.
+
+Groups survive it. A group is a container sized to fit its members rather than a position of its own, so the layout keeps members together and the group's box follows them instead of stretching across the canvas.
