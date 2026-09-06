@@ -2,7 +2,7 @@
 
 By the end of this you will have two of your own items on a mindmap with a labelled line between them. It takes about ten minutes. Do the steps in order, because later ones assume the earlier ones happened.
 
-You need Zotero 7 and a library with at least two regular items in it. Any two will do: articles, books, whatever you already have.
+You need Zotero 7 or later and a library with at least two regular items in it. Any two will do: articles, books, whatever you already have.
 
 ## 1. Install the plugin
 

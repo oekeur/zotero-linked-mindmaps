@@ -103,7 +103,7 @@ This file is a template, not the shipped manifest. The build copies it into `.sc
 }
 ```
 
-`manifest_version` is 2. Zotero 7 uses the WebExtension manifest format at version 2; do not raise it.
+`manifest_version` is 2. Zotero uses the WebExtension manifest format at version 2, through Zotero 10; do not raise it.
 
 `name`, `version`, `description`, `homepage_url`, `author`, `id`, and `update_url` are substitution tokens. Their sources are the `package.json` fields above plus `zotero-plugin.config.ts`. Editing the literal token text here without a matching key in `build.define` leaves the raw `__token__` string in the shipped manifest.
 

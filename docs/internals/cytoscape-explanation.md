@@ -1,6 +1,6 @@
 # Running Cytoscape inside Zotero's plugin scope
 
-Cytoscape.js is written for a browser page. Zotero 7 plugins run in a bootstrap sandbox attached to a XUL chrome window, which is close enough that most of Cytoscape works untouched, and far enough that the gaps are sharp, silent, and expensive to find. Every constraint on this page cost real debugging time. Not one of them announced itself with a useful error.
+Cytoscape.js is written for a browser page. Zotero plugins, from 7 onwards, run in a bootstrap sandbox attached to a XUL chrome window, which is close enough that most of Cytoscape works untouched, and far enough that the gaps are sharp, silent, and expensive to find. Every constraint on this page cost real debugging time. Not one of them announced itself with a useful error.
 
 The library choice itself, and why the plugin uses a graph-layout library instead of a hand-rolled layout engine, is settled in `project/PRODUCT.md`. This page is about what running it here demands.
 
