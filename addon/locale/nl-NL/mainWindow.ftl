@@ -75,3 +75,5 @@ mindmap-fit-button =
     .title = Passend maken aan venster
 mindmap-legend-toggle-button =
     .title = Legenda tonen of verbergen
+mindmap-relayout-button =
+    .title = Nodes opnieuw ordenen

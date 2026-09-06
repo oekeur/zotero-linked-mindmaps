@@ -176,3 +176,111 @@ export async function layoutUnplacedNodes(
   await writeMindmapDocument(updatedDoc);
   return updatedDoc;
 }
+
+/**
+ * Recomputes positions for a re-layout, discarding the ones already stored.
+ * Returns the new position per node id, and writes nothing: the caller
+ * persists them, so this stays runnable headless and the write goes through
+ * the same single-write path a drag uses.
+ *
+ * `targetIds` scopes it. Left out, every node on the mindmap is laid out
+ * afresh. Given, only those nodes move and every other node is locked at its
+ * stored position, which is what makes the selection case leave the rest of
+ * the canvas alone.
+ *
+ * Group containers are never returned. A group is a compound node sized to
+ * fit its members and has no stored position of its own, so it has nothing to
+ * persist - but it does have to stay in the graph while the layout runs,
+ * because keeping members inside their parent is precisely what stops a
+ * group's box stretching across unrelated parts of the canvas.
+ *
+ * randomize is on, unlike the unplaced-node layout: this discards positions
+ * on purpose, and seeding cose from the arrangement being replaced tends to
+ * reproduce it.
+ */
+export async function relayoutPositions(
+  cy: cytoscape.Core,
+  targetIds?: string[],
+): Promise<Map<string, Position>> {
+  const isGroup = (node: cytoscape.NodeSingular): boolean =>
+    node.data("isGroup") === true;
+
+  const movable = cy
+    .nodes()
+    .filter((node) => !isGroup(node as cytoscape.NodeSingular));
+  const targets =
+    targetIds === undefined
+      ? movable
+      : movable.filter((node) => targetIds.includes(node.id()));
+
+  if (targets.empty()) {
+    return new Map();
+  }
+
+  const held = cy
+    .nodes()
+    .difference(targets)
+    .filter((node) => !isGroup(node as cytoscape.NodeSingular));
+  const box = layoutBoundingBox(targets.length, held);
+
+  // The compound ancestors of the targets have to travel with them. cose
+  // resolves each node's parent by id *within the collection it was handed*
+  // (createLayoutInfo indexes layoutNodes by id, then dereferences the
+  // parent's index), so laying out a child whose parent is absent throws
+  // "can't access property children ... is undefined". Their positions are
+  // still never read back: a group is sized to fit its members.
+  const laidOut = targets.union(targets.parents());
+
+  held.lock();
+  try {
+    await new Promise<void>((resolve) => {
+      const layout = laidOut.layout({
+        name: "cose",
+        fit: false,
+        animate: false,
+        randomize: true,
+        boundingBox: box,
+      });
+      layout.one("layoutstop", () => resolve());
+      layout.run();
+    });
+  } finally {
+    held.unlock();
+  }
+
+  let positions = new Map<string, Position>();
+  targets.forEach((node) => {
+    const position = node.position();
+    positions.set(node.id(), {
+      x: normalizeZero(position.x),
+      y: normalizeZero(position.y),
+    });
+  });
+
+  // Two ways cose can hand back something unusable, both falling back to the
+  // deterministic grid.
+  //
+  // Non-finite coordinates: laying out a compound graph can produce NaN for a
+  // member of a group, and NaN survives all the way into storage as JSON null,
+  // which parses back as a node with no position at all. It also defeats the
+  // pile check below, because every comparison against NaN is false - which is
+  // how a test asserting only "nothing is piled" can pass on a graph where
+  // every position is NaN.
+  //
+  // A pile: a set of nodes with no edges between them can come back stacked,
+  // and a stack reads as deliberate.
+  const heldPositions = held.map((node) =>
+    (node as cytoscape.NodeSingular).position(),
+  );
+  const anyNonFinite = [...positions.values()].some(
+    (position) => !Number.isFinite(position.x) || !Number.isFinite(position.y),
+  );
+  if (anyNonFinite || anyNewCollision([...positions.values()], heldPositions)) {
+    positions = gridPositions([...positions.keys()], box);
+    targets.forEach((node) => {
+      node.position(positions.get(node.id())!);
+    });
+  }
+
+  return positions;
+}

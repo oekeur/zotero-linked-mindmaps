@@ -14,7 +14,7 @@
 import cytoscape from "cytoscape";
 import { config } from "../../../package.json";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
-import { getLocaleID } from "../../utils/locale";
+import { getLocaleID, getString } from "../../utils/locale";
 import { logFailure } from "../../utils/logging";
 import type { FluentMessageId } from "../../../typings/i10n";
 import {
@@ -23,7 +23,7 @@ import {
   serializeDocument,
   updateMindmapDocument,
 } from "./storage";
-import { layoutUnplacedNodes } from "./layout";
+import { layoutUnplacedNodes, relayoutPositions } from "./layout";
 import { piledNodeIds, isUnplaced } from "./schema";
 import { resolveNodeLabel, resolveZoteroItem } from "./nodeLabels";
 import { renderMissingItem, renderNodeOverview } from "./nodeOverview";
@@ -453,6 +453,15 @@ function appendFitIcon(parent: Element, doc: Document): void {
   );
 }
 
+function appendRelayoutIcon(parent: Element, doc: Document): void {
+  appendIconSvg(parent, doc, (svg) => {
+    svg.appendChild(svgPath(doc, "M3 8a5 5 0 0 1 8.5-3.5L13 6"));
+    svg.appendChild(svgPath(doc, "M13 3v3h-3"));
+    svg.appendChild(svgPath(doc, "M13 8a5 5 0 0 1-8.5 3.5L3 10"));
+    svg.appendChild(svgPath(doc, "M3 13v-3h3"));
+  });
+}
+
 function appendLegendToggleIcon(parent: Element, doc: Document): void {
   appendIconSvg(parent, doc, (svg) => {
     svg.appendChild(svgCircle(doc, 8, 8, 6));
@@ -592,6 +601,7 @@ export const TOOLBAR_CLASS = "mindmap-graph-toolbar";
 export const ZOOM_OUT_BUTTON_CLASS = "mindmap-zoom-out-button";
 export const ZOOM_IN_BUTTON_CLASS = "mindmap-zoom-in-button";
 export const FIT_BUTTON_CLASS = "mindmap-fit-button";
+export const RELAYOUT_BUTTON_CLASS = "mindmap-relayout-button";
 export const LEGEND_TOGGLE_BUTTON_CLASS = "mindmap-legend-toggle-button";
 
 const ZOOM_STEP = 1.2;
@@ -624,11 +634,80 @@ function appendToolbarButton(
 }
 
 /**
+ * Recomputes node positions and persists them, discarding what was stored.
+ *
+ * Two scopes, decided by what is selected on the canvas rather than by a
+ * second control: with nodes selected only those move, with nothing selected
+ * the whole mindmap is laid out again. The confirm names which of the two is
+ * about to happen, because the two are otherwise distinguishable only by what
+ * the user remembers selecting.
+ *
+ * Group containers are excluded from the selection count: a group is a
+ * compound node with no stored position, so selecting one is not a request to
+ * move anything by itself.
+ *
+ * The write goes through the same path a drag uses, so a re-layout is one
+ * write and updates the rendered-state guard the live-refresh observer reads.
+ */
+async function runRelayout(
+  cy: cytoscape.Core,
+  container: HTMLElement,
+  mindmapId: string,
+  rendered: RenderedState,
+): Promise<void> {
+  const win = container.ownerDocument?.defaultView as unknown as
+    mozIDOMWindowProxy | undefined;
+  if (!win) {
+    return;
+  }
+
+  const selected = cy
+    .nodes(":selected")
+    .filter(
+      (node) => (node as cytoscape.NodeSingular).data("isGroup") !== true,
+    );
+  const scoped = !selected.empty();
+  const count = selected.length;
+
+  const confirmed = Services.prompt.confirm(
+    win,
+    getString("mindmap-relayout-confirm-title"),
+    scoped
+      ? getString("mindmap-relayout-confirm-selection", { args: { count } })
+      : getString("mindmap-relayout-confirm-all"),
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const positions = await relayoutPositions(
+      cy,
+      scoped ? selected.map((node) => node.id()) : undefined,
+    );
+    if (positions.size === 0) {
+      return;
+    }
+    await persistNodePositions(mindmapId, positions, rendered);
+  } catch (err) {
+    logFailure(
+      `[zoteroLinkedMindmaps] re-layout failed: ${(err as Error).message}`,
+      err as Error,
+    );
+  }
+}
+
+/**
  * Zoom and fit touch the viewport only - cy.zoom()/cy.fit() move the camera,
  * never a node's stored position, which is what keeps this control clear of
  * the drag-write path entirely (AC #4).
  */
-function attachViewControls(cy: cytoscape.Core, container: HTMLElement): void {
+function attachViewControls(
+  cy: cytoscape.Core,
+  container: HTMLElement,
+  mindmapId: string,
+  rendered: RenderedState,
+): void {
   const doc = container.ownerDocument!;
 
   const toolbar = doc.createElement("div");
@@ -658,6 +737,15 @@ function attachViewControls(cy: cytoscape.Core, container: HTMLElement): void {
     "mindmap-fit-button",
     appendFitIcon,
     () => cy.fit(undefined, 30),
+  );
+
+  appendToolbarButton(
+    toolbar,
+    doc,
+    RELAYOUT_BUTTON_CLASS,
+    "mindmap-relayout-button",
+    appendRelayoutIcon,
+    () => void runRelayout(cy, container, mindmapId, rendered),
   );
 
   let legend: HTMLElement | undefined;
@@ -1267,7 +1355,7 @@ export async function renderMindmap(
     layout: { name: "preset" },
   });
   observeContainerSize(cy, container, win);
-  attachViewControls(cy, container);
+  attachViewControls(cy, container, doc.id, rendered);
   attachNodeClickHandler(cy, nodeRefsById, dockContainer, doc.id);
   attachNodeDragHandler(cy, doc.id, rendered);
   attachGroupingHandlers(cy, doc.id);

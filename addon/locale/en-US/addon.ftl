@@ -52,3 +52,10 @@ group-on-mindmap-skipped =
         [one] { $count } item was left out: only items and notes can be grouped.
        *[other] { $count } items were left out: only items and notes can be grouped.
     }
+mindmap-relayout-confirm-title = Re-layout nodes
+mindmap-relayout-confirm-all = Recompute the position of every node on this mindmap? The arrangement you have now will be replaced.
+mindmap-relayout-confirm-selection =
+    { $count ->
+        [one] Recompute the position of the { $count } selected node? Every other node keeps its position.
+       *[other] Recompute the positions of the { $count } selected nodes? Every other node keeps its position.
+    }

@@ -52,3 +52,10 @@ group-on-mindmap-skipped =
         [one] { $count } item is niet meegenomen: alleen items en notities kunnen worden gegroepeerd.
        *[other] { $count } items zijn niet meegenomen: alleen items en notities kunnen worden gegroepeerd.
     }
+mindmap-relayout-confirm-title = Nodes opnieuw ordenen
+mindmap-relayout-confirm-all = De positie van elke node op deze mindmap opnieuw berekenen? De huidige indeling wordt vervangen.
+mindmap-relayout-confirm-selection =
+    { $count ->
+        [one] De positie van de { $count } geselecteerde node opnieuw berekenen? Alle andere nodes behouden hun positie.
+       *[other] De posities van de { $count } geselecteerde nodes opnieuw berekenen? Alle andere nodes behouden hun positie.
+    }
