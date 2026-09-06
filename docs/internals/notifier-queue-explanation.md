@@ -56,6 +56,12 @@ Mechanically: the `notify` function is typed `: void`, and any async work inside
 
 All three observer sites carry a comment saying so, in the same terms. The failure is invisible and the correct shape looks like sloppiness to anyone tidying the code up, so the reason had better be written down where they will find it.
 
+There is a second reason the rule matters, found in the Zotero 10 audit and unrelated to deadlock: **a storage write must not run nested inside a user's transaction, or it joins their undo entry.**
+
+Zotero stages a change record on every non-new save, this plugin's storage notes included (`dataObject.js`). What decides whether that becomes an undoable entry is `undoHistory.js`: an entry is pushed only when a transaction has both staged changes and a `stageAction()` call, and a transaction without `stageAction` has its staged changes discarded at commit. The plugin never passes `undoAction`, so its writes never enter the user's undo stack and Ctrl+Z cannot roll one back.
+
+That holds only while the write runs in its own transaction. A storage write executed nested inside a transaction the user's own action opened would be committed as part of it, and would then be undone along with it — silently rewriting a mindmap when the user undid something else entirely. Keeping observers off the write path is what prevents that, so the rule above is load-bearing for two independent reasons.
+
 ## The split: void versus await
 
 The plugin's three notifier observers don't all look the same, and the difference is exactly where a storage write is involved.

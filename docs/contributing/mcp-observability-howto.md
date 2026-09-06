@@ -121,6 +121,43 @@ and selection has to go through Cytoscape's own event, not a synthetic
 cy.$("#<nodeId>").emit("tap"); // then wait ~1s for the dock to populate
 ```
 
+## Reading the database directly, and the WAL trap
+
+`zotero_db_query` is the first choice and reads fine while Zotero runs. Reach
+for `sqlite3` only when the rig is unavailable — no bridge in that profile, or
+Zotero not running at all.
+
+**From Zotero 10, `zotero.sqlite` runs in WAL mode.** Recent writes live in the
+`-wal` sidecar, not in the main file, until a checkpoint folds them in. A read
+that sees only `zotero.sqlite` therefore returns stale data, silently and with
+no error — it is a valid database, just an older one.
+
+How stale is not theoretical. In this checkout's dev data directory the main
+file was a full day behind its `-wal` sidecar:
+
+```
+zotero.sqlite       1110016  sep  5 10:20
+zotero.sqlite-shm     32768  sep  6 20:57
+zotero.sqlite-wal     41232  sep  6 20:57
+```
+
+So:
+
+- Read in place, read-only, and let SQLite find the sidecars:
+  `sqlite3 "file:$ZOTERO_PLUGIN_DATA_DIR/zotero.sqlite?mode=ro" "select ..."`.
+- If you copy the database somewhere first, copy `zotero.sqlite-wal` and
+  `zotero.sqlite-shm` with it. Copying the `.sqlite` alone is the mistake that
+  looks like it worked.
+- The `.bak` files next to it are Zotero's own periodic backups, not
+  checkpoints. They are older still.
+
+To pull a mindmap's stored JSON out, the storage notes are ordinary note items
+carrying the `_zoterolinkedmindmaps-storage-v1` tag, so the document is the
+note's HTML content with the JSON blob inside it. `zotero_db_query` reaching
+`itemNotes` joined to `itemTags` is the direct route; see
+[storage-reference.md](../internals/storage-reference.md) for the shape of what
+comes back.
+
 ## What it will not tell you
 
 `zotero_execute_js` runs in the main window's chrome scope, where `document`,
