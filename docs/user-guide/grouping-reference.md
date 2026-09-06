@@ -18,7 +18,7 @@ Groups live inside one mindmap's stored document. A group cannot span two mindma
 
 A node is in at most one group. Grouping a node that is already in another group moves it into the new one rather than putting it in both. Overlapping groups are not supported.
 
-That falls out of how a group is drawn (a graph node has one parent container) rather than from a product decision, so it is the first thing that would have to change if overlapping groups were ever wanted.
+That falls out of how a group is drawn (a graph node has one parent container) rather than from a product decision. Changing the drawing method so a node can be in several groups has been investigated and is planned, so this rule is expected to go; it has not changed yet.
 
 A group needs two or more nodes to be created; two is enough. The grouping menu does not appear for a single selected node: a group of one says nothing the node does not already say.
 
