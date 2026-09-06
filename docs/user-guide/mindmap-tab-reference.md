@@ -80,17 +80,19 @@ Two or more links between the same pair of nodes are fanned out around each othe
 
 ### Mouse and keyboard
 
-| Gesture                                                  | Effect                                                                                        |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Click a node                                             | Opens that node in the dock.                                                                  |
-| Drag a node                                              | Moves it and saves the new position. See [node layout](node-layout-reference.md).             |
-| Right-click a node                                       | Opens the node menu beside the node. "Add link" docks it and opens the link form in one step. |
-| Right-click empty canvas with two or more nodes selected | Opens a menu with "Group selected nodes".                                                     |
-| Right-click a group's region                             | Opens a menu with a name field, "Rename group" and "Ungroup".                                 |
-| Click anywhere, or press Escape                          | Closes an open menu.                                                                          |
-| Shift-click, or Shift-drag on empty canvas               | Cytoscape's own selection: adds nodes to the selection, or box-selects several.               |
-| Drag empty canvas, scroll wheel                          | Cytoscape's own pan and zoom.                                                                 |
-| View toolbar, top right                                  | Zoom out, zoom in, fit-to-window, and a legend toggle. Fitting moves the viewport only.       |
+| Gesture                                                  | Effect                                                                                                                        |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Click a node                                             | Opens that node in the dock.                                                                                                  |
+| Drag a node                                              | Moves it and saves the new position. See [node layout](node-layout-reference.md).                                             |
+| Right-click a node                                       | Opens the node menu beside the node. "Add link" docks it and opens the link form in one step.                                 |
+| Right-click empty canvas with two or more nodes selected | Opens a menu with "Group selected nodes".                                                                                     |
+| Right-click a group's region                             | Opens a menu with a name field, "Rename group" and "Ungroup".                                                                 |
+| Click anywhere, or press Escape                          | Closes an open menu.                                                                                                          |
+| Shift-click, or Shift-drag on empty canvas               | Cytoscape's own selection: adds nodes to the selection, or box-selects several.                                               |
+| Drag empty canvas, scroll wheel                          | Cytoscape's own pan and zoom.                                                                                                 |
+| View toolbar, top right                                  | Zoom out, zoom in, fit-to-window, re-layout, and a legend toggle. Only re-layout writes anything; the rest move the viewport. |
+
+Re-layout asks before it does anything, and what it recomputes depends on the selection: nothing selected lays out the whole mindmap, a selection lays out just those nodes and leaves every other position alone. The confirm says which. Cancelling writes nothing. See [node layout](node-layout-explanation.md).
 
 A drag never also counts as a click, so repositioning a node does not open it in the dock.
 

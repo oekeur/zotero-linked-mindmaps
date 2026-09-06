@@ -75,3 +75,5 @@ mindmap-fit-button =
     .title = Fit to window
 mindmap-legend-toggle-button =
     .title = Toggle legend
+mindmap-relayout-button =
+    .title = Re-layout nodes

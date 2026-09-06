@@ -3,6 +3,7 @@ import cytoscape from "cytoscape";
 import {
   gridPositions,
   layoutUnplacedNodes,
+  relayoutPositions,
 } from "../../src/modules/mindmap/layout";
 import {
   findMindmapNote,
@@ -302,6 +303,138 @@ describe("mindmap/layout", function () {
 
     it("reports nothing for a lone node", function () {
       assert.equal(piledNodeIds([node("node-a", { x: 0, y: 0 })]).size, 0);
+    });
+  });
+
+  describe("mindmap/layout relayoutPositions", function () {
+    // Groups are compound parents in the graph, so a member points at its group
+    // through `parent`, the same shape buildGroupElements builds. The group
+    // carries no position of its own.
+    function groupedCy(
+      members: Array<{ id: string; group?: string; at: Position }>,
+      groups: string[],
+    ) {
+      return cytoscape({
+        elements: {
+          nodes: [
+            ...groups.map((id) => ({ data: { id, label: id, isGroup: true } })),
+            ...members.map((m) => ({
+              data: {
+                id: m.id,
+                label: m.id,
+                ...(m.group ? { parent: m.group } : {}),
+              },
+              position: { ...m.at },
+            })),
+          ],
+          edges: [],
+        },
+      });
+    }
+
+    const spread = (ids: string[]): Array<{ id: string; at: Position }> =>
+      ids.map((id, i) => ({ id, at: { x: i * 500, y: i * 500 } }));
+
+    it("lays out every node when no scope is given, and returns no group container", async function () {
+      const cy = groupedCy(
+        [
+          { id: "a", group: "g1", at: { x: 0, y: 0 } },
+          { id: "b", group: "g1", at: { x: 900, y: 900 } },
+          { id: "c", at: { x: 1800, y: 1800 } },
+        ],
+        ["g1"],
+      );
+
+      const positions = await relayoutPositions(cy);
+
+      assert.deepEqual([...positions.keys()].sort(), ["a", "b", "c"]);
+      assert.isFalse(positions.has("g1"), "a group has no stored position");
+      // Asserted before the pile check, which NaN would otherwise sail
+      // through: every comparison against NaN is false.
+      for (const [id, position] of positions) {
+        assert.isTrue(
+          Number.isFinite(position.x) && Number.isFinite(position.y),
+          id + " must get a finite position, got " + JSON.stringify(position),
+        );
+      }
+      assert.isFalse(
+        anyPairCoincident([...positions.values()]),
+        "a relayout must not pile nodes on one another",
+      );
+    });
+
+    it("lays out only the scoped nodes and leaves other stored positions alone", async function () {
+      const cy = groupedCy(spread(["a", "b", "c", "d"]), []);
+      const untouched = ["c", "d"].map((id) => ({
+        id,
+        at: { ...cy.$id(id).position() },
+      }));
+
+      const positions = await relayoutPositions(cy, ["a", "b"]);
+
+      assert.deepEqual([...positions.keys()].sort(), ["a", "b"]);
+      for (const { id, at } of untouched) {
+        const now = cy.$id(id).position();
+        assert.deepEqual(
+          { x: now.x, y: now.y },
+          at,
+          id + " must keep its stored position",
+        );
+      }
+    });
+
+    it("keeps a group's members together, and its box off unrelated nodes", async function () {
+      // Members start in opposite corners, which is the arrangement that
+      // stretches a group box across the canvas if the layout ignores the
+      // compound parent.
+      const cy = groupedCy(
+        [
+          { id: "g-a", group: "g1", at: { x: -2000, y: -2000 } },
+          { id: "g-b", group: "g1", at: { x: 2000, y: 2000 } },
+          { id: "g-c", group: "g1", at: { x: -2000, y: 2000 } },
+          { id: "loner", at: { x: 0, y: 0 } },
+        ],
+        ["g1"],
+      );
+
+      await relayoutPositions(cy);
+
+      const box = cy.$id("g1").boundingBox();
+      const loner = cy.$id("loner").position();
+      const swallowed =
+        loner.x >= box.x1 &&
+        loner.x <= box.x2 &&
+        loner.y >= box.y1 &&
+        loner.y <= box.y2;
+      assert.isFalse(
+        swallowed,
+        "the group box must not swallow a node outside it",
+      );
+
+      const members = ["g-a", "g-b", "g-c"].map((id) => cy.$id(id).position());
+      for (const position of members) {
+        assert.isTrue(
+          Number.isFinite(position.x) && Number.isFinite(position.y),
+          "a group member must get a finite position, got " +
+            JSON.stringify(members),
+        );
+      }
+      const furthest = Math.max(
+        ...members.flatMap((a) =>
+          members.map((b) => Math.hypot(a.x - b.x, a.y - b.y)),
+        ),
+      );
+      assert.isBelow(
+        furthest,
+        4000,
+        "members must end up nearer each other than the corners they started in",
+      );
+    });
+
+    it("returns nothing for a scope that matches no node", async function () {
+      const cy = groupedCy(spread(["a"]), []);
+      const positions = await relayoutPositions(cy, ["nosuchnode"]);
+      assert.equal(positions.size, 0);
     });
   });
 });
