@@ -2,7 +2,7 @@
 
 # Zotero Linked Mindmaps
 
-A Zotero 7 mind map plugin. Build a knowledge graph of your sources with typed, named links between items and notes, organized into multiple named mindmaps and rendered as a graph you arrange yourself.
+A mind map plugin for Zotero 7 and later, Zotero 10 included. Build a knowledge graph of your sources with typed, named links between items and notes, organized into multiple named mindmaps and rendered as a graph you arrange yourself.
 
 ## Why
 
@@ -38,7 +38,7 @@ Mindmap data lives in a Zotero note item, tagged and parented to a per-library c
 
 Download `zotero-linked-mindmaps.xpi` from the [latest release](https://github.com/oekeur/zotero-linked-mindmaps/releases/latest). If your browser opens it instead of saving it, use "Save link as".
 
-In Zotero: open Tools, then Plugins. Click the gear icon at the top right, choose "Install Plugin From File...", pick the `.xpi`, and restart Zotero. Requires Zotero 7.
+In Zotero: open Tools, then Plugins. Click the gear icon at the top right, choose "Install Plugin From File...", pick the `.xpi`, and restart Zotero. Requires Zotero 7 or later.
 
 The build carries an update URL, so Zotero's own plugin updater offers later versions. A plugin that fails to load does so quietly, with no error dialog, so check that "Zotero Linked Mindmaps" appears in the Plugins list after the restart.
 
@@ -69,7 +69,7 @@ npm run docs:preview  # serve the built site
 
 ## Development
 
-Requires a local Zotero 7 install and a dev profile. [Full setup guide](./docs/contributing/development-setup.md). [CONTRIBUTING.md](./CONTRIBUTING.md) covers filing an issue, the verification gate, and the commit convention.
+Requires a local Zotero 7 or later install and a dev profile. [Full setup guide](./docs/contributing/development-setup.md). [CONTRIBUTING.md](./CONTRIBUTING.md) covers filing an issue, the verification gate, and the commit convention.
 
 ```sh
 cp .env.example .env

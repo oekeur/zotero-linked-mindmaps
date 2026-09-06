@@ -42,6 +42,12 @@ The reason is hot reload. `npm start` reinstalls the plugin into a running Zoter
 
 `getSearchObject` is undocumented internal API, and the code around it moves. The item tree was refactored onto a row provider in Zotero 10.0-beta.25.
 
+Re-verified against that build's `collectionTreeRow.js` in the 2026-08-17 audit: the patch still works. Two things changed around it, neither breaking.
+
+beta.25 added a per-row `_cachedSearch`, so the original `getSearchObject` returns a cached search object where it used to build a fresh one each time. The wrapper is unaffected because it never mutates what it is handed — it builds its own wrapping search around the result — but it does rebuild that wrapper on every call rather than caching alongside. Correct, mildly wasteful.
+
+beta.25 also added `getTagsAcrossRows()`, which the tag selector uses for a multi-row selection. It reads the same cached results, so the container and storage tags stay out of the tag selector under multi-row selection too.
+
 A Zotero release can break this in two ways, and the code is built for both.
 
 If the method is gone or is no longer a function, `registerLibraryFilter()` logs through `logFailure` and returns without patching anything. The plugin runs, and the container row is visible.
