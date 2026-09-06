@@ -21,7 +21,7 @@ Source: `addon/bootstrap.js`, `src/index.ts`, `src/addon.ts`, `src/hooks.ts`.
 
 `shutdown({ id, version, resourceURI, rootURI }, reason)` returns immediately when `reason === APP_SHUTDOWN`; Zotero is closing, so nothing needs unwinding. Otherwise it awaits `hooks.onShutdown()` and then calls `chromeHandle.destruct()`, clearing the handle.
 
-`manifest.json` declares `strict_min_version` `6.999` and `strict_max_version` `10.*` under `applications.zotero`. A `strict_max_version` below the running Zotero blocks the plugin with no console error and no install failure; see [configuration-reference.md](../contributing/configuration-reference.md).
+`manifest.json` declares `strict_min_version` `6.999` and `strict_max_version` `10.0.*` under `applications.zotero`. A `strict_max_version` below the running Zotero blocks the plugin with no console error and no install failure; see [configuration-reference.md](../contributing/configuration-reference.md).
 
 ## Bundle entry point
 

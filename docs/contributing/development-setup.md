@@ -4,7 +4,7 @@ This gets you from a fresh clone to a running Zotero with the plugin loaded and 
 
 ## Before you start
 
-Install Zotero 7 or later locally; the plugin is developed and tested against Zotero 10 betas. The plugin declares `strict_min_version` `6.999` and `strict_max_version` `10.*`, so a Zotero 6 install won't load it. Make a note of the path to the Zotero binary: on Linux that's the `zotero` launcher in the install directory, on macOS `.../Zotero.app/Contents/MacOS/zotero`, on Windows `zotero.exe`.
+Install Zotero 7 or later locally; the plugin is developed and tested against Zotero 10 betas. The plugin declares `strict_min_version` `6.999` and `strict_max_version` `10.0.*`, so a Zotero 6 install won't load it, and neither will a Zotero newer than 10.0.x until the ceiling is raised. Make a note of the path to the Zotero binary: on Linux that's the `zotero` launcher in the install directory, on macOS `.../Zotero.app/Contents/MacOS/zotero`, on Windows `zotero.exe`.
 
 Create a separate Zotero profile for development, and don't point the dev server at the profile holding your real library. Run `/path/to/zotero -p` to open the profile manager and add one, or let the scaffold create a profile for you (see step 3). Zotero's own [profile directory documentation](https://www.zotero.org/support/kb/profile_directory) explains where profiles live per platform.
 
