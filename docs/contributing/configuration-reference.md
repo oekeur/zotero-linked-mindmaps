@@ -97,7 +97,7 @@ This file is a template, not the shipped manifest. The build copies it into `.sc
       "id": "__addonID__",
       "update_url": "__updateURL__",
       "strict_min_version": "6.999",
-      "strict_max_version": "10.*"
+      "strict_max_version": "10.0.*"
     }
   }
 }
@@ -111,7 +111,13 @@ This file is a template, not the shipped manifest. The build copies it into `.sc
 
 `strict_min_version` is `6.999`. Zotero 7 betas report versions above 6.999 and below 7, so this is the conventional way to say "Zotero 7 or later" and exclude Zotero 6.
 
-`strict_max_version` is `10.*`. **This one fails silently.** If a Zotero version exceeds the ceiling, Zotero refuses to load the plugin: no console error, no install failure, no message anywhere. The only symptom is the plugin's absence from Tools, then Plugins. The ceiling is deliberately far above any shipping Zotero so that a routine Zotero update does not silently disable the plugin during development. Check this field whenever the plugin stops appearing after a Zotero upgrade.
+`strict_max_version` is `10.0.*`. **This one fails silently.** If a Zotero version exceeds the ceiling, Zotero refuses to load the plugin: no console error, no install failure, no message anywhere. The only symptom is the plugin's absence from Tools, then Plugins. Check this field whenever the plugin stops appearing after a Zotero upgrade.
+
+It used to be `10.*`, set far above any shipping Zotero on the stated grounds that a routine Zotero update should not silently disable the plugin _during development_. That reasoning does not hold: beta and source builds do not enforce `strict_max_version` at all, and the dev profile runs a beta, so the ceiling never fires during development. It only ever applied to users on stable builds, which is the opposite of the case it was chosen for.
+
+Narrowed to `10.0.*` on 2026-09-06, which is what Zotero's migration guide asks for once compatibility is confirmed. The trade is between two silent failures, and the quiet one wins: a ceiling that is too low makes the plugin absent, which touches no data and is undone by a release, while a ceiling that is too high lets it load on an untested Zotero major and misbehave silently around note writes. This plugin patches undocumented internals (`getSearchObject`), depends on `CollectionTreeRow.getTags` behaviour, and reaches into Cytoscape's internals, so "probably still works" is not a safe assumption across a major.
+
+The cost is a one-line bump per Zotero minor, folded into a release that has to happen anyway.
 
 ## Fields that fail silently, collected
 
