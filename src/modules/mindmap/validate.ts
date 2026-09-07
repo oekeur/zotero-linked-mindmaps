@@ -20,6 +20,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((entry) => typeof entry === "string")
+  );
+}
+
 function isPosition(value: unknown): value is Position {
   return (
     isRecord(value) &&
@@ -51,7 +57,8 @@ export function isMindmapNode(value: unknown): value is MindmapNode {
     typeof value.id !== "string" ||
     (value.position !== null && !isPosition(value.position)) ||
     !isZoteroObjectRef(value.ref) ||
-    (value.groupId !== undefined && typeof value.groupId !== "string")
+    (value.groupId !== undefined && typeof value.groupId !== "string") ||
+    (value.groupIds !== undefined && !isStringArray(value.groupIds))
   ) {
     return false;
   }

@@ -199,3 +199,95 @@ export function regionLabelAnchor(shapes: RegionShape[]): Position | null {
   );
   return { x: top.x, y: top.y - top.radius - 6 };
 }
+
+/** Model units, matching the 11px group label the compound node used to draw. */
+export const LABEL_FONT_SIZE = 11;
+/**
+ * Rough half-width per character at that font size, used to give the label a
+ * box without measuring it. getBBox needs the element laid out, which is not
+ * true in a headless render and not worth waiting for here.
+ */
+const LABEL_CHAR_HALF_WIDTH = 3;
+/** How far a label moves when it has to get out of another one's way. */
+export const LABEL_LINE_HEIGHT = 13;
+
+export interface Box {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** The box a label occupies, used both for hit-testing and for separating two. */
+export function labelBox(name: string, anchor: Position): Box {
+  const halfWidth = Math.max(1, name.length * LABEL_CHAR_HALF_WIDTH);
+  return {
+    x1: anchor.x - halfWidth,
+    y1: anchor.y - LABEL_FONT_SIZE,
+    x2: anchor.x + halfWidth,
+    y2: anchor.y + 2,
+  };
+}
+
+function boxesOverlap(a: Box, b: Box): boolean {
+  return a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+}
+
+/**
+ * Moves labels down until none covers another, and returns the anchors in the
+ * order they came in.
+ *
+ * Regions may overlap, so two names anchored over the topmost member of each
+ * can land on top of one another and neither is then readable. Working top
+ * down and pushing each label clear of the ones already placed keeps whichever
+ * name is highest where it was, which is the one whose own region the reader
+ * is most likely tracing. Two names far apart horizontally never collide, so
+ * this collapses to the untouched placement whenever regions do not overlap.
+ */
+export function deconflictLabelAnchors(
+  labels: Array<{ name: string; anchor: Position }>,
+): Position[] {
+  const order = labels
+    .map((label, index) => ({ ...label, index }))
+    .sort((a, b) => a.anchor.y - b.anchor.y || a.index - b.index);
+
+  const placed: Box[] = [];
+  const anchors: Position[] = new Array(labels.length);
+  for (const label of order) {
+    let anchor = label.anchor;
+    let box = labelBox(label.name, anchor);
+    // Each push clears at least the one box it collided with, so at most one
+    // push per already-placed label is ever needed.
+    for (let attempt = 0; attempt < placed.length; attempt += 1) {
+      const hit = placed.find((other) => boxesOverlap(box, other));
+      if (!hit) {
+        break;
+      }
+      anchor = { x: anchor.x, y: hit.y2 + LABEL_LINE_HEIGHT };
+      box = labelBox(label.name, anchor);
+    }
+    placed.push(box);
+    anchors[label.index] = anchor;
+  }
+  return anchors;
+}
+
+/** How far a membership pip sits from its node's centre. */
+export const PIP_RADIUS = 4;
+const PIP_GAP = 3;
+
+/**
+ * Where a node's membership pips go: a row centred under it, one per group.
+ *
+ * Below the node rather than over it, because a pip on the node would cover
+ * the label Cytoscape draws there. The row still falls inside a full-reach
+ * halo, so a pip normally reads against its own group's fill.
+ */
+export function pipPositions(centre: Position, count: number): Position[] {
+  const step = PIP_RADIUS * 2 + PIP_GAP;
+  const first = centre.x - ((count - 1) * step) / 2;
+  return Array.from({ length: count }, (_unused, index) => ({
+    x: first + index * step,
+    y: centre.y + NODE_RADIUS + PIP_RADIUS + 2,
+  }));
+}

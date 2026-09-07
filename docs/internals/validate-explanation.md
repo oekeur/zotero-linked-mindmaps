@@ -28,7 +28,7 @@ There is a gap in that arrangement, and it is a real one: the skip only reaches 
 
 ## What the parser deliberately does not check
 
-Type shape only. Referential integrity is out of scope. A link naming a node id that doesn't exist validates. A `groupId` naming a missing group validates. An external node whose home mindmap was deleted validates.
+Type shape only. Referential integrity is out of scope. A link naming a node id that doesn't exist validates. A membership naming a missing group validates. An external node whose home mindmap was deleted validates.
 
 Two reasons for that. Those states are legitimately reachable in normal operation rather than being corruption: the whole point of [cross-mindmap cleanup](cross-mindmap-cleanup-explanation.md) is that a stub can outlive its target, and rejecting the document would turn a recoverable inconsistency into an unreadable mindmap. The checks would also need the rest of the library in hand, which would turn a synchronous pure function into an async one that opens other notes on every read.
 

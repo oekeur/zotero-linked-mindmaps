@@ -38,7 +38,12 @@ import {
   removeLink,
   removeNode,
 } from "./mutations";
-import { refsMatch, type MindmapDocument, type MindmapLink } from "./schema";
+import {
+  groupIdsOf,
+  refsMatch,
+  type MindmapDocument,
+  type MindmapLink,
+} from "./schema";
 
 const PANE_ID = "zotero-linked-mindmaps-connections";
 
@@ -302,6 +307,7 @@ function expandSection(body: HTMLElement) {
 }
 
 export const MINDMAP_CHOICE_CLASS = "mindmap-choose-target";
+export const REMOVE_FROM_GROUP_BUTTON_CLASS = "mindmap-remove-from-group";
 
 /**
  * Asks which mindmap the link belongs in before the form appears, but only
@@ -591,16 +597,33 @@ async function renderPanelBody(
   appendGlyph(removeNode, doc, "M4 8h8");
   container.appendChild(current);
 
-  // Only offered when the node is actually in a group: this is where a single
-  // node leaves one, as opposed to dissolving the whole group from the graph.
-  if (node.groupId) {
-    appendL10nButton(
+  // One button per group the node is in: this is where a single node leaves
+  // one, as opposed to dissolving the whole group from the graph. Each names
+  // its own group, since leaving "Chapter 3" and leaving "Methodology" are
+  // different actions and an unlabelled button would not say which is which.
+  for (const groupId of groupIdsOf(node)) {
+    const name = (mindmapDoc.groups ?? []).find(
+      (group) => group.id === groupId,
+    )?.name;
+    const button = appendL10nButton(
       container,
-      "item-mindmaps-remove-from-group-button",
+      name
+        ? "item-mindmaps-remove-from-named-group-button"
+        : "item-mindmaps-remove-from-group-button",
       () => {
-        void handleRemoveFromGroup(container, item, mindmapDoc, node.id);
+        void handleRemoveFromGroup(
+          container,
+          item,
+          mindmapDoc,
+          node.id,
+          groupId,
+        );
       },
     );
+    button.classList.add(REMOVE_FROM_GROUP_BUTTON_CLASS);
+    if (name) {
+      button.setAttribute("data-l10n-args", JSON.stringify({ group: name }));
+    }
   }
 
   const links = mindmapDoc.links.filter(
@@ -757,13 +780,14 @@ function handleRemoveFromGroup(
   item: Zotero.Item,
   mindmapDoc: MindmapDocument,
   nodeId: string,
+  groupId: string,
 ): Promise<void> {
   return applyToMindmap(
     container,
     item,
     mindmapDoc,
     "remove node from group",
-    (doc) => removeFromGroup(doc, nodeId),
+    (doc) => removeFromGroup(doc, nodeId, groupId),
   );
 }
 

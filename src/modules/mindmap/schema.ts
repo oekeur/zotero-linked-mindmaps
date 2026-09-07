@@ -93,6 +93,7 @@ export type MindmapNode =
       position: Position | null;
       ref: ZoteroObjectRef;
       groupId?: string;
+      groupIds?: string[];
     }
   | {
       membership: "external";
@@ -102,7 +103,25 @@ export type MindmapNode =
       homeMindmapId: string;
       homeNodeId: string;
       groupId?: string;
+      groupIds?: string[];
     };
+
+/**
+ * Every group a node belongs to. `groupIds` is the real answer; `groupId` is
+ * the single-membership key that shipped first and is still written alongside
+ * it, so a document written here draws one of the groups on an install that
+ * predates overlapping membership rather than none of them.
+ *
+ * Reading through this rather than either key directly is what lets a document
+ * written before `groupIds` existed open correctly with no migration pass and
+ * no write on open.
+ */
+export function groupIdsOf(node: MindmapNode): string[] {
+  if (node.groupIds) {
+    return node.groupIds;
+  }
+  return node.groupId ? [node.groupId] : [];
+}
 
 export interface MindmapLink {
   id: string;

@@ -93,9 +93,9 @@ function createGroup(
 
 **Mutates `doc` in place** and returns the group it created. The group gets a fresh generated id; the `name` key is omitted entirely when `name` is falsy, rather than set to `undefined`.
 
-Appends the group to `doc.groups` (creating the array when the document had none) and rewrites `doc.nodes`, setting `groupId` on every node whose id appears in `nodeIds`.
+Appends the group to `doc.groups` (creating the array when the document had none) and rewrites `doc.nodes`, appending the new group's id to `groupIds` on every node whose id appears in `nodeIds`.
 
-Membership is exclusive: a node already in another group moves, it does not end up in both. That falls out of the rendering (a Cytoscape node has one parent) rather than from a product judgement, and is the one thing here that would need rethinking if overlapping groups are ever wanted.
+Membership adds rather than replaces: a node already in another group ends up in both. `groupIds` is the list of every group a node is in; `groupId` is written alongside it, holding `groupIds[0]`, so an install predating overlapping membership draws one of the node's groups rather than none. Read either through `groupIdsOf(node)` (`schema.ts`), never off a key directly, or a document written before `groupIds` existed reads as ungrouped.
 
 Positions are not touched. A group is drawn around wherever its members already sit; it never moves them. `test/mindmap/mutations.test.ts` asserts every position is byte-identical after a `createGroup` call.
 
@@ -117,14 +117,18 @@ Returns without doing anything when `name` is empty. Clearing a name is not an o
 function deleteGroup(doc: MindmapDocument, groupId: string): void;
 ```
 
-**Mutates `doc` in place.** Removes the group from `doc.groups` and deletes the `groupId` key from every node that carried it. Members stay where they are and keep their links; only the fact that they were clustered goes away.
+**Mutates `doc` in place.** Removes the group from `doc.groups` and drops its id from every node's memberships. Members stay where they are, keep their links, and keep every other group they are in; only the fact that they were clustered by this one goes away. A node that was not in the group is returned untouched, so the write covers only what actually changed.
 
 ## `removeFromGroup`
 
 ```ts
-function removeFromGroup(doc: MindmapDocument, nodeId: string): void;
+function removeFromGroup(
+  doc: MindmapDocument,
+  nodeId: string,
+  groupId: string,
+): void;
 ```
 
-**Mutates `doc` in place.** Deletes the `groupId` key from the one named node. The group itself survives with its remaining members, even when this empties it.
+**Mutates `doc` in place.** Drops one membership from the one named node, leaving its other groups alone. The group itself survives with its remaining members, even when this empties it. It takes the group explicitly rather than inferring it, because a node in three groups gives nothing to infer from.
 
-Both this and `deleteGroup` delete the key rather than setting it to `undefined`, so a node that was never grouped and one that has been ungrouped serialize identically.
+Both this and `deleteGroup` delete both membership keys rather than setting them to `undefined` when the last one goes, so a node that was never grouped and one that has been ungrouped serialize identically.

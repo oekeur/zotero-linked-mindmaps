@@ -17,6 +17,7 @@ import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfi
 import {
   attachGroupOverlay,
   GROUP_OVERLAY_CLASS,
+  GROUP_PIP_CLASS,
   type GroupOverlay,
 } from "./groupOverlay";
 import { getLocaleID, getString } from "../../utils/locale";
@@ -518,6 +519,32 @@ function appendLegendGroupSample(parent: Element, doc: Document): void {
   parent.appendChild(svg as unknown as Node);
 }
 
+/**
+ * Two pips in two hues: what a node in two groups carries, and the sample that
+ * says the hue is the group rather than decoration. Drawn at full opacity like
+ * the real ones, so the legend shows the colour the graph actually paints
+ * rather than the muted version the region fill uses.
+ */
+function appendLegendGroupPipSample(parent: Element, doc: Document): void {
+  const svg = doc.createElementNS(SVG_NS, "svg") as unknown as SVGElement;
+  svg.setAttribute("viewBox", "0 0 20 16");
+  svg.setAttribute("width", "20");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("aria-hidden", "true");
+  [4, 14].forEach((cx, index) => {
+    const pip = doc.createElementNS(SVG_NS, "circle");
+    pip.setAttribute("cx", String(cx));
+    pip.setAttribute("cy", "8");
+    pip.setAttribute("r", "4");
+    pip.classList.add(
+      "mindmap-legend-group-pip-sample",
+      `${GROUP_PIP_CLASS}-${index}`,
+    );
+    svg.appendChild(pip as unknown as Node);
+  });
+  parent.appendChild(svg as unknown as Node);
+}
+
 export const LEGEND_CLASS = "mindmap-legend";
 
 /**
@@ -555,6 +582,10 @@ const LEGEND_ROWS: Array<{
   {
     localeId: "mindmap-legend-group-region",
     sample: appendLegendGroupSample,
+  },
+  {
+    localeId: "mindmap-legend-group-membership",
+    sample: appendLegendGroupPipSample,
   },
 ];
 

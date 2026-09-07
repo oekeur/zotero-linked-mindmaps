@@ -10,15 +10,15 @@ A group makes no claim about how its members relate. It says they belong togethe
 | -------- | --------------------------------------------------------------------------------------------------------- |
 | Id       | Generated when the group is created. Not shown anywhere in the interface.                                 |
 | Name     | Optional. A group created from the graph has no name until you rename it, and renders with a blank label. |
-| Members  | Recorded on the nodes, not on the group: each node carries the id of the group it is in.                  |
+| Members  | Recorded on the nodes, not on the group: each node carries the ids of the groups it is in.                |
 
 Groups live inside one mindmap's stored document. A group cannot span two mindmaps, and a node borrowed from another mindmap can be put in a group on the mindmap it was borrowed into.
 
 ## Membership rules
 
-A node is in at most one group. Grouping a node that is already in another group moves it into the new one rather than putting it in both. Overlapping groups are not supported.
+A node can be in any number of groups. Grouping a node that is already in another group adds the new membership and keeps the old one, so "chapter 3" and "methodology" can both cover the same source. Groups overlap wherever they share a member.
 
-That falls out of how a group is drawn (a graph node has one parent container) rather than from a product decision. Changing the drawing method so a node can be in several groups has been investigated and is planned, so this rule is expected to go; it has not changed yet.
+Removing a node from one group leaves its other memberships alone, and ungrouping affects only the group you ungrouped.
 
 A group needs two or more nodes to be created; two is enough. The grouping menu does not appear for a single selected node: a group of one says nothing the node does not already say.
 
@@ -34,6 +34,10 @@ The region follows the members rather than boxing them in. That matters because 
 
 The region takes in no node that is not a member. A band that would run over one is left out, which can leave a widely spread group drawn as two or more separate patches, and a halo stops short of a non-member standing close by. The one exception is a node overlapping a member on screen, where there is no room to stop short.
 
+Each group draws in its own colour, taken in turn from a set of six and repeating past the sixth group. Where two regions overlap their tints mix, so the mixed colour names neither group. What answers that is the row of dots under each node in a group: one dot per group it is in, each in that group's colour, drawn at full strength so it never mixes. A node with two dots is in two groups, and the dot colours say which two.
+
+Group names are placed so they do not cover each other. A name sits above its region's topmost member; where that would put two names in the same place, the lower one drops by a line.
+
 The region redraws while a member is being dragged, not when the drag ends.
 
 The region is not clickable and does not take the pointer: clicking it selects nothing and does not open the dock, and a click passes through to whatever is under it. Right-clicking the region opens the group menu, unless the pointer is over one of its members, in which case that node's own menu opens instead.
@@ -46,13 +50,13 @@ A selected node - shift-clicked, or caught in a shift-drag box - gets a highligh
 
 ## Controls
 
-| Where                                                        | Control                        | Effect                                                                      |
-| ------------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------- |
-| Right-click a node that's part of a selection of two or more | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
-| Right-click empty canvas with a selection of two or more     | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
-| Right-click inside a group's region                          | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
-| Right-click inside a group's region                          | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
-| Mindmaps section, for a node in a group                      | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
+| Where                                                        | Control                        | Effect                                                                                                 |
+| ------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Right-click a node that's part of a selection of two or more | "Group selected nodes"         | Creates an unnamed group holding the selection.                                                        |
+| Right-click empty canvas with a selection of two or more     | "Group selected nodes"         | Creates an unnamed group holding the selection.                                                        |
+| Right-click inside a group's region                          | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.                                        |
+| Right-click inside a group's region                          | "Ungroup"                      | Removes the group. Members keep their positions and their links.                                       |
+| Mindmaps section, for a node in a group                      | "Remove from ..."              | One button per group the node is in, each naming its group. Takes the node out of that one group only. |
 
 Everything above is mouse-driven; there are no keyboard equivalents.
 

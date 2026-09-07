@@ -53,7 +53,7 @@ Either control writes to the mindmap the panel is showing, the one named at the 
 
 Remove from mindmap, the icon control beside the mindmap name (tooltip "Remove from mindmap"). Removes this item's node from the shown mindmap, along with every link touching it. Afterwards the plugin reconciles cross-mindmap stubs in the library, dropping any that pointed at the removed node (see [cross-mindmap-links-reference.md](cross-mindmap-links-reference.md)). The Zotero item is untouched.
 
-"Remove from group". Shown only when the node is in a group. Takes the node out of the group and leaves the group itself in place. See [grouping-reference.md](grouping-reference.md).
+"Remove from ...". One button per group the node is in, each naming its group. Takes the node out of that one group, leaving the group itself and the node's other groups in place. A node in no group gets none. See [grouping-reference.md](grouping-reference.md).
 
 An edit control on each link row (tooltip "Edit link"), revealed on hover or keyboard focus. Opens the add-link form prefilled with that link's type, name and direction; the endpoints are shown as fixed text rather than a picker, since they cannot be changed here. Saving updates the link in place - same id, no new link created. Cancelling leaves it untouched. See [links-add-reference.md](links-add-reference.md).
 

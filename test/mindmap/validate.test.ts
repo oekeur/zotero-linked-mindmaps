@@ -85,4 +85,33 @@ describe("mindmap/validate", function () {
     const result = parseMindmapDocument(null);
     assert.isFalse(result.ok);
   });
+
+  it("accepts a node in more than one group", function () {
+    const doc = validDoc();
+    doc.groups = [{ id: "g-1" }, { id: "g-2" }];
+    doc.nodes[0].groupId = "g-1";
+    doc.nodes[0].groupIds = ["g-1", "g-2"];
+    const result = parseMindmapDocument(doc);
+    assert.isTrue(result.ok);
+  });
+
+  it("accepts a node carrying only the older groupId (AC #2)", function () {
+    const doc = validDoc();
+    doc.groups = [{ id: "g-1" }];
+    doc.nodes[0].groupId = "g-1";
+    const result = parseMindmapDocument(doc);
+    assert.isTrue(result.ok);
+  });
+
+  it("rejects groupIds that is not an array of strings", function () {
+    const notAnArray = validDoc();
+    // @ts-expect-error intentionally malformed for the test
+    notAnArray.nodes[0].groupIds = "g-1";
+    assert.isFalse(parseMindmapDocument(notAnArray).ok);
+
+    const notStrings = validDoc();
+    // @ts-expect-error intentionally malformed for the test
+    notStrings.nodes[0].groupIds = ["g-1", 7];
+    assert.isFalse(parseMindmapDocument(notStrings).ok);
+  });
 });

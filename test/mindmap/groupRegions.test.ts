@@ -1,8 +1,13 @@
 import { assert } from "chai";
 import {
   BAND_HALF_WIDTH,
+  deconflictLabelAnchors,
+  labelBox,
+  LABEL_FONT_SIZE,
   MAX_HALO_RADIUS,
   NODE_RADIUS,
+  PIP_RADIUS,
+  pipPositions,
   regionArea,
   regionContains,
   regionLabelAnchor,
@@ -179,6 +184,92 @@ describe("groupRegions", function () {
 
     it("has nowhere to go when nothing is drawn", function () {
       assert.isNull(regionLabelAnchor([]));
+    });
+  });
+
+  describe("deconflictLabelAnchors (AC #4)", function () {
+    it("leaves labels that do not touch exactly where they were", function () {
+      const labels = [
+        { name: "Chapter one", anchor: { x: 0, y: 0 } },
+        { name: "Methodology", anchor: { x: 600, y: 4 } },
+      ];
+
+      assert.deepEqual(
+        deconflictLabelAnchors(labels),
+        labels.map((label) => label.anchor),
+      );
+    });
+
+    it("pushes the lower of two colliding labels clear of the upper", function () {
+      const anchors = deconflictLabelAnchors([
+        { name: "Methodology", anchor: { x: 100, y: 4 } },
+        { name: "Chapter one", anchor: { x: 100, y: 0 } },
+      ]);
+
+      // The higher one keeps its place; the reader is tracing its region up
+      // from the members, and moving it would break that line.
+      assert.deepEqual(anchors[1], { x: 100, y: 0 });
+      assert.isAbove(anchors[0].y, anchors[1].y + LABEL_FONT_SIZE);
+      assert.equal(anchors[0].x, 100, "a label moved sideways off its region");
+    });
+
+    it("separates three labels stacked on one point", function () {
+      const anchors = deconflictLabelAnchors(
+        ["A group", "B group", "C group"].map((name) => ({
+          name,
+          anchor: { x: 50, y: 200 },
+        })),
+      );
+
+      for (let i = 0; i < anchors.length; i += 1) {
+        for (let j = i + 1; j < anchors.length; j += 1) {
+          const a = labelBox("A group", anchors[i]);
+          const b = labelBox("A group", anchors[j]);
+          assert.isTrue(
+            a.y2 <= b.y1 || b.y2 <= a.y1,
+            `labels ${i} and ${j} still overlap`,
+          );
+        }
+      }
+    });
+
+    it("has nothing to place for a graph with no named group", function () {
+      assert.deepEqual(deconflictLabelAnchors([]), []);
+    });
+  });
+
+  describe("pipPositions (AC #3)", function () {
+    it("centres one pip under its node, clear of it", function () {
+      const [pip] = pipPositions({ x: 100, y: 100 }, 1);
+
+      assert.equal(pip.x, 100);
+      assert.isAbove(pip.y - PIP_RADIUS, 100 + NODE_RADIUS);
+    });
+
+    it("spreads a row that stays centred as memberships are added", function () {
+      for (const count of [2, 3, 4]) {
+        const pips = pipPositions({ x: 0, y: 0 }, count);
+
+        assert.lengthOf(pips, count);
+        assert.approximately(
+          pips.reduce((sum, pip) => sum + pip.x, 0) / count,
+          0,
+          1e-9,
+          `a row of ${count} pips is off-centre`,
+        );
+      }
+    });
+
+    it("leaves a gap between neighbouring pips, so they read as separate", function () {
+      const [first, second] = pipPositions({ x: 0, y: 0 }, 2);
+
+      assert.isAbove(second.x - first.x, PIP_RADIUS * 2);
+    });
+
+    it("keeps every pip on one baseline", function () {
+      const pips = pipPositions({ x: 0, y: 40 }, 3);
+
+      assert.deepEqual(new Set(pips.map((pip) => pip.y)).size, 1);
     });
   });
 });

@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import {
   MINDMAP_CHOICE_CLASS,
+  REMOVE_FROM_GROUP_BUTTON_CLASS,
   renderConnectionsContent,
 } from "../../src/modules/mindmap/connectionsPanel";
 import { SAVE_BUTTON_CLASS } from "../../src/modules/mindmap/addLinkForm";
@@ -10,12 +11,17 @@ import {
   updateMindmapDocument,
 } from "../../src/modules/mindmap/storage";
 import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
-import { createMemberNode, refFor } from "../../src/modules/mindmap/mutations";
+import {
+  createGroup,
+  createMemberNode,
+  refFor,
+} from "../../src/modules/mindmap/mutations";
+import { refsMatch } from "../../src/modules/mindmap/schema";
 import { addToMindmap } from "../../src/modules/mindmap/libraryContextMenu";
 import { getLocaleID } from "../../src/utils/locale";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
-import { query } from "../dom";
+import { query, queryAll } from "../dom";
 
 describe("mindmap/connectionsPanel", function () {
   let article: Zotero.Item;
@@ -244,6 +250,90 @@ describe("mindmap/connectionsPanel", function () {
       assert.isNull(
         container.querySelector("select.mindmap-current-picker"),
         "a mindmap the item is not a node in was offered",
+      );
+    });
+  });
+
+  describe("leaving a group (TASK-88 AC #5)", function () {
+    beforeEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+    });
+
+    /**
+     * Puts the article in one group per entry of `names`, an unnamed group per
+     * `undefined`, and returns the mindmap holding them.
+     */
+    async function inGroups(names: Array<string | undefined>): Promise<string> {
+      const mindmap = await createMindmap("Chapter one");
+      await addToMindmap([article], mindmap.id);
+      await updateMindmapDocument((doc) => {
+        const node = doc.nodes.find((candidate) =>
+          refsMatch(candidate.ref, refFor(article)),
+        )!;
+        for (const name of names) {
+          createGroup(doc, [node.id], name);
+        }
+        return doc;
+      }, mindmap.id);
+      return mindmap.id;
+    }
+
+    function removeButtons(): HTMLButtonElement[] {
+      return queryAll<HTMLButtonElement>(
+        container,
+        `.${REMOVE_FROM_GROUP_BUTTON_CLASS}`,
+      );
+    }
+
+    it("offers one button per group the node is in", async function () {
+      this.timeout(30000);
+      const mindmapId = await inGroups(["Chapter three", "Methodology"]);
+
+      await renderConnectionsContent(container, article, mindmapId);
+
+      assert.lengthOf(removeButtons(), 2);
+    });
+
+    it("names the group each button leaves, so the two are not interchangeable", async function () {
+      this.timeout(30000);
+      const mindmapId = await inGroups(["Chapter three", "Methodology"]);
+
+      await renderConnectionsContent(container, article, mindmapId);
+
+      assert.deepEqual(
+        removeButtons().map(
+          (button) => JSON.parse(button.getAttribute("data-l10n-args")!).group,
+        ),
+        ["Chapter three", "Methodology"],
+      );
+    });
+
+    it("offers nothing for a node in no group", async function () {
+      this.timeout(30000);
+      const mindmapId = await inGroups([]);
+
+      await renderConnectionsContent(container, article, mindmapId);
+
+      assert.isEmpty(removeButtons());
+    });
+
+    it("takes an unnamed group's button back to the plain string", async function () {
+      this.timeout(30000);
+      const mindmapId = await inGroups([undefined]);
+
+      await renderConnectionsContent(container, article, mindmapId);
+
+      const [button] = removeButtons();
+      assert.isNull(button.getAttribute("data-l10n-args"));
+      assert.equal(
+        button.getAttribute("data-l10n-id"),
+        getLocaleID("item-mindmaps-remove-from-group-button"),
       );
     });
   });

@@ -27,10 +27,12 @@ import {
 } from "../../src/modules/mindmap/graphRenderer";
 import {
   GROUP_OVERLAY_CLASS,
+  GROUP_PIP_CLASS,
   GROUP_REGION_CLASS,
   type GroupOverlay,
 } from "../../src/modules/mindmap/groupOverlay";
 import {
+  LABEL_FONT_SIZE,
   regionContains,
   regionShapes,
 } from "../../src/modules/mindmap/groupRegions";
@@ -69,7 +71,7 @@ import type {
 } from "../../src/modules/mindmap/schema";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
-import { query } from "../dom";
+import { query, queryAll } from "../dom";
 
 const LEGEND_COLLAPSED_PREF_KEY = `${config.prefsPrefix}.legendCollapsed`;
 
@@ -1112,6 +1114,128 @@ describe("mindmap/graphRenderer", function () {
       await clearStorageNotes();
     });
 
+    it("round-trips a node in two groups at the same schemaVersion (TASK-88 AC #2)", async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+      const doc = groupedDoc();
+      doc.groups!.push({ id: "g-2", name: "Methodology" });
+      doc.nodes[0].groupId = "g-1";
+      doc.nodes[0].groupIds = ["g-1", "g-2"];
+      await writeMindmapDocument(doc);
+
+      const readBack = await readMindmapDocument("doc-groups-test");
+
+      // The version is what an older install checks before it will open the
+      // document at all, and it hard-rejects a mismatch. groupIds riding
+      // alongside groupId rather than replacing it is what keeps it at 1.
+      assert.equal(readBack.schemaVersion, CURRENT_SCHEMA_VERSION);
+      const shared = readBack.nodes.find((node) => node.id === "n-a")!;
+      assert.deepEqual(shared.groupIds, ["g-1", "g-2"]);
+      assert.equal(
+        shared.groupId,
+        "g-1",
+        "an install reading only groupId would draw no group at all",
+      );
+
+      await clearStorageNotes();
+    });
+
+    /** The same three nodes, with n-b in both groups rather than only g-1. */
+    function overlappingDoc(): MindmapDocument {
+      const doc = groupedDoc();
+      doc.groups!.push({ id: "g-2", name: "Methodology" });
+      doc.nodes = doc.nodes.map((node) =>
+        node.id === "n-b"
+          ? { ...node, groupId: "g-1", groupIds: ["g-1", "g-2"] }
+          : node.id === "n-c"
+            ? { ...node, groupId: "g-2", groupIds: ["g-2"] }
+            : node,
+      );
+      return doc;
+    }
+
+    it("draws a shared node into both regions (TASK-88 AC #1)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, overlappingDoc(), []);
+
+      for (const groupId of ["g-1", "g-2"]) {
+        assert.isNotNull(
+          container.querySelector(
+            `.${GROUP_REGION_CLASS}[data-group-id="${groupId}"]`,
+          ),
+          `no region drawn for ${groupId}`,
+        );
+      }
+      // g-1 is n-a and n-b, g-2 is n-b and n-c, so a region reaching only its
+      // own two members still has to reach the one they share.
+      const shapes = regionShapes(
+        [
+          { x: 160, y: 40 },
+          { x: 40, y: 200 },
+        ],
+        [{ x: 40, y: 40 }],
+      );
+      assert.isTrue(regionContains(shapes, { x: 160, y: 40 }));
+    });
+
+    it("marks a shared node with one pip per group (TASK-88 AC #3)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, overlappingDoc(), []);
+
+      const pipsFor = (nodeId: string) =>
+        queryAll(container, `.${GROUP_PIP_CLASS}[data-node-id="${nodeId}"]`);
+
+      assert.lengthOf(pipsFor("n-b"), 2, "the shared node is not marked twice");
+      assert.lengthOf(pipsFor("n-a"), 1);
+      // The hues are what name the groups, so two pips on one node reading the
+      // same colour would say nothing the fill did not already say badly.
+      assert.notEqual(
+        pipsFor("n-b")[0].getAttribute("class"),
+        pipsFor("n-b")[1].getAttribute("class"),
+      );
+    });
+
+    it("draws no pip on a node in no group", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, groupedDoc(), []);
+
+      assert.isNull(
+        container.querySelector(`.${GROUP_PIP_CLASS}[data-node-id="n-c"]`),
+      );
+    });
+
+    it("separates two group names that would land on each other (TASK-88 AC #4)", async function () {
+      this.timeout(30000);
+      const doc = overlappingDoc();
+      // A name is anchored over its region's topmost member. n-b is the
+      // highest node in both groups, so both names anchor at the same point
+      // and without a placement pass they are drawn on one baseline.
+      const raised: Record<string, { x: number; y: number }> = {
+        "n-a": { x: 40, y: 300 },
+        "n-b": { x: 160, y: 40 },
+        "n-c": { x: 300, y: 300 },
+      };
+      doc.nodes = doc.nodes.map((node) => ({
+        ...node,
+        position: raised[node.id],
+      }));
+      cy = await renderMindmap(container, doc, []);
+
+      const ys = ["g-1", "g-2"].map((groupId) =>
+        Number(
+          container
+            .querySelector(`text[data-group-id="${groupId}"]`)!
+            .getAttribute("y"),
+        ),
+      );
+
+      assert.isAbove(
+        Math.abs(ys[0] - ys[1]),
+        LABEL_FONT_SIZE,
+        "the two group names are drawn on top of each other",
+      );
+    });
+
     it("skips a group no node belongs to, rather than drawing an empty region", async function () {
       this.timeout(30000);
       const doc = groupedDoc();
@@ -1814,7 +1938,7 @@ describe("mindmap/graphRenderer", function () {
       cy = await renderMindmap(container, twoFarNodes(), []);
 
       const rows = container.querySelectorAll(`.${LEGEND_CLASS} li`);
-      assert.equal(rows.length, 6, "the legend does not cover every style");
+      assert.equal(rows.length, 7, "the legend does not cover every style");
     });
 
     it("can be dismissed and reopened, writing nothing to the mindmap document (AC #2)", async function () {

@@ -271,16 +271,64 @@
   pointer-events: none;
 }
 
-/* The colour lands on one rect painted through the region's mask, so it is
-   applied once no matter how the halos and bands overlap. No extra opacity
-   here: the token already carries its own alpha, and stacking a second one
-   only makes the region too faint to read. */
+/* Each group draws in its own hue, cycled by creation order, and spends it in
+   two places: the region's fill and the pips on its members. Two regions that
+   overlap composite to a third colour that names neither of them, which is why
+   the pip carries the precise answer and the fill carries only the gestalt.
+
+   The colour lands on one rect painted through the region's mask, so it is
+   applied once no matter how the halos and bands overlap. The accent tokens
+   are opaque, unlike the --fill-* ramp the region used while it drew in one
+   neutral colour, so the fill takes its alpha here instead. A pip is a circle
+   outside any region and keeps the default full opacity, which is what stops
+   its hue mixing with whatever it sits on. */
 .mindmap-group-region > rect {
-  fill: var(--fill-quarternary);
+  fill-opacity: 0.2;
 }
 
+.mindmap-group-region-0 > rect,
+.mindmap-group-pip-0,
 .mindmap-legend-group-sample {
-  fill: var(--fill-quarternary);
+  fill: var(--accent-blue);
+}
+
+.mindmap-group-region-1 > rect,
+.mindmap-group-pip-1 {
+  fill: var(--accent-orange);
+}
+
+.mindmap-group-region-2 > rect,
+.mindmap-group-pip-2 {
+  fill: var(--accent-green);
+}
+
+.mindmap-group-region-3 > rect,
+.mindmap-group-pip-3 {
+  fill: var(--accent-teal);
+}
+
+.mindmap-group-region-4 > rect,
+.mindmap-group-pip-4 {
+  fill: var(--accent-gold);
+}
+
+.mindmap-group-region-5 > rect,
+.mindmap-group-pip-5 {
+  fill: var(--accent-red);
+}
+
+/* A shade stronger than the region itself: 0.2 over the graph's background
+   reads, the same alpha inside an 18x10 swatch on the legend's own surface
+   does not. */
+.mindmap-legend-group-sample {
+  fill-opacity: 0.35;
+}
+
+/* Every legend sample is stroked in the row's own colour so a line sample
+   draws at all. A pip is a filled circle, and that stroke would ring it in
+   text colour and blunt the hue the row exists to name. */
+.mindmap-legend-group-pip-sample {
+  stroke: none;
 }
 
 .mindmap-group-region-label {

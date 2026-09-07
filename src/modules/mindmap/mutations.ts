@@ -7,6 +7,7 @@
  * Zotero item/note.
  */
 import {
+  groupIdsOf,
   UNPLACED_POSITION,
   type MindmapDocument,
   type MindmapGroup,
@@ -142,11 +143,10 @@ export function updateLink(
 }
 
 /**
- * Puts `nodeIds` in a new group and returns it. Membership is exclusive: a
- * node already in another group moves, it doesn't end up in both. That falls
- * out of the rendering (a Cytoscape node has one parent) rather than being a
- * product judgement, and is the one thing here that would need rethinking if
- * overlapping groups are ever wanted.
+ * Puts `nodeIds` in a new group and returns it. Membership adds rather than
+ * replaces: a node already in another group ends up in both, which is what
+ * lets "chapter 3" and "methodology" cover the same source without either
+ * being wrong.
  *
  * Positions are not touched. A group is drawn around wherever its members
  * already sit; it never moves them.
@@ -163,7 +163,9 @@ export function createGroup(
   const members = new Set(nodeIds);
   doc.groups = [...(doc.groups ?? []), group];
   doc.nodes = doc.nodes.map((node) =>
-    members.has(node.id) ? { ...node, groupId: group.id } : node,
+    members.has(node.id)
+      ? withGroupIds(node, [...groupIdsOf(node), group.id])
+      : node,
   );
   return group;
 }
@@ -185,24 +187,55 @@ export function renameGroup(
 
 /**
  * Removes the group itself. Its members stay exactly where they are, keeping
- * their links; only the fact that they were clustered goes away.
+ * their links and every other group they are in; only the fact that they were
+ * clustered by this one goes away.
  */
 export function deleteGroup(doc: MindmapDocument, groupId: string): void {
   doc.groups = (doc.groups ?? []).filter((group) => group.id !== groupId);
+  doc.nodes = doc.nodes.map((node) => dropMembership(node, groupId));
+}
+
+/**
+ * Takes one node out of one group. The other groups it belongs to are left
+ * alone, which is why this needs the group named rather than inferring it.
+ */
+export function removeFromGroup(
+  doc: MindmapDocument,
+  nodeId: string,
+  groupId: string,
+): void {
   doc.nodes = doc.nodes.map((node) =>
-    node.groupId === groupId ? withoutGroup(node) : node,
+    node.id === nodeId ? dropMembership(node, groupId) : node,
   );
 }
 
-export function removeFromGroup(doc: MindmapDocument, nodeId: string): void {
-  doc.nodes = doc.nodes.map((node) =>
-    node.id === nodeId ? withoutGroup(node) : node,
-  );
+// Returns the node untouched when it was not in the group, so a mutation
+// rewrites only the nodes it actually changes.
+function dropMembership(node: MindmapNode, groupId: string): MindmapNode {
+  const ids = groupIdsOf(node);
+  return ids.includes(groupId)
+    ? withGroupIds(
+        node,
+        ids.filter((id) => id !== groupId),
+      )
+    : node;
 }
 
-// Deletes the key rather than setting it undefined, so a node that was never
-// grouped and one that has been ungrouped serialize identically.
-function withoutGroup(node: MindmapNode): MindmapNode {
-  const { groupId: _dropped, ...rest } = node;
-  return rest as MindmapNode;
+/**
+ * Writes both membership keys: `groupIds` is the truth, `groupId` its first
+ * entry. Keeping the older key current costs one line and buys an install that
+ * predates overlapping membership drawing one of the node's groups instead of
+ * none. The reverse case, an older install rewriting `groupId` and leaving
+ * `groupIds` stale, is accepted rather than defended against.
+ *
+ * Both keys are deleted rather than set undefined when nothing is left, so a
+ * node that was never grouped and one that has been ungrouped serialize
+ * identically.
+ */
+function withGroupIds(node: MindmapNode, groupIds: string[]): MindmapNode {
+  const { groupId: _id, groupIds: _ids, ...rest } = node;
+  if (groupIds.length === 0) {
+    return rest as MindmapNode;
+  }
+  return { ...rest, groupId: groupIds[0], groupIds } as MindmapNode;
 }

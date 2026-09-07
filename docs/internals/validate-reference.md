@@ -30,13 +30,13 @@ Rejects: a missing or non-string `id`, a `name` that is present and not a string
 function isMindmapNode(value: unknown): value is MindmapNode;
 ```
 
-Requires an object with a string `id`, a `position` that is either `null` or an object with numeric `x` and `y`, a `ref` that passes `isZoteroObjectRef`, and a `groupId` that is absent or a string. Then it switches on `membership`: `"member"` needs nothing further, `"external"` additionally needs string `homeMindmapId` and string `homeNodeId`.
+Requires an object with a string `id`, a `position` that is either `null` or an object with numeric `x` and `y`, a `ref` that passes `isZoteroObjectRef`, a `groupId` that is absent or a string, and a `groupIds` that is absent or an array of strings. Then it switches on `membership`: `"member"` needs nothing further, `"external"` additionally needs string `homeMindmapId` and string `homeNodeId`.
 
-Rejects: a missing `membership`, any `membership` value other than those two, a `position` that is neither `null` nor a `{x, y}` pair of numbers (`test/mindmap/validate.test.ts` covers the string case), a missing or malformed `ref`, an `"external"` node missing either home field, a non-string `groupId`.
+Rejects: a missing `membership`, any `membership` value other than those two, a `position` that is neither `null` nor a `{x, y}` pair of numbers (`test/mindmap/validate.test.ts` covers the string case), a missing or malformed `ref`, an `"external"` node missing either home field, a non-string `groupId`, a `groupIds` that is not an array or holds a non-string.
 
 Accepts `NaN` for `x` or `y`, because `typeof NaN === "number"`. That is deliberate: `isUnplaced` treats a NaN position as unplaced, and `serializeDocument` normalizes it to `null` before it reaches disk.
 
-Does not check that `groupId` names a group that exists in the document.
+Does not check that `groupId` or `groupIds` names a group that exists in the document, nor that the two agree.
 
 ## `isMindmapLink`
 
@@ -86,4 +86,4 @@ The arrays themselves are the same array instances as the input's, not copies. A
 
 An empty `title` string passes here. The non-blank rule lives in `storage.ts` (`createMindmap` and `updateMindmapMetadata`), not in the parser.
 
-Nothing about referential integrity is checked: a link pointing at a node id that does not exist, a `groupId` naming a missing group, or an external node whose home mindmap is gone all validate. Those are [deletion cleanup](deletion-cleanup-reference.md) and [cross-mindmap cleanup](cross-mindmap-cleanup-reference.md)'s territory.
+Nothing about referential integrity is checked: a link pointing at a node id that does not exist, a membership naming a missing group, or an external node whose home mindmap is gone all validate. Those are [deletion cleanup](deletion-cleanup-reference.md) and [cross-mindmap cleanup](cross-mindmap-cleanup-reference.md)'s territory.

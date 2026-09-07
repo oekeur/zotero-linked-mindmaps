@@ -18,19 +18,35 @@ export const EXTERNAL_NODE_CLASS = "external-node";
 
 Cytoscape class put on a node whose `membership` is `"external"` (a node borrowed from another mindmap). The stylesheet selector `node.external-node` gives it a paler fill (`#eef3fa`), a dashed border (`#7aa7d9`, width 2), and leaves shape and size untouched.
 
-### `GROUP_OVERLAY_CLASS`, `GROUP_REGION_CLASS`
+### `GROUP_OVERLAY_CLASS`, `GROUP_REGION_CLASS`, `GROUP_PIP_CLASS`
 
 ```ts
 export const GROUP_OVERLAY_CLASS = "mindmap-group-overlay";
 export const GROUP_REGION_CLASS = "mindmap-group-region";
+export const GROUP_PIP_CLASS = "mindmap-group-pip";
+export const GROUP_HUE_COUNT = 6;
 ```
 
 Classes on the SVG a group's region is drawn into, from `groupOverlay.ts`. One
 `.mindmap-group-overlay` SVG per graph, holding one
 `.mindmap-group-region` `<g>` per non-empty group, tagged with
-`data-group-id`. Colour comes from `zoteroPane.css` (`--fill-quarternary`), not
-from `buildStylesheet`: the overlay is DOM, so the canvas exception does not
-apply to it.
+`data-group-id`, plus one `.mindmap-group-pip` circle per membership per node,
+tagged with `data-node-id`. Colour comes from `zoteroPane.css`, not from
+`buildStylesheet`: the overlay is DOM, so the canvas exception does not apply
+to it.
+
+Each group takes a hue from Zotero's accent tokens, indexed by the group's
+position in `doc.groups` modulo `GROUP_HUE_COUNT`, and both its region and its
+pips carry it as a `-<n>` suffix class (`.mindmap-group-region-2`,
+`.mindmap-group-pip-2`). The index comes from the document rather than from the
+drawn list, so an empty group opening or closing a gap does not recolour every
+group after it. The region fill takes its alpha from CSS (`fill-opacity`)
+because the accent tokens are opaque, unlike the `--fill-*` ramp the region
+used while every group drew in one neutral colour.
+
+The pips are what make a shared node decodable. Two region fills that overlap
+composite to a third colour naming neither group; a pip is drawn outside any
+region at full opacity, so its hue never mixes with what it sits on.
 
 Opacity sits on the region `<g>` with opaque children inside, so a halo and the
 band meeting it composite once. Per-shape opacity doubles the alpha along every

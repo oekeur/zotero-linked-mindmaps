@@ -50,7 +50,7 @@ Details that matter:
 - One drag gesture produces one save, even when it moved several selected nodes at once.
 - A drag that ends where it started saves nothing.
 - The graph does not redraw after a drag save, so nodes do not jump or flash.
-- A group's dashed region cannot be dragged. Moving it would carry every member along and rewrite positions you set deliberately. Drag the members instead.
+- A group's region cannot be dragged. It is drawn from where its members already sit, so there is nothing to grab; drag the members instead and the region follows.
 - A failed save is reported only to Zotero's debug output. The graph then redraws from what was actually stored, so the node snaps back to its old spot with no message.
 
 There is no undo for a move, and no way to reset a mindmap's layout short of clearing positions by hand in the stored document.

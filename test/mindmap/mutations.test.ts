@@ -8,7 +8,10 @@ import {
   renameGroup,
   updateLink,
 } from "../../src/modules/mindmap/mutations";
-import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
+import {
+  CURRENT_SCHEMA_VERSION,
+  groupIdsOf,
+} from "../../src/modules/mindmap/schema";
 import type { MindmapDocument } from "../../src/modules/mindmap/schema";
 
 function docWithThreeNodes(): MindmapDocument {
@@ -223,18 +226,47 @@ describe("mindmap/mutations", function () {
       assert.notProperty(unnamed.groups![0], "name");
     });
 
-    it("moves a node between groups rather than putting it in both", function () {
+    it("puts a node in a second group without taking it out of the first (AC #1)", function () {
       const doc = docWithNodes();
       const first = createGroup(doc, ["node-a", "node-b"]);
       const second = createGroup(doc, ["node-b"]);
 
-      assert.equal(
-        doc.nodes.find((node) => node.id === "node-b")!.groupId,
-        second.id,
+      assert.deepEqual(
+        groupIdsOf(doc.nodes.find((node) => node.id === "node-b")!),
+        [first.id, second.id],
       );
+      assert.deepEqual(
+        groupIdsOf(doc.nodes.find((node) => node.id === "node-a")!),
+        [first.id],
+      );
+    });
+
+    it("keeps groupId current alongside groupIds (AC #2)", function () {
+      const doc = docWithNodes();
+      const first = createGroup(doc, ["node-a"]);
+      createGroup(doc, ["node-a"]);
+
+      // An install that predates overlapping membership reads groupId and
+      // nothing else, so it draws the first group rather than no group.
       assert.equal(
         doc.nodes.find((node) => node.id === "node-a")!.groupId,
         first.id,
+      );
+    });
+
+    it("reads a document that only ever had groupId (AC #2)", function () {
+      const doc = docWithNodes();
+      doc.groups = [{ id: "legacy" }];
+      doc.nodes = doc.nodes.map((node) =>
+        node.id === "node-a" ? { ...node, groupId: "legacy" } : node,
+      );
+
+      const second = createGroup(doc, ["node-a"]);
+
+      assert.deepEqual(
+        groupIdsOf(doc.nodes.find((node) => node.id === "node-a")!),
+        ["legacy", second.id],
+        "the membership written before groupIds existed was dropped",
       );
     });
 
@@ -262,14 +294,32 @@ describe("mindmap/mutations", function () {
       assert.lengthOf(doc.links, 1);
       for (const node of doc.nodes) {
         assert.notProperty(node, "groupId");
+        assert.notProperty(node, "groupIds");
       }
+    });
+
+    it("deletes a group without touching its members' other groups (AC #6)", function () {
+      const doc = docWithNodes();
+      const kept = createGroup(doc, ["node-a", "node-b"]);
+      const dissolved = createGroup(doc, ["node-b", "node-c"]);
+
+      deleteGroup(doc, dissolved.id);
+
+      assert.deepEqual(
+        groupIdsOf(doc.nodes.find((node) => node.id === "node-b")!),
+        [kept.id],
+      );
+      assert.deepEqual(
+        groupIdsOf(doc.nodes.find((node) => node.id === "node-c")!),
+        [],
+      );
     });
 
     it("removes one node from its group, leaving the group and the others (AC #5)", function () {
       const doc = docWithNodes();
       const group = createGroup(doc, ["node-a", "node-b"]);
 
-      removeFromGroup(doc, "node-a");
+      removeFromGroup(doc, "node-a", group.id);
 
       assert.lengthOf(doc.groups!, 1);
       assert.notProperty(
@@ -281,6 +331,23 @@ describe("mindmap/mutations", function () {
         group.id,
       );
       assert.lengthOf(doc.links, 1);
+    });
+
+    it("removes one membership and leaves the node's others alone (AC #5)", function () {
+      const doc = docWithNodes();
+      const first = createGroup(doc, ["node-a"]);
+      const second = createGroup(doc, ["node-a"]);
+
+      removeFromGroup(doc, "node-a", first.id);
+
+      const node = doc.nodes.find((candidate) => candidate.id === "node-a")!;
+      assert.deepEqual(groupIdsOf(node), [second.id]);
+      assert.equal(
+        node.groupId,
+        second.id,
+        "groupId still names the group the node just left",
+      );
+      assert.lengthOf(doc.groups!, 2);
     });
   });
 });
