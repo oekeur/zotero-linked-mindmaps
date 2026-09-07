@@ -179,7 +179,7 @@ export function attachNodeClickHandler(
 
 Registers a `tap` handler on nodes that fills the dock. Cytoscape emits `tap` on pointer-up only when the gesture was not a drag, so a click never fires alongside a reposition.
 
-Ignores a target whose `data("isGroup")` is truthy: a group container is a node to Cytoscape but has no item behind it. Ignores a node id with no entry in `nodeRefsById`. With no `dockContainer`, the handler does nothing at all; a headless render or a test has nowhere to draw.
+Ignores a node id with no entry in `nodeRefsById`, and ignores a tap carrying a modifier key, which means the user is building a multi-select rather than opening something. With no `dockContainer`, the handler does nothing at all; a headless render or a test has nowhere to draw.
 
 Returns nothing; the side effect is the registered handler and, when it fires, `showNodeInDock`. Selecting the item in the library is deliberately not part of a tap, which would switch Zotero away from the mindmap tab. The test asserts `Zotero_Tabs.selectedIndex` is unchanged after a tap.
 
@@ -224,7 +224,9 @@ export function attachNodeContextMenuHandler(
 
 Registers a `cxttap` handler on nodes that opens the link-creation menu at the click point.
 
-Ignores group containers (`data("isGroup")`) and node ids with no ref. Otherwise builds a menu `div` with class `GROUP_MENU_CLASS`, appended to `cy.container()` and absolutely positioned at `evt.renderedPosition`, and appends one button through [`appendL10nButton`](ui-elements-reference.md) with the Fluent id `add-link-button` plus the class `NODE_MENU_ADD_LINK_CLASS`. Clicking it closes the menu and calls `showNodeInDock(dockContainer, ref, mindmapId, true)`, docking the node with the add-link form already open.
+Ignores node ids with no ref. Otherwise builds a menu `div` with class `GROUP_MENU_CLASS`, appended to `cy.container()` and positioned beside the node, and appends one button through [`appendL10nButton`](ui-elements-reference.md) with the Fluent id `add-link-button` plus the class `NODE_MENU_ADD_LINK_CLASS`. Clicking it closes the menu and calls `showNodeInDock(dockContainer, ref, mindmapId, true)`, docking the node with the add-link form already open.
+
+When the right-clicked node is itself part of a selection of two or more, a second button follows with the Fluent id `mindmap-group-create`, calling [`createGroup`](mutations-reference.md) with the selected ids. Grouping rides this handler rather than the empty-canvas one so that right-clicking an unselected node while others are selected stays unambiguous: Add link only.
 
 Right-click alone does not dock the node; the tests assert the dock stays hidden until the menu action is used. Cytoscape registers its own `contextmenu` preventDefault on the container and removes it on destroy, so this handler adds none: a per-render listener would outlive every rebuild, since the container is reused.
 
@@ -236,16 +238,18 @@ Returns nothing.
 export function attachGroupingHandlers(
   cy: cytoscape.Core,
   mindmapId: string,
+  overlay?: GroupOverlay,
+  groupNames?: Map<string, string>,
 ): void;
 ```
 
-Registers the grouping menus, driven from right-click. See [grouping-reference.md](../user-guide/grouping-reference.md) for the user-facing behavior.
+Registers the grouping menu, driven from right-click on the canvas. See [grouping-reference.md](../user-guide/grouping-reference.md) for the user-facing behavior.
 
-Three handlers:
+Two handlers:
 
-A `cxttap` on the core itself (`evt.target === cy`) collects `node:selected` minus group containers. With fewer than two selected it closes any open menu and returns. With two or more it opens a menu holding one button, Fluent id `mindmap-group-create`, that calls [`createGroup`](mutations-reference.md) with the selected ids.
+A `cxttap` on the core itself (`evt.target === cy`) tests two conditions and appends the controls for each that holds. Two or more selected nodes gets a button with the Fluent id `mindmap-group-create`, calling [`createGroup`](mutations-reference.md) with the selected ids. A click landing inside a region gets a text `input` prefilled from `groupNames`, plus `mindmap-group-rename` (calls `renameGroup` with the trimmed field value) and `mindmap-group-delete` (calls `deleteGroup`). Both conditions can hold at once, and then all three controls appear rather than the handler picking a mode on the user's behalf. When neither holds it closes any open menu and returns.
 
-A `cxttap` on a node whose `data("isGroup")` is truthy opens a menu holding a text `input` prefilled with the group's current label, plus buttons `mindmap-group-rename` (calls `renameGroup` with the trimmed field value) and `mindmap-group-delete` (calls `deleteGroup`).
+Which group a click landed in comes from `overlay.hitTest(evt.position)`, not from the event target. A group used to be a Cytoscape node, so rename and delete could hang off right-clicking it; the region is drawn rather than laid out, so there is no node to hit and the position is tested against the region geometry instead. `hitTest` answers with the smallest region containing the point, so a click inside two overlapping regions reaches the more specific one. Without an `overlay` the region half is simply never offered.
 
 A `tap` on anything closes the open menu.
 
@@ -261,7 +265,7 @@ Both are DOM overlays positioned inside the graph container, not Cytoscape eleme
 
 The toolbar sits top right and carries zoom out, zoom in, fit-to-window, and a legend toggle. Zoom and fit act on the Cytoscape viewport only (`cy.zoom`, `cy.fit`); nothing here writes a node position, and a test asserts that fitting leaves every stored position untouched. That matters because the layout is `preset` and the arrangement belongs to the user.
 
-The legend sits bottom left and lists every line and node style the stylesheet can produce, each drawn as a small inline SVG sample rather than described in words: a directional link, an undirected link, an unknown-type link, the parent-child tie, and an external node. It is built from the same three-case encoding the stylesheet applies, so a style added there needs a row added here. Its shown state persists in the `legendCollapsed` preference (see [prefs-reference.md](prefs-reference.md)) and is never written to the mindmap document.
+The legend sits bottom left and lists every style the renderer can produce, each drawn as a small inline SVG sample rather than described in words: a directional link, an undirected link, an unknown-type link, the parent-child tie, an external node, a group region, and the dots naming a node's groups. Seven rows, held in the module-level `LEGEND_ROWS` array beside the stylesheet they mirror, so a style added there is a visible gap here rather than a silent one. A test asserts the row count, which is what makes adding a style without its row fail rather than pass quietly. Its shown state persists in the `legendCollapsed` preference (see [prefs-reference.md](prefs-reference.md)) and is never written to the mindmap document.
 
 ## Rendering and refresh
 
@@ -281,11 +285,11 @@ Builds the Cytoscape instance for one document and wires every handler above.
 
 Before constructing anything it shims a `<head>` onto the container's document when there is none (Zotero's main chrome window is XUL, and Cytoscape's canvas renderer does `document.head.insertBefore(...)` on init), and calls [`ensureCytoscapeWindowGlobals`](polyfills-reference.md) with the container's `defaultView`.
 
-Elements are built in a fixed order. Group containers come first, because Cytoscape needs a parent to exist before the children naming it; a group with no member nodes is skipped rather than drawn as an empty region. Node elements follow, each carrying `id`, `label` from [`resolveNodeLabel`](node-labels-reference.md), an `unplaced` flag (true when the stored position is unplaced, or when the node is in [`piledNodeIds`](schema-reference.md)), a `parent` key when the node has a `groupId`, a copied position (`{x: 0, y: 0}` when unplaced), and `EXTERNAL_NODE_CLASS` for external nodes. Edges come next: real links first, then parent-child ties, so an authored link between the same parent and child paints above the plain tie and keeps its label.
+One Cytoscape node per document node, each carrying `id`, `label` from [`resolveNodeLabel`](node-labels-reference.md), an `unplaced` flag (true when the stored position is unplaced, or when the node is in [`piledNodeIds`](schema-reference.md)), a copied position (`{x: 0, y: 0}` when unplaced), and `EXTERNAL_NODE_CLASS` for external nodes. Groups contribute no element of their own; they are drawn by the overlay, from the members' positions. Edges follow: real links first, then parent-child ties, so an authored link between the same parent and child paints above the plain tie and keeps its label.
 
-Group containers are given no position (supplying one under a preset layout would override Cytoscape's auto-fit to their children) and `grabbable: false` (dragging a container would carry every member along and rewrite positions the user set).
+After construction it records `serializeDocument(doc)` into `rendered.document`, observes the container with the host window's `ResizeObserver` (calling `cy.resize()` on every change, disconnecting on `cy`'s `destroy` event), and attaches the click, drag and grouping handlers. `attachGroupOverlay` (from `groupOverlay.ts`) runs between them, and the overlay it returns is handed to `attachGroupingHandlers` for hit-testing and torn down on `cy`'s `destroy` event. The context-menu handler is attached only when a `dockContainer` was passed.
 
-After construction it records `serializeDocument(doc)` into `rendered.document`, observes the container with the host window's `ResizeObserver` (calling `cy.resize()` on every change, disconnecting on `cy`'s `destroy` event), and attaches the click, drag and grouping handlers. The context-menu handler is attached only when a `dockContainer` was passed.
+Rendering into a container that already holds a graph removes the toolbar, legend, menu and overlay first. `cy.destroy()` only unbinds what Cytoscape itself created, so DOM this module added beside it would otherwise accumulate one copy per render.
 
 Returns the `cytoscape.Core`. The caller is responsible for calling `layoutUnplacedNodes` afterwards; `renderMindmap` never lays out.
 
