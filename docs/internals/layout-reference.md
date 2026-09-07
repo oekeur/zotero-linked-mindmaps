@@ -1,8 +1,10 @@
 # Layout reference
 
-`src/modules/mindmap/layout.ts` computes positions for nodes that do not have one yet and persists the result. It operates on a bare `cytoscape.Core` plus the `MindmapDocument` that core was built from, with no Zotero item or label resolution of its own, which is what keeps it testable against a headless core.
+`src/modules/mindmap/layout.ts` computes node positions. It operates on a bare `cytoscape.Core`, with no Zotero item or label resolution of its own, which is what keeps it testable against a headless core.
 
-Nodes that already have a stored position are never moved. The renderer does not call this; the mindmap tab calls it after [`renderMindmap`](rendering-reference.md) returns, and [`attachLiveRefresh`](rendering-reference.md) calls it again after each rebuild.
+Two layouts live here and they differ in what they are allowed to disturb. `layoutUnplacedNodes` places only nodes that have no stored position, never moves one that does, and persists what it computed; it takes the `MindmapDocument` the core was built from for that reason. `relayoutPositions` deliberately replaces an existing arrangement, moves placed nodes, and persists nothing, leaving that to its caller.
+
+The mindmap tab calls `layoutUnplacedNodes` after [`renderMindmap`](rendering-reference.md) returns, and [`attachLiveRefresh`](rendering-reference.md) calls it again after each rebuild. `relayoutPositions` is called from the renderer instead, by the toolbar's re-layout handler, behind a `Services.prompt.confirm` that names how many nodes will move; the handler passes the returned map to `persistNodePositions`, which is where the write this function skips actually happens.
 
 ## Module constants
 
@@ -63,6 +65,28 @@ Finally each laid-out node's `unplaced` data field is set to `false`, the docume
 A document whose nodes all sit on the origin counts as fully placed under `isUnplaced` alone, so no layout would ever run again and the pile would be permanent. `buildNodeElement` marks those nodes `unplaced` using `piledNodeIds`, which reports every placed node only when there are at least two of them and all of them are coincident with the origin. They are then handed back to this function on the next open. The rule is narrow on purpose: dragging persists where a node lands, so an overlap anywhere other than the origin can be one the user made deliberately, and the tests pin that down (a two-node overlap at `(20, 20)` returns `null` and writes nothing).
 
 Repair converges. A document repaired once is not laid out again on reopen, which the test asserts by running the function twice.
+
+## `relayoutPositions`
+
+```ts
+export async function relayoutPositions(
+  cy: cytoscape.Core,
+  targetIds?: string[],
+): Promise<Map<string, Position>>;
+```
+
+Discards an existing arrangement and lays it out again, for the re-layout control in the tab toolbar. Unlike `layoutUnplacedNodes` it neither reads nor writes the document: it returns the new positions and leaves persisting them to the caller.
+
+`targetIds` scopes the run. Left out, every node on the mindmap moves. Given, only those nodes move and every other node is locked at its stored position, which is what keeps a re-layout of a selection from disturbing the rest of the canvas. An empty target set returns an empty map without running a layout.
+
+`randomize` is `true` here, the opposite of `layoutUnplacedNodes`. Seeding cose from the arrangement being replaced tends to reproduce it, and reproducing it is the one thing this function exists not to do.
+
+The bounding box comes from the same `layoutBoundingBox` helper, sized from the target count and kept clear of the locked nodes. Positions are passed through the same `-0` normalizer.
+
+Two results fall back to `gridPositions` over the same box, with the graph moved to match:
+
+- **A non-finite coordinate.** Laying out a compound graph can hand back `NaN` for a node that belongs to a group. `NaN` survives into storage as JSON `null`, which parses back as a node with no position at all, and it also defeats the pile check, since every comparison against `NaN` is false. That is how a test asserting "nothing is piled" can pass on a graph where every position is `NaN`.
+- **A pile.** Nodes with no edges between them can come back stacked, and a stack reads as deliberate once persisted.
 
 ## Related
 

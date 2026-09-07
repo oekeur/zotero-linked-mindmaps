@@ -6,7 +6,7 @@ Three decisions in `src/hooks.ts` don't become obvious from reading it: one tool
 
 `zotero-plugin-toolkit`'s `unregisterAll()` removes every element the toolkit it is called on created, in whichever window it created them. That is the whole mechanism: the toolkit keeps a registry of what it made, and tearing it down walks that registry.
 
-With a single shared toolkit, `onMainWindowUnload` had exactly one thing it could call. So closing either of two open main windows tore down every registration the plugin had made across both. The File-menu "Mindmap" entry and the "Add to mindmap" item context-menu entry vanished from the window still on screen, and nothing short of restarting Zotero put them back.
+With a single shared toolkit, `onMainWindowUnload` had exactly one thing it could call. So closing either of two open main windows tore down every registration the plugin had made across both. The Tools-menu "Mindmap" entry and the "Add to Mindmap" item context-menu entry vanished from the window still on screen, and nothing short of restarting Zotero put them back.
 
 `windowToolkits: Map<Window, ZToolkit>` fixes that by making the teardown unit match the registration unit. `onMainWindowLoad` builds a toolkit, files it under the window, and points `addon.data.ztoolkit` at it, so `registerMindmapMenu()` and `LibraryContextMenuFactory.register(win)` register against the toolkit belonging to the window they are decorating. `onMainWindowUnload` looks up that one toolkit, drops it from the map, and unregisters only it.
 

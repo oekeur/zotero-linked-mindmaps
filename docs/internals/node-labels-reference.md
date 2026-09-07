@@ -24,6 +24,14 @@ What a note node reads as when its content reduces to no text at all: a genuinel
 
 The user sees this on the graph and in the dock's overview title, which also runs through `buildNoteLabel`.
 
+### `UNTITLED_ITEM_LABEL`
+
+```ts
+export const UNTITLED_ITEM_LABEL = "(untitled item)";
+```
+
+What a regular item reads as when `getDisplayTitle()` comes back empty. Zotero returns an empty string rather than a placeholder for an item with no title, and an empty label draws the same bare circle `EMPTY_NOTE_LABEL` exists to prevent. The two are separate constants because they describe different conditions: a note with no content, and an item with no title.
+
 ## Module constants
 
 `NOTE_PREVIEW_LENGTH = 60` is the cutoff for a note preview: long enough to tell two notes apart at a glance, short enough that the label still wraps inside a 50px node. Not exported.
@@ -64,7 +72,7 @@ export function resolveNodeLabel(ref: ZoteroObjectRef): string;
 
 The label for one node reference.
 
-Resolves the ref through `resolveZoteroItem`. Returns `MISSING_ITEM_LABEL` when that fails. Otherwise returns `buildNoteLabel(target)` for a note and `target.getDisplayTitle()` for anything else.
+Resolves the ref through `resolveZoteroItem`. Returns `MISSING_ITEM_LABEL` when that fails. Otherwise returns `buildNoteLabel(target)` for a note, and for anything else `target.getDisplayTitle().trim()`, falling back to `UNTITLED_ITEM_LABEL` when that trims to nothing.
 
 The note check is `target.isNote()`, on the resolved item, not `ref.kind`. A ref can outlive what it points at being replaced, and the label should describe what is actually there.
 

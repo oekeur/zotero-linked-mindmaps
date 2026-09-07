@@ -1,6 +1,6 @@
 # Preferences reference
 
-`src/utils/prefs.ts` wraps `Zotero.Prefs` with the plugin's key prefix and the generated type map. Two preferences do not go through it, for reasons given below.
+`src/utils/prefs.ts` wraps `Zotero.Prefs` with the plugin's key prefix and the generated type map. Three preferences do not go through it, for reasons given below.
 
 ## Prefix
 
@@ -64,13 +64,13 @@ Boolean, default `true`.
 
 Hides the plugin's container item and its storage notes from the item tree. Read by the wrapped `getSearchObject` in `src/modules/mindmap/libraryFilter.ts` on every item-tree query, and watched by a `Zotero.Prefs.registerObserver` on `extensions.zotero.zoterolinkedmindmaps.hideMindmapNotes` that redraws open item trees when it changes, so a toggle lands without a restart.
 
-Exposed in the preferences pane as a checkbox with `preference="hideMindmapNotes"` in `addon/content/preferences.xhtml`. Its label is set from code rather than through `data-l10n-id`; see [locale-reference.md](locale-reference.md).
+Exposed in the preferences pane as a checkbox with `preference="hideMindmapNotes"` in `addon/content/preferences.xhtml`. Both the checkbox label and the help text under it carry `data-l10n-id` and resolve through the pane's own `<linkset>`; only the link-types list below them is still built from code. See [locale-reference.md](locale-reference.md).
 
 Details in [library-filter-reference.md](library-filter-reference.md), user-facing description in [hide-plugin-data-reference.md](../user-guide/hide-plugin-data-reference.md).
 
 ## Preferences outside the typed map
 
-Two keys are read and written through `Zotero.Prefs` directly rather than through `getPref`/`setPref`. Neither appears in `addon/prefs.js`, so neither is in `PluginPrefsMap` and neither has a declared default; the reading code supplies the fallback.
+Three keys are read and written through `Zotero.Prefs` directly rather than through `getPref`/`setPref`. None appears in `addon/prefs.js`, so none is in `PluginPrefsMap` and none has a declared default; the reading code supplies the fallback.
 
 ### `linkTypes` (JSON blob)
 

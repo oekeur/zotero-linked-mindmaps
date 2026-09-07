@@ -13,7 +13,9 @@ addon/locale/nl-NL/addon.ftl
 addon/locale/nl-NL/mainWindow.ftl
 ```
 
-`addon.ftl` carries startup strings, the preferences-pane strings, the container-trashed warnings, and the item context-menu labels. `mainWindow.ftl` carries the Mindmaps section, the add-link form, the mindmap tab and its sidebar, and the grouping menu entries.
+`addon.ftl` carries startup strings, the preferences-pane strings, the container-trashed warnings, the item context-menu labels, and the confirmations and progress messages the library-driven flows raise: `add-to-mindmap-*`, `group-on-mindmap-*`, `cross-library-*` and `mindmap-relayout-confirm`. `mainWindow.ftl` carries the Mindmaps section, the add-link form, the mindmap tab and its sidebar, and the canvas grouping menu (`mindmap-group-*`).
+
+The split is by surface, not by feature: grouping has strings in both files, because the library context menu that starts a grouping run lives in `addon.ftl` while the canvas menu that edits one lives in `mainWindow.ftl`.
 
 No `zh-CN` locale ships. The template's version had two of forty-odd strings translated and nobody on the project can verify Chinese, so it was removed; a `zh-CN` profile falls back to `en-US`. `test/mindmap/locale.test.ts` asserts it stays removed.
 
@@ -91,7 +93,7 @@ Return value, in order:
 
 A message with no value of its own, only attributes such as `.label` or `.tooltiptext`, resolves to the raw id unless the branch is asked for. `item-mindmaps-section-head-text` and `item-mindmaps-add-link-header-button` are both of that shape.
 
-`args` feeds Fluent's own placeables and selectors. `add-to-mindmap-progress` takes `$count`; `mindmap-delete-confirm-message` takes `$title`; `preferences-delete-confirm-used` selects a plural form on `$count`.
+`args` feeds Fluent's own placeables and selectors. `add-to-mindmap-progress` selects a plural form on `$count` and also interpolates `$mindmap`; `mindmap-delete-confirm-message` takes `$title`; `preferences-delete-confirm-used` selects a plural form on `$count`. A message that selects on a count still needs its other placeables passed too: `$count` picks the variant, and `$mindmap` fills a slot inside whichever variant was picked.
 
 `getString` reads the plugin singleton through the bare `addon` global. The test bundle is a separate scope, so tests that call it point their own `addon` at `Zotero[config.addonInstance]` in a `before` hook.
 
@@ -103,13 +105,13 @@ Returns `` `${config.addonRef}-${id}` ``. For passing an id to something that re
 
 `initLocale()`'s bundle belongs to the plugin scope. It does not add the plugin's `.ftl` files to any window's l10n context, and `insertFTLIfNeeded` only reaches the main windows the plugin loads into.
 
-Zotero's preferences window is a partial exception, scoped per pane rather than window-wide. `Zotero.PreferencePanes.register` loads each pane's `src` as an XHTML fragment and, once, the first time that pane is opened, awaits `document.l10n.ready` and calls `document.l10n.translateFragment(pane.container)` (see `chrome/content/zotero/preferences/preferences.js` in Zotero's own source). That resolves `data-l10n-id` against whatever the fragment's own `<linkset>` declares, the same declarative pattern `addon/content/addLink.xhtml` uses (below) and the one the community plugin-dev docs document for preference panes. `addon/content/preferences.xhtml` declares one for `zoterolinkedmindmaps-addon.ftl`, and both groupbox headings plus the hide-plugin-data checkbox and its help text carry `data-l10n-id` and resolve for real.
+Zotero's preferences window is a partial exception, scoped per pane rather than window-wide. `Zotero.PreferencePanes.register` loads each pane's `src` as an XHTML fragment and, once, the first time that pane is opened, awaits `document.l10n.ready` and calls `document.l10n.translateFragment(pane.container)` (see `chrome/content/zotero/preferences/preferences.js` in Zotero's own source). That resolves `data-l10n-id` against whatever the fragment's own `<linkset>` declares, the same declarative pattern `addon/content/addLink.xhtml` uses (below) and the one the community plugin-dev docs document for preference panes. `addon/content/preferences.xhtml` declares one for `zoterolinkedmindmaps-addon.ftl`, and every static control in the pane carries `data-l10n-id` and resolves for real: the three groupbox headings (link types, library, feedback), the hide-plugin-data checkbox and its help text, and the two feedback buttons with their help text.
 
 The link-types list is the one part of that pane still built from code, through `getString`, and the reason is not a missing l10n context: it is that `translateFragment` runs exactly once, when the pane's static fragment is first inserted. `renderLinkTypesSettings` tears its container down and rebuilds it from scratch on every selection, add, edit, and delete, and none of those later insertions gets a translation pass. `getString` sidesteps that because it reads the plugin's own Fluent bundle directly, independent of any window's l10n context, so it resolves the same way on every rebuild.
 
 The pane's own label, the one Zotero shows in the preferences sidebar, goes through `getString("preferences-pane-label")` at `Zotero.PreferencePanes.register` time.
 
-`test/mindmap/preferencesPane.test.ts` guards the static half by asserting the two group headings resolve to real text, not a raw id, and guards the dynamic half by exercising selection, add, edit and delete through the rendered controls.
+`test/mindmap/preferencesPane.test.ts` guards the static half by asserting the link-types and library headings resolve to real text, not a raw id, and guards the dynamic half by exercising selection, add, edit and delete through the rendered controls. The feedback groupbox added later is not covered by that assertion, so it is the one heading that could regress to a raw id without the suite noticing.
 
 A `ztoolkit.Dialog` window has no l10n context at all. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id.
 
