@@ -67,6 +67,7 @@ mindmap-legend-undirectional = Ongerichte koppeling
 mindmap-legend-unknown-type = Onbekend type
 mindmap-legend-parent-child-tie = Ouder-kindrelatie
 mindmap-legend-external-node = Knooppunt uit een andere mindmap
+mindmap-legend-group-region = Groep
 mindmap-zoom-out-button =
     .title = Uitzoomen
 mindmap-zoom-in-button =

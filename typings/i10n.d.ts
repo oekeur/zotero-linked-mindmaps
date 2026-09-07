@@ -64,6 +64,7 @@ export type FluentMessageId =
   | 'mindmap-group-rename'
   | 'mindmap-legend-directional'
   | 'mindmap-legend-external-node'
+  | 'mindmap-legend-group-region'
   | 'mindmap-legend-heading'
   | 'mindmap-legend-parent-child-tie'
   | 'mindmap-legend-toggle-button'

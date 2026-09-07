@@ -260,6 +260,35 @@
   stroke: currentColor;
 }
 
+/* The group region: drawn under the graph, never in its way. Opacity sits on
+   the group rather than on each shape, so the halo and the band it meets
+   composite once instead of doubling their alpha along the join. */
+.mindmap-group-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The colour lands on one rect painted through the region's mask, so it is
+   applied once no matter how the halos and bands overlap. No extra opacity
+   here: the token already carries its own alpha, and stacking a second one
+   only makes the region too faint to read. */
+.mindmap-group-region > rect {
+  fill: var(--fill-quarternary);
+}
+
+.mindmap-legend-group-sample {
+  fill: var(--fill-quarternary);
+}
+
+.mindmap-group-region-label {
+  fill: var(--fill-secondary);
+  stroke: none;
+  font-weight: bold;
+}
+
 .mindmap-group-menu {
   display: flex;
   flex-direction: column;

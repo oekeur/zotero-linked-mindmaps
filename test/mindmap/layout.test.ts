@@ -6,6 +6,10 @@ import {
   relayoutPositions,
 } from "../../src/modules/mindmap/layout";
 import {
+  regionContains,
+  regionShapes,
+} from "../../src/modules/mindmap/groupRegions";
+import {
   findMindmapNote,
   readMindmapDocument,
 } from "../../src/modules/mindmap/storage";
@@ -307,26 +311,15 @@ describe("mindmap/layout", function () {
   });
 
   describe("mindmap/layout relayoutPositions", function () {
-    // Groups are compound parents in the graph, so a member points at its group
-    // through `parent`, the same shape buildGroupElements builds. The group
-    // carries no position of its own.
-    function groupedCy(
-      members: Array<{ id: string; group?: string; at: Position }>,
-      groups: string[],
-    ) {
+    // A group is drawn from its members' positions and is not in the graph, so
+    // every node here is a real node and none of them is a container.
+    function graphOf(members: Array<{ id: string; at: Position }>) {
       return cytoscape({
         elements: {
-          nodes: [
-            ...groups.map((id) => ({ data: { id, label: id, isGroup: true } })),
-            ...members.map((m) => ({
-              data: {
-                id: m.id,
-                label: m.id,
-                ...(m.group ? { parent: m.group } : {}),
-              },
-              position: { ...m.at },
-            })),
-          ],
+          nodes: members.map((m) => ({
+            data: { id: m.id, label: m.id },
+            position: { ...m.at },
+          })),
           edges: [],
         },
       });
@@ -335,20 +328,16 @@ describe("mindmap/layout", function () {
     const spread = (ids: string[]): Array<{ id: string; at: Position }> =>
       ids.map((id, i) => ({ id, at: { x: i * 500, y: i * 500 } }));
 
-    it("lays out every node when no scope is given, and returns no group container", async function () {
-      const cy = groupedCy(
-        [
-          { id: "a", group: "g1", at: { x: 0, y: 0 } },
-          { id: "b", group: "g1", at: { x: 900, y: 900 } },
-          { id: "c", at: { x: 1800, y: 1800 } },
-        ],
-        ["g1"],
-      );
+    it("lays out every node when no scope is given", async function () {
+      const cy = graphOf([
+        { id: "a", at: { x: 0, y: 0 } },
+        { id: "b", at: { x: 900, y: 900 } },
+        { id: "c", at: { x: 1800, y: 1800 } },
+      ]);
 
       const positions = await relayoutPositions(cy);
 
       assert.deepEqual([...positions.keys()].sort(), ["a", "b", "c"]);
-      assert.isFalse(positions.has("g1"), "a group has no stored position");
       // Asserted before the pile check, which NaN would otherwise sail
       // through: every comparison against NaN is false.
       for (const [id, position] of positions) {
@@ -364,7 +353,7 @@ describe("mindmap/layout", function () {
     });
 
     it("lays out only the scoped nodes and leaves other stored positions alone", async function () {
-      const cy = groupedCy(spread(["a", "b", "c", "d"]), []);
+      const cy = graphOf(spread(["a", "b", "c", "d"]));
       const untouched = ["c", "d"].map((id) => ({
         id,
         at: { ...cy.$id(id).position() },
@@ -383,35 +372,33 @@ describe("mindmap/layout", function () {
       }
     });
 
-    it("keeps a group's members together, and its box off unrelated nodes", async function () {
-      // Members start in opposite corners, which is the arrangement that
-      // stretches a group box across the canvas if the layout ignores the
-      // compound parent.
-      const cy = groupedCy(
-        [
-          { id: "g-a", group: "g1", at: { x: -2000, y: -2000 } },
-          { id: "g-b", group: "g1", at: { x: 2000, y: 2000 } },
-          { id: "g-c", group: "g1", at: { x: -2000, y: 2000 } },
-          { id: "loner", at: { x: 0, y: 0 } },
-        ],
-        ["g1"],
-      );
+    it("leaves a group's region off an unrelated node after a relayout", async function () {
+      // Members start in opposite corners: the arrangement that stretched a
+      // group box across the canvas when a group was a compound node. Nothing
+      // in the layout knows about groups any more, so the claim is about what
+      // the region drawn from the result covers, not about a container.
+      const cy = graphOf([
+        { id: "g-a", at: { x: -2000, y: -2000 } },
+        { id: "g-b", at: { x: 2000, y: 2000 } },
+        { id: "g-c", at: { x: -2000, y: 2000 } },
+        { id: "loner", at: { x: 0, y: 0 } },
+      ]);
 
       await relayoutPositions(cy);
 
-      const box = cy.$id("g1").boundingBox();
+      const members = ["g-a", "g-b", "g-c"].map((id) => cy.$id(id).position());
       const loner = cy.$id("loner").position();
-      const swallowed =
-        loner.x >= box.x1 &&
-        loner.x <= box.x2 &&
-        loner.y >= box.y1 &&
-        loner.y <= box.y2;
       assert.isFalse(
-        swallowed,
-        "the group box must not swallow a node outside it",
+        regionContains(
+          regionShapes(
+            members.map((p) => ({ x: p.x, y: p.y })),
+            [{ x: loner.x, y: loner.y }],
+          ),
+          { x: loner.x, y: loner.y },
+        ),
+        "the group region must not cover a node outside it",
       );
 
-      const members = ["g-a", "g-b", "g-c"].map((id) => cy.$id(id).position());
       for (const position of members) {
         assert.isTrue(
           Number.isFinite(position.x) && Number.isFinite(position.y),
@@ -432,7 +419,7 @@ describe("mindmap/layout", function () {
     });
 
     it("returns nothing for a scope that matches no node", async function () {
-      const cy = groupedCy(spread(["a"]), []);
+      const cy = graphOf(spread(["a"]));
       const positions = await relayoutPositions(cy, ["nosuchnode"]);
       assert.equal(positions.size, 0);
     });

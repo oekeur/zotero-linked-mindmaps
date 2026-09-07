@@ -56,7 +56,15 @@ Two smaller decisions round it out. The rebuild reads the note by the item id it
 
 ## Grouping does not move anything
 
-A group is drawn as a Cytoscape compound node with its members pointing at it as their parent. Cytoscape sizes a compound node to fit its children, so the region is derived from where the members already are. Nothing gets repositioned, which is what keeps grouping from fighting the persisted layout. The container is given no position of its own (under a preset layout that would override the auto-fit) and is not grabbable (dragging it would carry every member along and rewrite coordinates the user set deliberately). A group with no members is skipped instead of being drawn as an empty region.
+A group is drawn, not laid out. `groupRegions.ts` computes the region from the members' current positions -- a halo per member, joined by bands along their minimum spanning tree -- and `groupOverlay.ts` paints it into an SVG beneath the graph. Nothing gets repositioned, which is what keeps grouping from fighting the persisted layout, and a group with no members is skipped instead of being drawn as an empty region.
+
+It used to be a Cytoscape compound node, which sizes itself to fit its children. That also derived the region from the members' positions, but as an axis-aligned box, and members are wherever the layout or the user left them. Measured on a cose layout of a 40-node graph, the box for a ten-node group covered 89% of the canvas and contained 27 of the 30 nodes that were not in it. The region method contained none of them. `decision-3` in the project tracker carries the full comparison.
+
+Non-members shape the region rather than being ignored: a band that would run over one is dropped, and a halo is pulled in to stop short of the nearest one, so the region never makes a claim about a node that is not a member. The floor is the node's own radius, since a halo smaller than that would vanish behind the member it marks.
+
+Geometry is held in model coordinates and the overlay carries the pan and zoom as one SVG transform, so panning and zooming rewrite an attribute instead of recomputing shapes. Geometry is recomputed on `position` and `drag`, which Cytoscape emits on every tick of a drag, batched into one animation frame so a multi-node drag redraws once rather than once per node.
+
+Retiring the compound node removed a workaround in `layout.ts`: cose resolves a node's parent within the collection it is handed, so a scoped re-layout had to carry the group containers along with their members or throw.
 
 The grouping and add-link menus are DOM popups drawn into the graph container rather than native XUL context menus, for the same reason the node dock is a panel: a DOM popup doesn't block, and it can hold an inline text field for renaming. That choice comes with one piece of required plumbing, a `mousedown` stopPropagation on the menu. Without it, Cytoscape treats a click on the menu as a click on its own canvas and removes the menu on `mouseup`, before the button's `click` ever fires.
 

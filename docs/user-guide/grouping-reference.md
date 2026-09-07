@@ -1,6 +1,6 @@
 # Groups
 
-A group is a visual cluster of nodes on one mindmap: a dashed region drawn around them with an optional name above it.
+A group is a visual cluster of nodes on one mindmap: a tinted region drawn over them with an optional name above it.
 
 A group makes no claim about how its members relate. It says they belong together, which is a different statement from any link between them, and it adds nothing to the link vocabulary. Use a group for "these are the sources for chapter 3"; use a link for "this one contradicts that one". See [link types](link-types-explanation.md).
 
@@ -28,15 +28,19 @@ A group with no members left is not drawn at all. Its record stays in the stored
 
 ## How groups render
 
-The group is drawn as a dashed round rectangle behind its members, with a pale low-opacity fill and its name centred above the cluster. It reads as a backdrop rather than as another node sitting among the others.
+The group is drawn behind its members as a tinted region: a rounded halo around each member, joined by bands running between them. The group's name sits above the topmost member. It reads as a backdrop rather than as another node sitting among the others.
 
-The region is sized to fit its members wherever they already are. Grouping never moves a node, and neither does ungrouping.
+The region follows the members rather than boxing them in. That matters because grouping never moves a node, and neither does ungrouping: members sit wherever the layout or you left them, and a box fitted around scattered members would cover most of the canvas and take in everything between them.
 
-The region cannot be dragged. Dragging it would carry every member along and rewrite positions you set deliberately, so the region is fixed and its members are draggable individually. Moving a member out from under the region reshapes the region to follow it.
+The region takes in no node that is not a member. A band that would run over one is left out, which can leave a widely spread group drawn as two or more separate patches, and a halo stops short of a non-member standing close by. The one exception is a node overlapping a member on screen, where there is no room to stop short.
 
-Clicking a group's region does nothing: there is no Zotero item behind it, so it does not open the dock. Right-clicking it opens the group menu.
+The region redraws while a member is being dragged, not when the drag ends.
 
-"Group selected nodes" is reached two ways: right-click one of the selected nodes (it appears alongside "Add link"), or right-click empty canvas while two or more nodes are selected. Right-clicking a node that is not part of the selection offers only "Add link".
+The region is not clickable and does not take the pointer: clicking it selects nothing and does not open the dock, and a click passes through to whatever is under it. Right-clicking the region opens the group menu, unless the pointer is over one of its members, in which case that node's own menu opens instead.
+
+"Group selected nodes" is reached two ways: right-click one of the selected nodes (it appears alongside "Add link"), or right-click the canvas while two or more nodes are selected. Right-clicking a node that is not part of the selection offers only "Add link".
+
+A right-click inside a region while two or more nodes are selected offers all three: "Group selected nodes", the rename field and "Ungroup". The click is not made to mean one thing or the other.
 
 A selected node - shift-clicked, or caught in a shift-drag box - gets a highlighted border. That's the only feedback selection gives before you group anything, so it's what to check if a click or drag seems to have done nothing.
 
@@ -46,8 +50,8 @@ A selected node - shift-clicked, or caught in a shift-drag box - gets a highligh
 | ------------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------- |
 | Right-click a node that's part of a selection of two or more | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
 | Right-click empty canvas with a selection of two or more     | "Group selected nodes"         | Creates an unnamed group holding the selection.                             |
-| Right-click on a group's region                              | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
-| Right-click on a group's region                              | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
+| Right-click inside a group's region                          | Text field plus "Rename group" | Sets the group's name. A blank field leaves the name unchanged.             |
+| Right-click inside a group's region                          | "Ungroup"                      | Removes the group. Members keep their positions and their links.            |
 | Mindmaps section, for a node in a group                      | "Remove from group"            | Takes that one node out of its group. The group and its other members stay. |
 
 Everything above is mouse-driven; there are no keyboard equivalents.

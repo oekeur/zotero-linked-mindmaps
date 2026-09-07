@@ -67,6 +67,7 @@ mindmap-legend-undirectional = Undirected link
 mindmap-legend-unknown-type = Unknown type
 mindmap-legend-parent-child-tie = Parent-child tie
 mindmap-legend-external-node = Node from another mindmap
+mindmap-legend-group-region = Group
 mindmap-zoom-out-button =
     .title = Zoom out
 mindmap-zoom-in-button =

@@ -18,13 +18,28 @@ export const EXTERNAL_NODE_CLASS = "external-node";
 
 Cytoscape class put on a node whose `membership` is `"external"` (a node borrowed from another mindmap). The stylesheet selector `node.external-node` gives it a paler fill (`#eef3fa`), a dashed border (`#7aa7d9`, width 2), and leaves shape and size untouched.
 
-### `GROUP_NODE_CLASS`
+### `GROUP_OVERLAY_CLASS`, `GROUP_REGION_CLASS`
 
 ```ts
-export const GROUP_NODE_CLASS = "node-group";
+export const GROUP_OVERLAY_CLASS = "mindmap-group-overlay";
+export const GROUP_REGION_CLASS = "mindmap-group-region";
 ```
 
-Cytoscape class put on every compound node built from a `MindmapGroup`. The selector `node.node-group` draws a round-rectangle with a 0.6-opacity `#f2f4f7` fill, a dashed `#aab4c2` border, 14px padding, and the group name above the cluster (`text-valign: top`).
+Classes on the SVG a group's region is drawn into, from `groupOverlay.ts`. One
+`.mindmap-group-overlay` SVG per graph, holding one
+`.mindmap-group-region` `<g>` per non-empty group, tagged with
+`data-group-id`. Colour comes from `zoteroPane.css` (`--fill-quarternary`), not
+from `buildStylesheet`: the overlay is DOM, so the canvas exception does not
+apply to it.
+
+Opacity sits on the region `<g>` with opaque children inside, so a halo and the
+band meeting it composite once. Per-shape opacity doubles the alpha along every
+join and draws seams that mean nothing.
+
+The overlay is inserted before Cytoscape's own canvas container rather than
+given a negative z-index. That container is `position: relative; z-index: 0`
+(`cytoscape.cjs.js:35030`), so at the same stacking level document order is
+what puts the region underneath. It carries `pointer-events: none`.
 
 ### `PARENT_CHILD_TIE_CLASS`
 

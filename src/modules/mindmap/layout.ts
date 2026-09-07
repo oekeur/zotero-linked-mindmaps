@@ -188,12 +188,6 @@ export async function layoutUnplacedNodes(
  * stored position, which is what makes the selection case leave the rest of
  * the canvas alone.
  *
- * Group containers are never returned. A group is a compound node sized to
- * fit its members and has no stored position of its own, so it has nothing to
- * persist - but it does have to stay in the graph while the layout runs,
- * because keeping members inside their parent is precisely what stops a
- * group's box stretching across unrelated parts of the canvas.
- *
  * randomize is on, unlike the unplaced-node layout: this discards positions
  * on purpose, and seeding cose from the arrangement being replaced tends to
  * reproduce it.
@@ -202,34 +196,19 @@ export async function relayoutPositions(
   cy: cytoscape.Core,
   targetIds?: string[],
 ): Promise<Map<string, Position>> {
-  const isGroup = (node: cytoscape.NodeSingular): boolean =>
-    node.data("isGroup") === true;
-
-  const movable = cy
-    .nodes()
-    .filter((node) => !isGroup(node as cytoscape.NodeSingular));
+  const nodes = cy.nodes();
   const targets =
     targetIds === undefined
-      ? movable
-      : movable.filter((node) => targetIds.includes(node.id()));
+      ? nodes
+      : nodes.filter((node) => targetIds.includes(node.id()));
 
   if (targets.empty()) {
     return new Map();
   }
 
-  const held = cy
-    .nodes()
-    .difference(targets)
-    .filter((node) => !isGroup(node as cytoscape.NodeSingular));
+  const held = nodes.difference(targets);
   const box = layoutBoundingBox(targets.length, held);
-
-  // The compound ancestors of the targets have to travel with them. cose
-  // resolves each node's parent by id *within the collection it was handed*
-  // (createLayoutInfo indexes layoutNodes by id, then dereferences the
-  // parent's index), so laying out a child whose parent is absent throws
-  // "can't access property children ... is undefined". Their positions are
-  // still never read back: a group is sized to fit its members.
-  const laidOut = targets.union(targets.parents());
+  const laidOut = targets;
 
   held.lock();
   try {

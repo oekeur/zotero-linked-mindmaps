@@ -13,7 +13,6 @@ import {
   EXTERNAL_NODE_CLASS,
   FIT_BUTTON_CLASS,
   GROUP_MENU_CLASS,
-  GROUP_NODE_CLASS,
   LEGEND_CLASS,
   LEGEND_TOGGLE_BUTTON_CLASS,
   MENU_ACTION_CLASS,
@@ -26,6 +25,15 @@ import {
   ZOOM_IN_BUTTON_CLASS,
   ZOOM_OUT_BUTTON_CLASS,
 } from "../../src/modules/mindmap/graphRenderer";
+import {
+  GROUP_OVERLAY_CLASS,
+  GROUP_REGION_CLASS,
+  type GroupOverlay,
+} from "../../src/modules/mindmap/groupOverlay";
+import {
+  regionContains,
+  regionShapes,
+} from "../../src/modules/mindmap/groupRegions";
 import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
 import {
   EMPTY_NOTE_LABEL,
@@ -319,13 +327,13 @@ describe("mindmap/graphRenderer", function () {
     let article: Zotero.Item;
     let dockContainer: HTMLDivElement;
     let tapHandler: (evt: {
-      target: { id(): string; data(key: string): unknown };
+      target: { id(): string };
       originalEvent?: { shiftKey?: boolean };
     }) => void | Promise<void>;
 
-    function nodeEvent(id: string, isGroup = false, shiftKey = false) {
+    function nodeEvent(id: string, shiftKey = false) {
       return {
-        target: { id: () => id, data: () => isGroup || undefined },
+        target: { id: () => id },
         originalEvent: { shiftKey },
       };
     }
@@ -359,9 +367,7 @@ describe("mindmap/graphRenderer", function () {
         on(
           _events: string,
           _selector: string,
-          handler: (evt: {
-            target: { id(): string; data(key: string): unknown };
-          }) => void | Promise<void>,
+          handler: (evt: { target: { id(): string } }) => void | Promise<void>,
         ) {
           tapHandler = handler;
         },
@@ -429,18 +435,6 @@ describe("mindmap/graphRenderer", function () {
       assert.equal(dockContainer.textContent, MISSING_ITEM_LABEL);
     });
 
-    it("ignores a tap on a group container", async function () {
-      attachNodeClickHandler(
-        fakeCy(),
-        new Map([["g1", refTo(article)]]),
-        dockContainer,
-      );
-
-      await tapHandler(nodeEvent("g1", true));
-
-      assert.equal(dockContainer.style.display, "none");
-    });
-
     it("no-ops when the tapped node id has no matching ref", function () {
       attachNodeClickHandler(fakeCy(), new Map(), dockContainer);
 
@@ -455,7 +449,7 @@ describe("mindmap/graphRenderer", function () {
         dockContainer,
       );
 
-      await tapHandler(nodeEvent("n1", false, true));
+      await tapHandler(nodeEvent("n1", true));
 
       assert.equal(dockContainer.style.display, "none");
     });
@@ -537,7 +531,6 @@ describe("mindmap/graphRenderer", function () {
     let cxttapHandler: (evt: {
       target: {
         id(): string;
-        data(key: string): unknown;
         selected(): boolean;
       };
     }) => void;
@@ -564,11 +557,10 @@ describe("mindmap/graphRenderer", function () {
     // anything else, `selected` decides whether the grouping action is
     // offered, and `renderedBoundingBox` is what the menu positions itself
     // against.
-    function nodeEvent(id: string, isGroup = false, selected = false) {
+    function nodeEvent(id: string, selected = false) {
       return {
         target: {
           id: () => id,
-          data: () => isGroup || undefined,
           selected: () => selected,
           renderedBoundingBox: () => ({
             x1: 0,
@@ -686,18 +678,6 @@ describe("mindmap/graphRenderer", function () {
       assert.isNull(menuButton());
     });
 
-    it("ignores a right-click on a group container", function () {
-      attachNodeContextMenuHandler(
-        fakeCy(),
-        new Map([["g1", refTo(article)]]),
-        dockContainer,
-      );
-
-      cxttapHandler(nodeEvent("g1", true));
-
-      assert.isNull(menuButton());
-    });
-
     it("no-ops when the right-clicked node id has no matching ref", function () {
       attachNodeContextMenuHandler(fakeCy(), new Map(), dockContainer);
 
@@ -724,7 +704,7 @@ describe("mindmap/graphRenderer", function () {
         dockContainer,
       );
 
-      cxttapHandler(nodeEvent("n1", false, true));
+      cxttapHandler(nodeEvent("n1", true));
 
       assert.isNotNull(menuButton(), "Add link should still be offered too");
       assert.isNotNull(groupButton(), "no group-create action offered");
@@ -737,7 +717,7 @@ describe("mindmap/graphRenderer", function () {
         dockContainer,
       );
 
-      cxttapHandler(nodeEvent("n1", false, false));
+      cxttapHandler(nodeEvent("n1", false));
 
       assert.isNotNull(menuButton());
       assert.isNull(groupButton());
@@ -750,7 +730,7 @@ describe("mindmap/graphRenderer", function () {
         dockContainer,
       );
 
-      cxttapHandler(nodeEvent("n1", false, true));
+      cxttapHandler(nodeEvent("n1", true));
 
       assert.isNull(groupButton());
     });
@@ -1005,21 +985,47 @@ describe("mindmap/graphRenderer", function () {
       };
     }
 
-    it("draws a group container holding exactly its members (AC #2)", async function () {
+    it("draws a group as a region, not as a node in the graph (AC #1)", async function () {
       this.timeout(30000);
       cy = await renderMindmap(container, groupedDoc(), []);
 
-      const group = cy.getElementById("g-1");
-      assert.isTrue(group.hasClass(GROUP_NODE_CLASS));
-      assert.equal(group.data("label"), "Chapter one");
-      assert.deepEqual(
-        group
-          .children()
-          .map((child) => child.id())
-          .sort(),
-        ["n-a", "n-b"],
+      assert.isTrue(
+        cy.getElementById("g-1").empty(),
+        "the group is still a Cytoscape node",
       );
-      assert.isTrue(cy.getElementById("n-c").parent().empty());
+      const region = container.querySelector(
+        `.${GROUP_OVERLAY_CLASS} .${GROUP_REGION_CLASS}[data-group-id="g-1"]`,
+      );
+      assert.isNotNull(region, "no region drawn for the group");
+      // The name is a sibling of the region, not a child: group opacity
+      // multiplies down and would dim a label drawn inside it.
+      assert.equal(
+        container.querySelector(
+          `.${GROUP_OVERLAY_CLASS} text[data-group-id="g-1"]`,
+        )?.textContent,
+        "Chapter one",
+        "the group name is not drawn",
+      );
+    });
+
+    it("covers its members and leaves a non-member out (AC #2)", async function () {
+      this.timeout(30000);
+      const doc = groupedDoc();
+      cy = await renderMindmap(container, doc, []);
+
+      const shapes = regionShapes(
+        [
+          { x: 40, y: 40 },
+          { x: 160, y: 40 },
+        ],
+        [{ x: 40, y: 200 }],
+      );
+      assert.isTrue(regionContains(shapes, { x: 40, y: 40 }));
+      assert.isTrue(regionContains(shapes, { x: 160, y: 40 }));
+      assert.isFalse(
+        regionContains(shapes, { x: 40, y: 200 }),
+        "the region reaches a node that is not a member",
+      );
     });
 
     it("leaves every member where it already was (AC #3)", async function () {
@@ -1039,11 +1045,55 @@ describe("mindmap/graphRenderer", function () {
       );
     });
 
-    it("does not offer the group container as a draggable node (AC #3)", async function () {
+    it("adds no node of its own for the group (AC #1)", async function () {
       this.timeout(30000);
       cy = await renderMindmap(container, groupedDoc(), []);
 
-      assert.isFalse(cy.getElementById("g-1").grabbable());
+      assert.deepEqual(
+        cy
+          .nodes()
+          .map((node) => node.id())
+          .sort(),
+        ["n-a", "n-b", "n-c"],
+      );
+    });
+
+    it("paints the region beneath Cytoscape's canvases (AC #1)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, groupedDoc(), []);
+
+      // Cytoscape's canvas container is position:relative, z-index:0, so with
+      // the overlay at the same stacking level document order is what puts the
+      // region underneath. A wrong order here draws nothing and throws nothing.
+      const children = Array.from(container.children);
+      const overlay = container.querySelector(`.${GROUP_OVERLAY_CLASS}`)!;
+      const canvasHost = container.querySelector("canvas")!.parentElement!;
+      assert.isAbove(
+        children.indexOf(canvasHost),
+        children.indexOf(overlay),
+        "the overlay is not before Cytoscape's canvas container",
+      );
+    });
+
+    it("follows a node while it is dragged, not only on release (AC #4)", async function () {
+      this.timeout(30000);
+      cy = await renderMindmap(container, groupedDoc(), []);
+
+      const cx = () =>
+        container
+          .querySelector(`.${GROUP_REGION_CLASS}[data-group-id="g-1"] circle`)!
+          .getAttribute("cx");
+      const before = cx();
+
+      // "position" is what Cytoscape emits on every tick of a drag, so this is
+      // the mid-gesture signal, not the dragfree one the write path uses. The
+      // redraw is batched into an animation frame, and a frame in a window
+      // nothing is looking at can take a while, so this waits for the redraw
+      // rather than for one frame.
+      cy.getElementById("n-a").position({ x: 400, y: 400 });
+      await waitFor(() => cx() !== before, "the region to follow the node");
+
+      assert.notEqual(cx(), before);
     });
 
     it("survives a write and read of the document (AC #4)", async function () {
@@ -1070,6 +1120,11 @@ describe("mindmap/graphRenderer", function () {
       cy = await renderMindmap(container, doc, []);
 
       assert.isTrue(cy.getElementById("g-empty").empty());
+      assert.isNull(
+        container.querySelector(
+          `.${GROUP_REGION_CLASS}[data-group-id="g-empty"]`,
+        ),
+      );
     });
   });
 
@@ -1077,6 +1132,7 @@ describe("mindmap/graphRenderer", function () {
     let graphContainer: HTMLDivElement;
     let cxttapHandler: (evt: {
       target: unknown;
+      position: { x: number; y: number };
       renderedPosition: { x: number; y: number };
     }) => void;
 
@@ -1126,15 +1182,29 @@ describe("mindmap/graphRenderer", function () {
       graphContainer.remove();
     });
 
-    function rightClickEmptyCanvas(cy: cytoscape.Core): void {
-      cxttapHandler({ target: cy, renderedPosition: { x: 10, y: 20 } });
+    function rightClickCanvas(cy: cytoscape.Core): void {
+      cxttapHandler({
+        target: cy,
+        position: { x: 10, y: 20 },
+        renderedPosition: { x: 10, y: 20 },
+      });
+    }
+
+    // The overlay's whole contribution to the menu is answering "which group,
+    // if any, is under this point", so the fake answers exactly that.
+    function overlayHitting(groupId: string | null): GroupOverlay {
+      return {
+        hitTest: () => groupId,
+        refresh: () => undefined,
+        destroy: () => undefined,
+      };
     }
 
     it('offers "Group selected nodes" once two or more nodes are selected (AC #3)', function () {
       const cy = fakeCy(["n-a", "n-b"]);
       attachGroupingHandlers(cy, "doc-1");
 
-      rightClickEmptyCanvas(cy);
+      rightClickCanvas(cy);
 
       const button = graphContainer.querySelector(
         `.${GROUP_MENU_CLASS} button[data-l10n-id="${config.addonRef}-mindmap-group-create"]`,
@@ -1142,13 +1212,58 @@ describe("mindmap/graphRenderer", function () {
       assert.isNotNull(button, "no group-create action offered");
     });
 
-    it("offers nothing with fewer than two nodes selected", function () {
+    it("offers nothing with fewer than two nodes selected and no region hit", function () {
       const cy = fakeCy(["n-a"]);
       attachGroupingHandlers(cy, "doc-1");
 
-      rightClickEmptyCanvas(cy);
+      rightClickCanvas(cy);
 
       assert.isNull(graphContainer.querySelector(`.${GROUP_MENU_CLASS}`));
+    });
+
+    it("offers rename and delete for the region under the pointer (AC #6)", function () {
+      const cy = fakeCy([]);
+      attachGroupingHandlers(
+        cy,
+        "doc-1",
+        overlayHitting("g-1"),
+        new Map([["g-1", "Chapter one"]]),
+      );
+
+      rightClickCanvas(cy);
+
+      const menu = graphContainer.querySelector(`.${GROUP_MENU_CLASS}`);
+      assert.isNotNull(menu, "no menu opened over a group region");
+      for (const action of ["rename", "delete"]) {
+        assert.isNotNull(
+          menu!.querySelector(
+            `button[data-l10n-id="${config.addonRef}-mindmap-group-${action}"]`,
+          ),
+          `no group-${action} action offered`,
+        );
+      }
+      assert.equal(
+        menu!.querySelector("input")?.value,
+        "Chapter one",
+        "the rename field is not seeded with the group's name",
+      );
+    });
+
+    it("offers create and rename together when both apply (AC #6)", function () {
+      const cy = fakeCy(["n-a", "n-b"]);
+      attachGroupingHandlers(cy, "doc-1", overlayHitting("g-1"));
+
+      rightClickCanvas(cy);
+
+      const menu = graphContainer.querySelector(`.${GROUP_MENU_CLASS}`)!;
+      for (const action of ["create", "rename", "delete"]) {
+        assert.isNotNull(
+          menu.querySelector(
+            `button[data-l10n-id="${config.addonRef}-mindmap-group-${action}"]`,
+          ),
+          `no group-${action} action offered`,
+        );
+      }
     });
   });
 
@@ -1699,7 +1814,7 @@ describe("mindmap/graphRenderer", function () {
       cy = await renderMindmap(container, twoFarNodes(), []);
 
       const rows = container.querySelectorAll(`.${LEGEND_CLASS} li`);
-      assert.equal(rows.length, 5, "the legend does not cover every style");
+      assert.equal(rows.length, 6, "the legend does not cover every style");
     });
 
     it("can be dismissed and reopened, writing nothing to the mindmap document (AC #2)", async function () {
