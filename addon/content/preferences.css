@@ -85,3 +85,18 @@
   stroke: currentColor;
   stroke-width: 1.6;
 }
+
+/*
+ * The two buttons sit on one row and wrap rather than overflow: the
+ * preferences pane is narrower on some platforms than the labels are wide.
+ */
+.zoterolinkedmindmaps-feedback-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoterolinkedmindmaps-feedback-help {
+  margin-top: 6px;
+}

@@ -197,6 +197,16 @@ export default defineConfig({
             },
           ],
         },
+        {
+          text: "Feedback",
+          collapsed: false,
+          items: [
+            {
+              text: "Reporting a bug or requesting a feature",
+              link: "/user-guide/report-issue-howto",
+            },
+          ],
+        },
       ],
 
       "/contributing/": [

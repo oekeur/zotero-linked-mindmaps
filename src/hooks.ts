@@ -13,6 +13,10 @@ import {
 } from "./modules/mindmap/deletionCleanup";
 import { renderLinkTypesSettings } from "./modules/mindmap/linkTypesSettings";
 import {
+  openBugReport,
+  openFeatureRequest,
+} from "./modules/mindmap/issueReporter";
+import {
   reconcileContainers,
   registerContainerObserver,
   unregisterContainerObserver,
@@ -207,6 +211,12 @@ async function onPrefsEvent(type: string, data: { [key: string]: any }) {
       if (data.container) {
         renderLinkTypesSettings(data.container as HTMLElement);
       }
+      break;
+    case "report-bug":
+      openBugReport();
+      break;
+    case "request-feature":
+      openFeatureRequest();
       break;
     default:
       break;

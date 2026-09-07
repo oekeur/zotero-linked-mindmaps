@@ -43,6 +43,7 @@ The documentation here follows [Diataxis](https://diataxis.fr/). Tutorials teach
 | Build a first mindmap          | [Getting started](./user-guide/getting-started.md)                                                                        |
 | Recover mindmaps that vanished | [Plugin data recovery](./user-guide/plugin-data-howto.md)                                                                 |
 | Add a link type of your own    | [Editing link types](./user-guide/link-types-howto.md)                                                                    |
+| Report a bug you hit           | [Reporting a bug](./user-guide/report-issue-howto.md)                                                                     |
 | Run the project locally        | [Development setup](./contributing/development-setup.md)                                                                  |
 | Publish a version              | [Cutting a release](./contributing/releasing-howto.md)                                                                    |
 | Debug a silent failure         | [Debugging a running Zotero](./contributing/mcp-observability-howto.md)                                                   |

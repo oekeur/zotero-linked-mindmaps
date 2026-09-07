@@ -36,3 +36,31 @@
     data-l10n-id="zoterolinkedmindmaps-preferences-hide-mindmap-notes-help"
   />
 </groupbox>
+<groupbox aria-labelledby="zoterolinkedmindmaps-feedback-heading">
+  <label>
+    <html:h2
+      id="zoterolinkedmindmaps-feedback-heading"
+      data-l10n-id="zoterolinkedmindmaps-preferences-feedback-heading"
+    />
+  </label>
+  <html:div class="zoterolinkedmindmaps-feedback-buttons">
+    <button
+      class="zoterolinkedmindmaps-feedback-bug"
+      data-l10n-id="zoterolinkedmindmaps-preferences-feedback-bug-button"
+      oncommand="
+        Zotero.ZoteroLinkedMindmaps.hooks.onPrefsEvent('report-bug', {})
+      "
+    />
+    <button
+      class="zoterolinkedmindmaps-feedback-feature"
+      data-l10n-id="zoterolinkedmindmaps-preferences-feedback-feature-button"
+      oncommand="
+        Zotero.ZoteroLinkedMindmaps.hooks.onPrefsEvent('request-feature', {})
+      "
+    />
+  </html:div>
+  <description
+    class="zoterolinkedmindmaps-feedback-help description-deemphasized"
+    data-l10n-id="zoterolinkedmindmaps-preferences-feedback-help"
+  />
+</groupbox>
