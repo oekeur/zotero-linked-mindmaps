@@ -74,6 +74,48 @@ This cost a false bug report during the first walk of J1. The error console was
 clean throughout, which is the tell: a section that threw would have left an
 entry.
 
+## Driving the rig: six things that will waste your time
+
+Walking these through `zotero_execute_js` and `zotero_click_element` hits the
+same traps every time. All six were paid for once already.
+
+**Wrap in an async IIFE yourself.** The tool auto-wraps code with a top-level
+`return`, but that wrapper failed on at least one script here with "await is only
+valid in async functions". `return (async () => { ... })();` always works.
+
+**Object literals do not cross the Xray boundary.** `node.position({x: 640, y: 420})`
+from the rig silently does nothing: Cytoscape reads `.x`/`.y` off an object built
+in the debugger's compartment and gets undefined. The node is not locked and no
+error is raised. Pass primitives instead — `node.position("x", 640)` — which is
+how the drag in J3 is staged.
+
+**Scope every section selector.** `toolbarbutton.add.section-custom-button`
+matches 12 buttons (one per item-pane section) and `checkbox` matches 15 across
+the preference panes. `zotero_click_element` takes index 0 and clicks something
+else entirely. Query inside `item-pane-custom-section`, or inside the pane you
+mean, and click through `execute_js`.
+
+**The target picker is a blocking modal.** "Choose target…" opens Zotero's own
+`selectItemsDialog.xhtml` (window type `zotero:item-selector`), which blocks
+`zotero_execute_js` against the main window — the call times out rather than
+failing. `zotero_list_windows` still answers. Drive the dialog by `windowId`:
+rows are `#item-tree-select-items-dialog-default-row-N` and need
+`mouseEvents: true`; accept with `button[dlgtype="accept"]`.
+
+**The plugin's preference pane loads lazily.** Nothing matching
+`.zoterolinkedmindmaps-type-table` exists in the preferences document until you
+navigate to the pane, and `zotero_open_preferences` with the plugin id lands on
+General instead. Click
+`richlistitem[value="zoterolinkedmindmaps-link-types-pane"]` (labelled
+"Mindmaps") in `#prefs-navigation` first. The pane is inlined into the
+preferences document, not iframed, so once shown it is queryable directly.
+
+**The journeys are not independent.** J2 and J3 assume the mindmap tab is open
+and a mindmap selected, which is where J1 leaves you; J7's link-type steps assume
+links exist, which is where J2 leaves you. Reopening the tab selects the **first**
+mindmap in the sidebar, not the one you had. Run J1 first, or select the mindmap
+yourself before starting.
+
 ## The rule that makes this worth doing
 
 After every journey, run `zotero_read_errors`. A step whose UI looked right and
@@ -94,7 +136,9 @@ correctly nothing else in this document works, so run this one first after any
 storage change.
 
 Walked against 10.0-beta.25 on 2026-09-09; every expectation below is what
-actually happened, not what the source suggested.
+actually happened, not what the source suggested. J2, J3 (steps 1-2) and J7
+(step 1) were walked the same way. J4, J5, J6 and the remaining steps of J2/J3/J7
+are still verified against source only — treat those as drafts.
 
 1. **Do** Tools → Mindmap.
    **Expect** a new tab titled "Mindmap", with
@@ -167,14 +211,18 @@ pane's link rows, and the edge the renderer draws for them. The dialog is the
 single densest surface in the plugin and it renders in its own window, which is
 where `ztoolkit.Dialog`'s traps live.
 
-1. **Do** With _Attention_ selected, click the Mindmaps section's header button
-   (tooltip "Add link").
-   **Expect** a window titled "Add link". Its context line reads `Linking
-"Attention Mechanisms in Sparse Graphs" in "Reading trails"`. The target shows
-   "Nothing chosen yet" and Save is disabled with the tooltip "Choose a target
-   first".
-   **Probe** `zotero_list_windows` to confirm a second window exists; screenshot
-   it.
+1. **Do** With _Attention_ selected and the section scrolled into view, click
+   the Mindmaps section's header button (`toolbarbutton.add.section-custom-button`
+   **inside** `item-pane-custom-section`, tooltip "Add link").
+   **Expect** the form opens **inline in the section body**, not in a window.
+   `zotero_list_windows` still shows only "My Library - Zotero". The body grows a
+   `.mindmap-form-grid` with a Type select (the five default types), a "Name
+   (optional)" field, Direction, a Target reading "Nothing chosen yet", and
+   buttons "Choose target…", "Link to another mindmap…" and Save. Save is
+   disabled with the tooltip "Choose a target first".
+   **Note** the separate window titled "Add link", with its `Linking "…" in "…"`
+   context line, is the _other_ entry point: the library context menu's "Add
+   Link…". Two surfaces over the same form; do not expect a window here.
 
 2. **Do** Click "Choose target…" and pick _Citations_.
    **Expect** the target field fills with the item's title and Save enables.
@@ -208,17 +256,20 @@ where `ztoolkit.Dialog`'s traps live.
    **Expect** a parent-child tie draws between the note and _Attention_ with the
    legend's tie styling, distinct from a typed link.
 
-9. **Do** Click a node on the graph.
+9. **Do** Click a node on the graph. (From the rig: `cy.nodes()[0].emit("tap")`.)
    **Expect** the docked panel (`#zoterolinkedmindmaps-mindmap-connections-dock`)
-   fills with that node's item: a `.mindmap-node-overview` carrying the title and,
-   below it, the same Connections content the item pane shows. Clicking a
-   different node replaces it rather than appending.
+   fills with that node's item — a `.mindmap-node-overview` carrying the title,
+   the item type (`.mindmap-node-overview-type`, e.g. "Journal Article"), creator
+   and year, a "Show in library" control, and below it the same Connections
+   content the item pane shows, link rows included. Clicking a different node
+   replaces the content rather than appending.
    **Probe** screenshot. Check the note node too — a note's label is a preview of
    its content, not its title, and the dock and the graph should agree.
 
 10. **Do** Click "Show in library" (`.mindmap-show-in-library`).
-    **Expect** the item becomes the selection in the library pane. This is the
-    only control that navigates away from the graph; clicking a node never does.
+    **Expect** Zotero switches to the library tab (`Zotero_Tabs.selectedID`
+    becomes `zotero-pane`) and selects that item. This is the only control that
+    navigates away from the graph; clicking a node never does.
 
 11. **Do** Click the dock's close control (`.mindmap-dock-close`, title "Close").
     **Expect** the dock hides. Clicking another node brings it back with that
@@ -234,12 +285,14 @@ Covers the one thing headless tests provably cannot check. Layout output depends
 on the container's measured size, and a synthetic container spreads nodes
 plausibly while a real 0-by-0 one piles them at the origin.
 
-1. **Do** Drag a node somewhere distinctive.
+1. **Do** Drag a node somewhere distinctive. From the rig, stage it as
+   `n.position("x", 640); n.position("y", 420); n.emit("dragfree");` — the
+   object-literal form silently no-ops (see the Xray note above).
    **Expect** it stays where dropped.
-   **Probe** read the node's position from Cytoscape, then read it back out of
-   storage and confirm they agree:
-   `zotero_db_query` the storage note's content, or re-open the mindmap and
-   compare. Cytoscape agreeing with itself proves nothing.
+   **Probe** read the position back **out of the storage note**, not out of
+   Cytoscape: parse the `<pre id="zoterolinkedmindmaps-data">` block and find the
+   node by id. Cytoscape agreeing with itself proves nothing. Walked here: 640,420
+   in Cytoscape and 640,420 in storage.
 
 2. **Do** Close the tab and reopen it via Tools → Mindmap, then select "Reading
    trails".
@@ -388,12 +441,20 @@ its own click.
 Covers the preferences pane, the link-type editor, and the one preference with a
 visible effect on Zotero's own library view.
 
+Steps 3 and 4 need links that already use a type, so run this after J2 (or on an
+instance where J2 has run). Step 1 needs a container to exist, which means a
+mindmap must have been created at least once — opening the tab is enough.
+
 1. **Do** Open Zotero preferences → **Mindmaps**. Untick "Hide the Zotero Linked
    Mindmaps item from my library".
-   **Expect** the container item appears in the library list immediately, without
-   a restart. Tick it again and it goes.
+   **Expect** the pane shows a Link types table with the five defaults (cites,
+   supports, contradicts, primary source for = Directional; related to =
+   Undirected), `+` / Edit / `−` controls, the Library checkbox, and the Feedback
+   section. Unticking makes "Zotero Linked Mindmaps (plugin data)" appear in the
+   library list immediately, with no restart; ticking it again removes it.
    **Probe** this is the monkey-patched `Zotero.CollectionTreeRow` path, which has
-   no stable seam to assert against. Screenshot both states.
+   no stable seam to assert against. Compare `itemsView.rowCount` before and after
+   — walked here it went 8 → 9 — and screenshot both states.
 
 2. **Do** Add a link type. Give it a label and mark it directional.
    **Expect** it appears in the table with "Directional" in that column, and is
