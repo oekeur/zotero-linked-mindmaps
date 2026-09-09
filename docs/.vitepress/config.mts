@@ -223,6 +223,10 @@ export default defineConfig({
             },
             { text: "Running tests", link: "/contributing/testing-howto" },
             {
+              text: "Walking the user journeys",
+              link: "/contributing/user-journeys-howto",
+            },
+            {
               text: "Why tests run against live Zotero",
               link: "/contributing/testing-explanation",
             },

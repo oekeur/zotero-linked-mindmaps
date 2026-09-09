@@ -45,6 +45,7 @@ The documentation here follows [Diataxis](https://diataxis.fr/). Tutorials teach
 | Add a link type of your own    | [Editing link types](./user-guide/link-types-howto.md)                                                                    |
 | Report a bug you hit           | [Reporting a bug](./user-guide/report-issue-howto.md)                                                                     |
 | Run the project locally        | [Development setup](./contributing/development-setup.md)                                                                  |
+| Verify a UI change by hand     | [Walking the user journeys](./contributing/user-journeys-howto.md)                                                        |
 | Publish a version              | [Cutting a release](./contributing/releasing-howto.md)                                                                    |
 | Debug a silent failure         | [Debugging a running Zotero](./contributing/mcp-observability-howto.md)                                                   |
 | Change how mindmaps are stored | [Storage design](./internals/storage-explanation.md), then [storage reference](./internals/storage-reference.md)          |
@@ -55,7 +56,7 @@ The documentation here follows [Diataxis](https://diataxis.fr/). Tutorials teach
 
 The [user guide](./user-guide/getting-started.md) covers the mindmap tab, the Mindmaps section, link types, grouping, cross-mindmap links, and what to do when the plugin's data ends up in the trash.
 
-[Contributing](./contributing/development-setup.md) covers dev setup, the npm scripts, testing against a live Zotero instance, the MCP rig for debugging a running Zotero, and the configuration fields that fail silently when they're wrong.
+[Contributing](./contributing/development-setup.md) covers dev setup, the npm scripts, testing against a live Zotero instance, the user-journey checklist for the parts no test reaches, the MCP rig for debugging a running Zotero, and the configuration fields that fail silently when they're wrong.
 
 [Internals](./internals/storage-explanation.md) documents the storage layer, the document schema, graph rendering, and the plugin lifecycle, along with the Zotero constraints that shaped each one.
 
