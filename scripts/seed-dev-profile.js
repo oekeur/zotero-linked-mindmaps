@@ -12,8 +12,11 @@
  * sqlite is Zotero's private schema plus a sync layer, and writing it from
  * outside is how you corrupt a profile. Run it one of two ways:
  *
- *   Agent:  read this file and pass its contents to `zotero_execute_js` on the
- *           MCP client for this checkout (the port in .env, ZOTERO_MCP_RDP_PORT).
+ *   Agent:  on the MCP client for this checkout (the port in .env,
+ *           ZOTERO_MCP_RDP_PORT), let Zotero read the file rather than pushing
+ *           it through the call:  zotero_execute_js with
+ *             const src = await Zotero.File.getContentsAsync("<abs path>");
+ *             return await eval(src);
  *   Human:  Tools -> Developer -> Run JavaScript, paste, tick "async", Run.
  *
  * It seeds library material only, never mindmap documents. Two reasons. The
@@ -23,8 +26,10 @@
  * itself the first thing the journeys exercise -- seeding one would skip the
  * interaction the checklist exists to check.
  *
- * Fixtures carry the `_zlm-journey-fixture` tag. The leading underscore makes it
- * an automatic tag, which keeps it out of the tag selector's normal listing.
+ * Fixtures carry the `_zlm-journey-fixture` tag, so a seeded object is always
+ * identifiable. The tag IS listed in the tag selector -- `addTag` creates a
+ * manual tag and the leading underscore does not hide it, same as the plugin's
+ * own storage tags.
  */
 (async function seedDevProfile() {
   const COLLECTION_NAME = "Mindmap Journeys";

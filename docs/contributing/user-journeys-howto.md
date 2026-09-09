@@ -27,9 +27,20 @@ Bring up a dev Zotero for this checkout, seeded and observable.
 2. `npm start` if you are watching the UI, `npm run start:headless` if you are
    not. Headless matters more than it looks: under a bare `xvfb-run` on a Wayland
    session Zotero still paints on the real screen. See `CLAUDE.md`.
-3. Seed the library: read `scripts/seed-dev-profile.js` and pass its contents to
-   `zotero_execute_js`, or paste it into Tools → Developer → Run JavaScript with
-   "async" ticked. It reports what it created. Re-running is safe.
+3. Seed the library. Cheapest way from an agent is to let Zotero read the file
+   itself rather than pushing 190 lines through the tool call:
+
+   ```js
+   const src = await Zotero.File.getContentsAsync(
+     "<abs path>/scripts/seed-dev-profile.js",
+   );
+   return await eval(src);
+   ```
+
+   By hand: Tools → Developer → Run JavaScript, paste, tick "async", Run. It
+   reports what it created, and re-running reports `created 0` instead of
+   duplicating.
+
 4. Note which MCP client answers for this checkout. It is keyed by the
    `ZOTERO_MCP_RDP_PORT` in your `.env`: `zotero-dev-6106` for the main checkout,
    6107 upward for worktrees. The bare `zotero-dev` entry is zoteroTimeline's and
@@ -41,6 +52,27 @@ note on "Attention Mechanisms in Sparse Graphs", and one link attachment on
 "Citation Networks as Reading Aids" — all in a **Mindmap Journeys** collection.
 Journeys refer to items by short name: _Attention_, _Citations_, _Layout_,
 _Notes_, _Tags_, _Trails_, _Structure_ (the book).
+
+## An item-pane section below the fold never renders
+
+Zotero fills a custom item-pane section through `onAsyncRender`, and only when
+the section is actually visible. The dev window is 1000x600; the Mindmaps section
+sits near the bottom of the item pane and lands around y=1422 in it. Read its
+body without scrolling and you get an empty string, which looks exactly like the
+plugin failing to render.
+
+Call `scrollIntoView()` on the section and wait before reading it:
+
+```js
+const sec = Zotero.getMainWindow().document.querySelector(
+  "item-pane-custom-section",
+);
+sec.scrollIntoView();
+```
+
+This cost a false bug report during the first walk of J1. The error console was
+clean throughout, which is the tell: a section that threw would have left an
+entry.
 
 ## The rule that makes this worth doing
 
@@ -56,45 +88,68 @@ rather than saving it all for the end.
 
 ## J1 · First run: create a mindmap and put items on it
 
-Covers the empty state, the sidebar form, the item-pane section, the library
-context menu, and the container item that all storage hangs off. If the container
-is not created correctly nothing else in this document works, so run this one
-first after any storage change.
+Covers the sidebar form, the item-pane section, the library context menu, and
+the container item that all storage hangs off. If the container is not created
+correctly nothing else in this document works, so run this one first after any
+storage change.
+
+Walked against 10.0-beta.25 on 2026-09-09; every expectation below is what
+actually happened, not what the source suggested.
 
 1. **Do** Tools → Mindmap.
-   **Expect** a new tab titled "Mindmap". `#zoterolinkedmindmaps-mindmap-sidebar`
-   exists, and `#zoterolinkedmindmaps-mindmap-empty-state` reads "No mindmaps
-   yet. Create one to start linking items." — not a Fluent id.
+   **Expect** a new tab titled "Mindmap", with
+   `#zoterolinkedmindmaps-mindmap-sidebar`,
+   `#zoterolinkedmindmaps-mindmap-container` and
+   `#zoterolinkedmindmaps-mindmap-connections-dock` all present. On a library
+   with no mindmaps you get **one already made for you**, titled "Mindmap" and
+   selected. That is `createDefaultMindmapIfNeeded` (`mindmapTab.ts:503`), and
+   with it the container item and one storage note.
+   **Not** the empty state. `#zoterolinkedmindmaps-mindmap-empty-state` renders
+   only when a refresh finds zero mindmaps, which on this path cannot happen —
+   reach it by deleting the last mindmap with the tab open (J6). A checklist
+   that expects "No mindmaps yet" here is wrong, and this one did.
    **Probe** `zotero_get_dom_tree` rooted at the sidebar.
 
 2. **Do** Click the sidebar's new-mindmap control (`#zoterolinkedmindmaps-mindmap-new`,
    tooltip "New mindmap"). Fill `#zoterolinkedmindmaps-mindmap-title-input` with
    `Reading trails` and `#zoterolinkedmindmaps-mindmap-description-input` with
    `journey fixture`. Click `#zoterolinkedmindmaps-mindmap-save`.
-   **Expect** the form closes, a `.mindmap-sidebar-row` appears carrying that
-   title and description, and it is selected. The empty state is gone.
-   **Probe** `zotero_get_dom_tree`; then `zotero_db_query` for the storage note:
+   **Expect** the form closes and a second `.mindmap-sidebar-row` appears
+   carrying that title and description, selected. The default "Mindmap" row stays
+   above it — creating a mindmap does not replace the one made in step 1.
+   **Probe** `zotero_db_query`:
    `SELECT itemID FROM itemTags JOIN tags USING (tagID) WHERE tags.name = '_zoterolinkedmindmaps-storage-v1'`
-   should return exactly one row.
+   returns **two** rows now, one per mindmap.
 
 3. **Do** In the library, select _Attention_, _Citations_ and _Layout_.
    Right-click → **Add to Mindmap** → _Reading trails_.
    **Expect** a progress popup reading "Added 3 items to Reading trails". Three
-   nodes appear on the graph, spread rather than piled at the origin.
+   nodes appear on the graph, spread rather than piled at the origin. With two
+   mindmaps in the library the menu entry is a submenu listing both by title,
+   with the description as its tooltip; the flat `…-add-to-mindmap` menuitem is
+   hidden and the `…-add-to-mindmap-submenu` shown.
    **Probe** node count and positions through Cytoscape:
    `document.getElementById("zoterolinkedmindmaps-mindmap-container")._cyreg.cy.nodes().map(n => [n.id(), n.position()])`
    via `zotero_execute_js`. Three distinct positions, none of them `{x:0,y:0}`.
 
-4. **Do** Select _Attention_ in the library and open the item pane.
-   **Expect** a **Mindmaps** section. It names "Reading trails" after the
-   "Mindmap:" label, shows "No links yet. Add one to link this to another item.",
-   and offers a remove control titled "Remove from mindmap".
-   **Probe** `zotero_screenshot`, and confirm the section is
-   `zotero-linked-mindmaps-connections` in the DOM tree.
+4. **Do** Select _Attention_ in the library and **scroll the Mindmaps section
+   into view** (see the async-render note above — skipping this reads as a bug).
+   **Expect** a **Mindmaps** section whose body holds a `.mindmap-current-picker`
+   reading "Reading trails", the message "No links yet. Add one to link this to
+   another item.", and one button titled "Remove from mindmap". The section's
+   body text is exactly `Reading trailsNo links yet. …` — the `Mindmap:` label
+   from the `.ftl` is not rendered here.
+   **Probe** `zotero_screenshot`. In the DOM the section is an
+   `item-pane-custom-section` whose `data-pane` is the paneID namespaced by the
+   addon id and CSS-escaped
+   (`zoterolinkedmindmaps\@oekeur\.github\.io-zotero-linked-mindmaps-connections`),
+   not a bare `zotero-linked-mindmaps-connections`.
 
 5. **Do** Select the link attachment "Preprint (link)" under _Citations_.
-   **Expect** no Mindmaps section, or an empty one. An attachment is not a
-   mindmap node.
+   **Expect** the section is still in the DOM but `hidden`, computed
+   `display: none` — `onItemChange` calls `setEnabled(canBeMindmapNode(item))`
+   and an attachment fails that. Its body keeps the previous item's text, so read
+   `hidden`, not the text.
 
 6. **Do** Look at the library root for an item named "Zotero Linked Mindmaps
    (plugin data)".
