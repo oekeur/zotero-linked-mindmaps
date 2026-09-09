@@ -102,6 +102,16 @@ failing. `zotero_list_windows` still answers. Drive the dialog by `windowId`:
 rows are `#item-tree-select-items-dialog-default-row-N` and need
 `mouseEvents: true`; accept with `button[dlgtype="accept"]`.
 
+**Native prompts ARE drivable, despite the tool warning.** The group-name prompt
+is a `chrome://global/content/commonDialog.xhtml` window (titled "Group items",
+377x138). `zotero_click_element`'s note about blocking modals does not apply to
+it: type with `zotero_send_keys` into `#loginTextbox` and accept with
+`button[dlgtype="accept"]`, both addressed by `windowId`. The window gets a
+**fresh id every time** it opens, so re-read `zotero_list_windows` rather than
+reusing the last one. Note the group submenu entries carry a trailing ellipsis
+("Reading trails…") precisely because they open this prompt, where the
+add-to-mindmap entries do not.
+
 **The plugin's preference pane loads lazily.** Nothing matching
 `.zoterolinkedmindmaps-type-table` exists in the preferences document until you
 navigate to the pane, and `zotero_open_preferences` with the plugin id lands on
@@ -136,9 +146,11 @@ correctly nothing else in this document works, so run this one first after any
 storage change.
 
 Walked against 10.0-beta.25 on 2026-09-09; every expectation below is what
-actually happened, not what the source suggested. J2, J3 (steps 1-2) and J7
-(step 1) were walked the same way. J4, J5, J6 and the remaining steps of J2/J3/J7
-are still verified against source only — treat those as drafts.
+actually happened, not what the source suggested. J2 (steps 1-4, 9-11), J3 (steps 1-2),
+J4 (steps 1-2) and J7 (step 1) were walked the same way, across two Zotero
+instances. **J5 and J6 have not been walked at all**, nor have J2 steps 5-8, J3
+steps 3-6, J4 steps 3-4 or J7 steps 2-5 — treat those as drafts, and expect a
+similar error rate to the two mistakes J1 and the one J2 turned up.
 
 1. **Do** Tools → Mindmap.
    **Expect** a new tab titled "Mindmap", with
@@ -328,18 +340,28 @@ rather than as compound nodes, so they are pure paint: only a screenshot tells
 you whether one rendered.
 
 1. **Do** Select _Attention_, _Citations_ and _Layout_. Right-click → **Group
-   Items on Mindmap…** → _Reading trails_. Name it `Method`.
-   **Expect** "Grouped 3 items on Reading trails". A region is drawn behind those
-   three nodes, labelled "Method".
-   **Probe** screenshot. Confirm the region does not fill with `--color-accent`;
+   Items on Mindmap…** → _Reading trails…_, name it `Method` in the prompt.
+   **Expect** "Grouped 3 items on Reading trails". A band-shaped region is drawn
+   through those three nodes, labelled "Method", and each gains one membership
+   dot.
+   **Probe** the document's `groups` array holds `{id, name: "Method"}` and all
+   three nodes list that id in `groupIds`. In the DOM the region is
+   `svg.mindmap-group-overlay > .mindmap-group-region[data-group-id=...]`, drawn
+   as an SVG `<mask>` over stroked lines and circles rather than a filled blob.
+   The label is a `<text>` in that overlay — **it can sit outside the viewport**,
+   so `cy.fit()` before concluding it is missing, and check the SVG text rather
+   than only the screenshot.
+   Confirm the region does not fill with `--color-accent`;
    `project/ui-design.md` forbids it for regions.
 
 2. **Do** Select _Layout_, _Tags_ and the "Preprint (link)" attachment. Group
    them as `Layout work`.
    **Expect** the skipped message: "1 item was left out: only items and notes can
-   be grouped." _Layout_ is now in two groups, and carries two membership dots.
-   **Probe** screenshot for the dots; confirm both regions draw and overlap
-   without one erasing the other.
+   be grouped." The attachment is not added — the node count rises by one (for
+   _Tags_), not two. _Layout_ now lists **both** group ids in `groupIds` and
+   carries two dots in different colours.
+   **Probe** screenshot. The two regions get distinct colours, overlap at
+   _Layout_, and neither erases the other; both labels render above their bands.
 
 3. **Do** Select a node in a group. Rename the group, then ungroup it.
    **Expect** the label updates; ungrouping removes the region but leaves every
