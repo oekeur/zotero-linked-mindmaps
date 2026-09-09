@@ -44,6 +44,28 @@ So a headless probe can't reproduce the bug, and a test written against one pass
 
 Two smaller test-facing facts follow from this. Cytoscape owns and mutates the position object it is handed, which is why `buildNodeElement` copies coordinates into a fresh object before passing them along; a test that hands the same object twice can end up asserting something vacuously true. And the tests that exercise dragging emit `dragfree` directly on nodes instead of synthesizing pointer input against a canvas, because the gesture itself isn't reproducible headlessly.
 
+## Observed once: canvas exceeds max size
+
+Walking the user journeys on 2026-09-09 left this in the error console, from the
+plugin's own bundle and never surfacing in the UI:
+
+```
+InvalidStateError: CanvasRenderingContext2D.setTransform: Canvas exceeds max size
+  setContextTransform2 -> CRp$5.render -> renderFn -> raf
+```
+
+It appeared while nodes were being repositioned and `cy.fit()` called on a
+1000x600 window, with one node dragged far from the rest. Cytoscape sizes its
+backing canvas from the rendered extent, so a wide spread plus a zoom that
+enlarges rather than shrinks it is the suspected trigger. Not reproduced
+deliberately, not diagnosed, and the graph kept rendering afterwards.
+
+Recorded here rather than acted on. If a mindmap ever renders blank or freezes
+after a drag or a fit, this is the first thing to check —
+[the journeys](../contributing/user-journeys-howto.md) tell you to read
+`zotero_read_errors` after every journey precisely because this class of failure
+never reaches the screen.
+
 ## Debugging when something here breaks
 
 Every failure mode above was silent, and the repository's manual verification protocol in `CLAUDE.md` exists largely because of them. Two habits from it apply directly to Cytoscape work. When a bare `ReferenceError` comes out of a third-party library, read the bundled source at the failing line (`node_modules/cytoscape/dist/*.js`) instead of guessing; the missing browser global has been the root cause every single time so far. And when Zotero's Debug Output shows nothing where you expect an error, don't read that as success. Console output can be filtered or misrouted, and bracketing the failing operation with `ztoolkit.getGlobal("alert")("Reached: <location>")` is the reliable way to confirm what actually ran.

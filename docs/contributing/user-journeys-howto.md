@@ -415,6 +415,8 @@ Covers what happens when Zotero data disappears underneath the plugin. Every ste
 here is a path where the plugin is reacting to someone else's event, not handling
 its own click.
 
+Walked live on 2026-09-09: steps 1-3 behave exactly as written below.
+
 1. **Do** With the tab open on a mindmap, move _Attention_ to the trash from the
    library.
    **Expect** the node stays on the graph, still labelled. Trashing is not
