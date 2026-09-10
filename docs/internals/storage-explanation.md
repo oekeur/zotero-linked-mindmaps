@@ -16,6 +16,14 @@ A plugin-local database (a sqlite file, or JSON on disk beside the profile) woul
 
 What the note costs is that it is a normal, visible Zotero item. Zotero has no hidden item type to offer. Everything the plugin does about library clutter (the container item, the item-tree filter) is scaffolding around that one fact, and it is worth knowing that before you read either of those modules. See [container-guard-explanation.md](container-guard-explanation.md) and [library-filter-explanation.md](library-filter-explanation.md).
 
+## The two tags are identifiers, not decoration
+
+`_zoterolinkedmindmaps-storage-v1` marks a storage note and `_zoterolinkedmindmaps-container-v1` marks the container. Both are how the plugin finds its own data: `readAllMindmaps` searches on the storage tag rather than sniffing note content, and the container is resolved by tag rather than recorded in a preference, because a preference is device-local and every synced device has to reach the same container from library data alone.
+
+That makes them stored, synced strings that existing libraries already depend on. Do not rename them to make them look tidier or to try to hide them. A rename orphans every library that has one, since nothing would match the old string any more, and it would take a migration pass reading both names to undo. It also would not hide anything, because the leading underscore was never what hid them.
+
+Neither tag shows up in Zotero's tag selector, and that is the item-tree filter's doing rather than the prefix's: the selector's scoped tag list derives from the same search object `libraryFilter` narrows, so it inherits the exclusion for free. Turn `hideMindmapNotes` off and both tags appear, which is the preference working as intended and not a leak. [library-filter-explanation.md](library-filter-explanation.md) has the mechanism, the measurement behind it, and why converting them to automatic tags would not have helped.
+
 ## The read-modify-write race, and the queue
 
 The whole document lives in one note. Adding a link means reading the document, appending to `links`, and writing all of it back. Moving a node does the same. So does renaming a group, or pruning a deleted item.
