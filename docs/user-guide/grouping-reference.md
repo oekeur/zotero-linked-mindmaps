@@ -69,3 +69,5 @@ A grouping change is saved immediately and the graph redraws from what was store
 [Node layout](node-layout-reference.md) for why grouping leaves positions alone.
 
 [Mindmaps section](mindmaps-panel-reference.md) for the "Remove from group" control.
+
+[Why grouping is stored on the node](../internals/grouping-explanation.md) for how membership is recorded and why an emptied group leaves a record behind.

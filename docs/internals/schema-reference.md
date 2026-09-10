@@ -94,7 +94,7 @@ interface MindmapGroup {
 }
 ```
 
-A visual cluster of nodes, not a relationship between them. Membership is recorded on the node (`groupIds`), not in a member list here.
+A visual cluster of nodes, not a relationship between them. Membership is recorded on the node (`groupIds`), not in a member list here; [grouping-explanation.md](grouping-explanation.md) says why.
 
 ## `MindmapNode`
 
@@ -126,11 +126,11 @@ type MindmapNode =
 
 A `member` node is one this mindmap owns. An `external` node is a stub standing in for a node that belongs to another mindmap in the same library; `homeMindmapId` and `homeNodeId` name it. The `ref` is carried on the stub as well so it can be drawn without opening the other document, but the other document stays the source of truth. See [cross-mindmap-cleanup-reference.md](cross-mindmap-cleanup-reference.md).
 
-`groupIds` lists every group the node is in. `groupId` is the single-membership key that shipped first; it is still written, holding `groupIds[0]`, so an install predating overlapping membership draws one of the node's groups rather than none. Read through `groupIdsOf(node)`, never off either key: a document written before `groupIds` existed carries only `groupId`, and reading `groupIds` alone would report it as ungrouped.
-
-Adding `groupIds` alongside `groupId` rather than replacing it is why `schemaVersion` stayed at 1. `parseMindmapDocument` hard-rejects a version mismatch, so bumping it would make a document written here unreadable on an older install — a worse outcome than the divergence the additive approach risks, where an older install rewrites `groupId` and leaves `groupIds` stale. See `decision-3` in the tracker.
+`groupIds` lists every group the node is in. `groupId` is the single-membership key that shipped first and is still written, holding `groupIds[0]`. Read through `groupIdsOf(node)`, never off either key.
 
 Both keys are absent rather than `undefined` when a node is ungrouped, so a never-grouped node and an ungrouped one serialize identically.
+
+For why there are two keys, why membership is recorded here rather than in a member list on the group, and why adding `groupIds` did not move `schemaVersion`, see [grouping-explanation.md](grouping-explanation.md).
 
 ## `MindmapLink`
 

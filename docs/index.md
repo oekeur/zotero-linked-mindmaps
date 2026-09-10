@@ -51,6 +51,7 @@ The documentation here follows [Diataxis](https://diataxis.fr/). Tutorials teach
 | Change how mindmaps are stored | [Storage design](./internals/storage-explanation.md), then [storage reference](./internals/storage-reference.md)          |
 | Add a Zotero notifier observer | [Notifiers and the storage queue](./internals/notifier-queue-explanation.md) first, it constrains what an observer may do |
 | Change the graph's look        | [Rendering design](./internals/rendering-explanation.md)                                                                  |
+| Change how grouping is stored  | [Grouping design](./internals/grouping-explanation.md), which covers the two membership keys and the schema version       |
 
 ## The three sections
 

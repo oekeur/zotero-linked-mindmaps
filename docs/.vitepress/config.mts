@@ -260,6 +260,10 @@ export default defineConfig({
             { text: "Schema design", link: "/internals/schema-explanation" },
             { text: "Schema reference", link: "/internals/schema-reference" },
             {
+              text: "Why grouping is stored on the node",
+              link: "/internals/grouping-explanation",
+            },
+            {
               text: "Why stored JSON is untrusted",
               link: "/internals/validate-explanation",
             },

@@ -12,6 +12,8 @@ Rejecting an unknown version turns that silent loss into a visible failure. `rea
 
 The version doesn't yet do the other thing version fields usually do, which is drive a migration. There is only one version, so there is no migration code and no upgrade path written. When version 2 arrives, the reader will need a branch that reads 1 and rewrites it, and the rejection above is what buys room to add that.
 
+The rejection also prices every bump, which is why the one change that would have called for one did not get it. [Why grouping is stored on the node](grouping-explanation.md) works that case through.
+
 ## Why a position can be null
 
 A node with no position is `position: null`, not `position: {x: 0, y: 0}`.
