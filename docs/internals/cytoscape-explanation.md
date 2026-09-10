@@ -44,7 +44,7 @@ So a headless probe can't reproduce the bug, and a test written against one pass
 
 Two smaller test-facing facts follow from this. Cytoscape owns and mutates the position object it is handed, which is why `buildNodeElement` copies coordinates into a fresh object before passing them along; a test that hands the same object twice can end up asserting something vacuously true. And the tests that exercise dragging emit `dragfree` directly on nodes instead of synthesizing pointer input against a canvas, because the gesture itself isn't reproducible headlessly.
 
-## Observed once: canvas exceeds max size
+## Canvas exceeds max size
 
 Walking the user journeys on 2026-09-09 left this in the error console, from the
 plugin's own bundle and never surfacing in the UI:
@@ -54,17 +54,49 @@ InvalidStateError: CanvasRenderingContext2D.setTransform: Canvas exceeds max siz
   setContextTransform2 -> CRp$5.render -> renderFn -> raf
 ```
 
-It appeared while nodes were being repositioned and `cy.fit()` called on a
-1000x600 window, with one node dragged far from the rest. Cytoscape sizes its
-backing canvas from the rendered extent, so a wide spread plus a zoom that
-enlarges rather than shrinks it is the suspected trigger. Not reproduced
-deliberately, not diagnosed, and the graph kept rendering afterwards.
+**The mechanism, confirmed 2026-09-10.** Not the rendered extent, which an
+earlier draft of this section guessed. `CRp$5.matchCanvasSize` sizes every layer
+canvas straight from `findContainerClientCoords()`, the graph container's client
+rect, and writes that same width back onto Cytoscape's inner `canvasContainer`
+as an explicit px value. The failing line is `context2.setTransform(1,0,0,1,0,0)`
+— an identity transform, which cannot overflow anything by itself. Gecko raises
+`InvalidStateError` there because the canvas backing store is already invalid,
+having been sized past the platform maximum of 32767 px per dimension.
 
-Recorded here rather than acted on. If a mindmap ever renders blank or freezes
-after a drag or a fit, this is the first thing to check —
-[the journeys](../contributing/user-journeys-howto.md) tell you to read
-`zotero_read_errors` after every journey precisely because this class of failure
-never reaches the screen.
+Reproduced by forcing the container wide and calling `cy.resize()`: clean at
+20000 px, and at 40000 px it throws with a byte-identical stack. Zoom is
+irrelevant — `cy.fit()` over an extent half a million units across drops zoom to
+0.001 and resizes nothing.
+
+**What is still unexplained** is how the container reached that width in normal
+use. Nothing reproduced it: switching tabs away and back, collapsing and
+expanding the sidebar, dragging a node to 500000,500000 and fitting, twenty rapid
+sidebar toggles, twenty consecutive `resize()` calls. The container held 780 or
+972 px throughout. So the failure mode is understood and the trigger is not.
+
+If a mindmap ever renders blank or freezes, read the container's client width
+first: anything near 32767 is this bug.
+
+## The graph container grows but never shrinks
+
+Found while chasing the canvas error, and reproducible from a fresh tab:
+
+| step                 | container width |
+| -------------------- | --------------- |
+| tab opened           | 780 px          |
+| sidebar collapsed    | 972 px          |
+| sidebar expanded     | 972 px          |
+| toggled again, twice | 972 px          |
+
+Expanding the sidebar gives its 192 px back, but the graph container keeps them.
+It is `flex: 1 1 0px` with `min-width: 0`, so it should shrink; what holds it
+open is the explicit `width: 972px` that `matchCanvasSize` wrote onto the inner
+`canvasContainer` while the sidebar was collapsed. The graph is then wider than
+the space it occupies until the tab is closed and reopened.
+
+The ratchet is bounded: repeated toggling plateaus at the sidebar-collapsed
+width rather than compounding, so this is not by itself a route to the canvas
+error above. Recorded, not fixed.
 
 ## Debugging when something here breaks
 
