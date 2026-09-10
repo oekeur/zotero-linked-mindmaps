@@ -81,10 +81,17 @@ line, as step 7 of the verification protocol says, is still the way.
 ## The dependency
 
 `introfini/mcp-server-zotero-dev`, MIT, single author. Both halves are pinned
-exactly: the server at `1.1.3` in the client config, the bridge at
-`plugin-v1.0.5` in the worktree hook. The pin on the bridge is not caution for
-its own sake — the port preference does nothing before `plugin-v1.0.5`, whose
-1.0.4 release notes claimed the fix and shipped without it.
+exactly and both are cached under `~/.cache/zotero-mcp-bridge/`: the server at
+`server-1.1.3/`, the bridge at `plugin-v1.0.5/`, each installed once per machine
+by the worktree hook. The pin on the bridge is not caution for its own sake —
+the port preference does nothing before `plugin-v1.0.5`, whose 1.0.4 release
+notes claimed the fix and shipped without it.
+
+The client entries invoke that cached copy as a plain node entry point rather
+than through `npx -y`. npx forks `npm exec` into `sh -c` into node, so every
+registered entry cost three processes and a registry check at each session
+start. Never point an entry at `~/.npm/_npx/<hash>/`: the directory name is a
+content hash and moves on a version bump.
 
 Nothing in `package.json` depends on it. The rig is development tooling that
 sits beside the repo, so if it goes unmaintained the plugin is unaffected and

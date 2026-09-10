@@ -33,7 +33,14 @@ per worktree, so this is once per checkout. Almost all of it is automatic.
    failed write. `extensions.mcp-rdp.port` does stay, so that is the one to grep
    for when checking a profile.
 
-2. Nothing to register. The client pool is already in Oscar's user config.
+2. Nothing to register by hand. The same hook writes this checkout's client
+   entries into `.mcp.json` at its root, gitignored because the port differs per
+   worktree, and names them in `.claude/settings.local.json` so a background or
+   `--print` session connects without an approval prompt.
+
+   **Restart Claude in the checkout afterwards.** An entry added while a session
+   is running only connects at the next session start; `/mcp` reconnects
+   existing servers without rescanning config.
 
 3. Call the entry that matches your port, then run `npm start`, call
    `zotero_ping`, and **read the data directory it reports back**. See the port
@@ -41,9 +48,9 @@ per worktree, so this is once per checkout. Almost all of it is automatic.
 
 ## Which port is this repo's
 
-The pool (`zotero-dev` on 6100, `zotero-dev-6101` through `6110`) is one
-machine-wide resource shared with zoteroTimeline, which carries the same rig. It
-is split by static range:
+The RDP ports are one machine-wide resource shared with zoteroTimeline, which
+carries the same rig. Two Zoteros cannot bind the same port, so the range is
+split by static range:
 
 | checkout                 | ports     | MCP entry           |
 | ------------------------ | --------- | ------------------- |
@@ -53,8 +60,17 @@ is split by static range:
 | zoteroMindmap worktrees  | 6107-6110 | `zotero-dev-<port>` |
 
 **This repo never answers on the bare `zotero-dev` entry.** That one is
-zoteroTimeline's. Calling `mcp__zotero-dev__*` while working here either fails
-to connect or, worse, succeeds against the other project's Zotero.
+zoteroTimeline's, and since entries are registered per checkout it is no longer
+even present in a session started here.
+
+A session in the main checkout carries the whole 6106-6110 range, so it can
+drive every worktree's Zotero in parallel. That is deliberate: subagents reuse
+the parent session's connections rather than spawning their own, so an
+orchestrator needs the sibling entries present at its own launch, and they
+cannot be added once it is running. A worktree session carries only its own
+entry, because worktrees sit inside the main checkout and Claude Code unions
+every `.mcp.json` on the way up; the hook writes `disabledMcpjsonServers` to
+suppress the rest.
 
 The split is static rather than negotiated because neither hook can see the
 other repo's checkouts: each walks only its own `git worktree list` when looking
