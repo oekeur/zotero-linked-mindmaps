@@ -103,7 +103,7 @@ Expanding gave the sidebar its 192 px back and the graph kept them, overflowing
 the deck until the tab was reopened. `min-width: 0` was already on the graph; it
 lets the flex item shrink but does nothing about the min-content it contributes
 upward. `width: 0` does, and since flex-basis is 0 it takes no part in sizing
-the item. Do not remove it (TASK-92).
+the item. Do not remove it.
 
 The ratchet is bounded: it saturates at one sidebar-width overshoot. Cycling the
 dock open and closed between sidebar toggles, which changes a third flex item's
