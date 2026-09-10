@@ -111,7 +111,7 @@ The link-types list is the one part of that pane still built from code, through 
 
 The pane's own label, the one Zotero shows in the preferences sidebar, goes through `getString("preferences-pane-label")` at `Zotero.PreferencePanes.register` time.
 
-`test/mindmap/preferencesPane.test.ts` guards the static half by asserting the link-types and library headings resolve to real text, not a raw id, and guards the dynamic half by exercising selection, add, edit and delete through the rendered controls. The feedback groupbox added later is not covered by that assertion, so it is the one heading that could regress to a raw id without the suite noticing.
+`test/mindmap/preferencesPane.test.ts` guards the static half by asserting that every groupbox heading in the pane resolves to real text, not a raw id, and guards the dynamic half by exercising selection, add, edit and delete through the rendered controls. The heading assertion collects its subjects from the markup (`groupbox[aria-labelledby^="zoterolinkedmindmaps-"] > label > h2`) rather than naming them, so a fourth groupbox added to the pane is covered without the test being touched. It also asserts it found at least the three that ship, which is what catches the selector going stale instead of the strings.
 
 A `ztoolkit.Dialog` window has no l10n context at all. It opens `about:blank`, so it starts with no plugin strings of any kind, and a form built with `data-l10n-id` renders every label and button blank rather than showing a raw id.
 

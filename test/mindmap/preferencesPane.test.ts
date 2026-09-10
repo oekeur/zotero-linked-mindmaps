@@ -53,22 +53,21 @@ describe("mindmap preferences pane", function () {
   });
 
   it("resolves the pane's group headings through Fluent, not raw locale ids", function () {
-    const linkTypesHeading = win.document.getElementById(
-      "zoterolinkedmindmaps-link-types-heading",
+    // Collected from the markup rather than named one by one, so a groupbox
+    // added to the pane later is guarded without anyone remembering to.
+    const headings = queryAll(
+      win.document,
+      'groupbox[aria-labelledby^="zoterolinkedmindmaps-"] > label > h2',
     );
-    const libraryHeading = win.document.getElementById(
-      "zoterolinkedmindmaps-library-heading",
+    assert.isAtLeast(
+      headings.length,
+      3,
+      "expected the link-types, library and feedback headings",
     );
-    assert.isNotNull(linkTypesHeading);
-    assert.isNotNull(libraryHeading);
-    assert.notInclude(
-      linkTypesHeading!.textContent ?? "",
-      "zoterolinkedmindmaps-",
-    );
-    assert.notInclude(
-      libraryHeading!.textContent ?? "",
-      "zoterolinkedmindmaps-",
-    );
+    for (const heading of headings) {
+      assert.notInclude(heading.textContent ?? "", "zoterolinkedmindmaps-");
+      assert.isNotEmpty((heading.textContent ?? "").trim());
+    }
   });
 
   it("renders add, edit and remove controls in the list's own footer", function () {
