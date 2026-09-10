@@ -565,8 +565,17 @@ export async function openMindmapTab(): Promise<void> {
   // one that the graph refuses to shrink. The row then overflows and pushes
   // the dock off the right edge of the tab, where it renders but cannot be
   // seen or reached.
+  //
+  // width: 0 covers the half min-width cannot reach. Cytoscape stamps the
+  // measured width onto its own inner container as an explicit px value, and
+  // that becomes the min-content of this whole subtree. Zotero's tab panel is
+  // a grid item with min-width: auto, so it cannot size below that min-content
+  // and grows past the deck instead. Widening the sidebar then never gives its
+  // space back: collapse it once and the graph keeps the extra width until the
+  // tab is reopened. flex-basis is 0 here, so width takes no part in sizing the
+  // item -- it only stops the stamped width propagating upward.
   graph.style.cssText =
-    "flex: 1 1 0; min-width: 0; height: 100%; position: relative;";
+    "flex: 1 1 0; width: 0; min-width: 0; height: 100%; position: relative;";
   body.appendChild(graph as unknown as Node);
 
   const dock = el(doc, "div");
