@@ -74,29 +74,41 @@ expanding the sidebar, dragging a node to 500000,500000 and fitting, twenty rapi
 sidebar toggles, twenty consecutive `resize()` calls. The container held 780 or
 972 px throughout. So the failure mode is understood and the trigger is not.
 
+The one growth path that did turn up, the sidebar ratchet described below, was
+measured and ruled out: it saturates rather than compounding, and it is fixed
+regardless. The original sighting was on a machine with swap exhausted, minutes
+before the OOM killer took that Zotero, which is the least satisfying and most
+likely explanation left standing.
+
 If a mindmap ever renders blank or freezes, read the container's client width
 first: anything near 32767 is this bug.
 
-## The graph container grows but never shrinks
+## Why the graph container carries `width: 0`
 
-Found while chasing the canvas error, and reproducible from a fresh tab:
+`matchCanvasSize` stamps the measured width onto Cytoscape's own inner
+container as an explicit px value. That stamped width becomes the min-content
+of the whole subtree, and Zotero's `tab-content` panel is a grid item in
+`#tabs-deck` with `min-width: auto`, so it cannot size below that min-content
+and grows past the deck instead.
 
-| step                 | container width |
-| -------------------- | --------------- |
-| tab opened           | 780 px          |
-| sidebar collapsed    | 972 px          |
-| sidebar expanded     | 972 px          |
-| toggled again, twice | 972 px          |
+Before the fix, at a 1000 px window:
 
-Expanding the sidebar gives its 192 px back, but the graph container keeps them.
-It is `flex: 1 1 0px` with `min-width: 0`, so it should shrink; what holds it
-open is the explicit `width: 972px` that `matchCanvasSize` wrote onto the inner
-`canvasContainer` while the sidebar was collapsed. The graph is then wider than
-the space it occupies until the tab is closed and reopened.
+| step              | sidebar | graph | tab panel |
+| ----------------- | ------- | ----- | --------- |
+| tab opened        | 220     | 780   | 1000      |
+| sidebar collapsed | 28      | 972   | 1000      |
+| sidebar expanded  | 220     | 972   | **1192**  |
 
-The ratchet is bounded: repeated toggling plateaus at the sidebar-collapsed
-width rather than compounding, so this is not by itself a route to the canvas
-error above. Recorded, not fixed.
+Expanding gave the sidebar its 192 px back and the graph kept them, overflowing
+the deck until the tab was reopened. `min-width: 0` was already on the graph; it
+lets the flex item shrink but does nothing about the min-content it contributes
+upward. `width: 0` does, and since flex-basis is 0 it takes no part in sizing
+the item. Do not remove it (TASK-92).
+
+The ratchet is bounded: it saturates at one sidebar-width overshoot. Cycling the
+dock open and closed between sidebar toggles, which changes a third flex item's
+width between stamps, still plateaus at 1192 over eight cycles rather than
+compounding. So this was never a route to the canvas error above.
 
 ## Debugging when something here breaks
 
