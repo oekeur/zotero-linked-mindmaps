@@ -1,3 +1,9 @@
+# Written by Claude Code whenever a permission is granted, and git-ignored
+# through a global ignore rule rather than anything in this repo. Prettier does
+# not read gitignore, so without this line it checks the file and fails the
+# lint stage of scripts/verify.sh mid-session.
+.claude/settings.local.json
+
 .vscode
 build
 logs
