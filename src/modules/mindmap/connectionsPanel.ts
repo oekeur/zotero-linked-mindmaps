@@ -88,11 +88,16 @@ export class ConnectionsPanelFactory {
         setEnabled(canBeMindmapNode(item));
         return true;
       },
-      onRender: ({ body }) => {
-        body.textContent = "";
-      },
-      onAsyncRender: async ({ body, item }) => {
-        await renderConnectionsContent(body, item);
+      // Content is drawn from onRender, not onAsyncRender. Zotero's item pane
+      // calls asyncRender only for a pane inside the scrolled viewport
+      // (itemDetails.js's isPaneVisible gate in its render loop), and a
+      // plugin section is appended after every one of Zotero's own, so on a
+      // pane with more than a handful of fields it sits below the fold and
+      // stays blank until the user scrolls to it. onRender has no such gate:
+      // it fires for every selection of an enabled section. It cannot be
+      // async itself, so it starts the read and lets it finish detached.
+      onRender: ({ body, item }) => {
+        void renderConnectionsContent(body, item);
       },
     });
   }
@@ -491,23 +496,39 @@ export async function renderConnectionsContent(
 ): Promise<void> {
   const shown = await renderPanelBody(container, item, mindmapId);
   // After the body, because the form container it reveals is part of what the
-  // body draws. A no-op on the error state, which has no form to open.
-  if (openAddLink) {
+  // body draws. A no-op on the error state, which has no form to open, and on
+  // a superseded call, whose container now belongs to a later render.
+  if (openAddLink && shown !== null) {
     openAddLinkForm(container, item, shown);
   }
 }
 
 /**
+ * Which call still owns the right to write into a given container. Keyed by
+ * container rather than by item: the item pane reuses one body element across
+ * selections, and arrow-keying through the list starts one detached render
+ * per selection, which do not resolve in call order. Set synchronously at the
+ * top of every call, so dispatch order decides which call's answer survives;
+ * a call whose generation no longer matches once its read is back is a
+ * superseded selection and writes nothing.
+ */
+const renderGeneration = new WeakMap<HTMLElement, symbol>();
+
+/**
  * Draws the panel and reports which mindmap it ended up showing, so the
  * add-link form targets that one rather than resolving the item's mindmap a
  * second time and possibly landing elsewhere. Undefined means the panel found
- * no mindmap to show - the form then falls back to asking.
+ * no mindmap to show - the form then falls back to asking. Null means a later
+ * call took the container over while this one was reading, and nothing was
+ * drawn.
  */
 async function renderPanelBody(
   container: HTMLElement,
   item: Zotero.Item,
   mindmapId?: string,
-): Promise<string | undefined> {
+): Promise<string | undefined | null> {
+  const generation = Symbol();
+  renderGeneration.set(container, generation);
   const doc = container.ownerDocument!;
   container.textContent = "";
 
@@ -515,7 +536,7 @@ async function renderPanelBody(
     return undefined;
   }
 
-  let found: PanelMindmap;
+  let found: PanelMindmap | undefined;
   try {
     found = await findMindmapForItem(item, mindmapId);
   } catch (err) {
@@ -525,6 +546,11 @@ async function renderPanelBody(
       }`,
       err,
     );
+  }
+  if (renderGeneration.get(container) !== generation) {
+    return null;
+  }
+  if (!found) {
     appendL10nText(container, doc, getLocaleID("item-mindmaps-error-state"));
     return undefined;
   }

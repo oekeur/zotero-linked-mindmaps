@@ -63,6 +63,37 @@ describe("mindmap/connectionsPanel", function () {
     assert.equal(form!.childElementCount, 0);
   });
 
+  // The item pane's onRender fires one detached render per selection into the
+  // same body element, so two selections in quick succession overlap. Only the
+  // later call may draw: without the guard the container ends up holding both
+  // answers, or the earlier one, depending on which read lands last.
+  it("lets only the later of two overlapping renders into the same container draw", async function () {
+    this.timeout(30000);
+    await clearStorageNotes();
+    const other = new Zotero.Item("journalArticle");
+    other.libraryID = Zotero.Libraries.userLibraryID;
+    other.setField("title", "Never added to a mindmap");
+    await other.saveTx();
+    try {
+      const mindmap = await createMindmap("Race");
+      await addToMindmap([article], mindmap.id);
+
+      await Promise.all([
+        renderConnectionsContent(container, article, mindmap.id),
+        renderConnectionsContent(container, other),
+      ]);
+
+      assert.isNull(
+        container.querySelector(".mindmap-current"),
+        "the superseded render for the node item drew into the container",
+      );
+      assert.equal(queryAll(container, ".mindmap-empty").length, 1);
+    } finally {
+      await other.eraseTx();
+      await clearStorageNotes();
+    }
+  });
+
   describe("choosing a target mindmap", function () {
     function addLinkButton() {
       return container.querySelector(
