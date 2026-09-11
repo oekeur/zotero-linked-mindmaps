@@ -53,15 +53,18 @@ note on "Attention Mechanisms in Sparse Graphs", and one link attachment on
 Journeys refer to items by short name: _Attention_, _Citations_, _Layout_,
 _Notes_, _Tags_, _Trails_, _Structure_ (the book).
 
-## An item-pane section below the fold never renders
+## An item-pane section below the fold reads as empty for a moment
 
-Zotero fills a custom item-pane section through `onAsyncRender`, and only when
-the section is actually visible. The dev window is 1000x600; the Mindmaps section
-sits near the bottom of the item pane and lands around y=1422 in it. Read its
-body without scrolling and you get an empty string, which looks exactly like the
-plugin failing to render.
+The Mindmaps section draws its content from `onRender`, which Zotero calls for
+every selection of an enabled section regardless of scroll position (it used to
+draw from `onAsyncRender`, which Zotero skips for any section outside the
+scrolled viewport, and a section below the fold then stayed empty until scrolled
+to). `onRender` cannot be async, so the read runs detached: read the body in the
+same tick as the selection and you get an empty string, which looks exactly like
+the plugin failing to render. Wait a moment, or poll the body, before reading.
 
-Call `scrollIntoView()` on the section and wait before reading it:
+The dev window is 1000x600 and the section sits near the bottom of the item
+pane, around y=1422, so a screenshot still needs `scrollIntoView()` on it:
 
 ```js
 const sec = Zotero.getMainWindow().document.querySelector(
@@ -70,9 +73,9 @@ const sec = Zotero.getMainWindow().document.querySelector(
 sec.scrollIntoView();
 ```
 
-This cost a false bug report during the first walk of J1. The error console was
-clean throughout, which is the tell: a section that threw would have left an
-entry.
+An empty body cost a false bug report during the first walk of J1. The error
+console was clean throughout, which is the tell: a section that threw would
+have left an entry.
 
 ## Driving the rig: six things that will waste your time
 

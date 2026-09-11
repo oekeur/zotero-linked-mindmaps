@@ -41,6 +41,7 @@ For an expected-and-handled condition: something the code already accounts for, 
 | `mindmapTab.ts` (handleDelete)                           | mindmap delete failed                                                                             | failure                 |
 | `storage.ts` (findMindmapById)                           | unreadable storage note, skipped while resolving an id                                            | failure                 |
 | `storage.ts` (readAllMindmaps)                           | unreadable storage note, skipped while listing                                                    | failure                 |
+| `storage.ts` (emitStorageWrite)                          | a storage write listener threw, or its returned promise rejected                                  | failure                 |
 
 The two `deletionCleanup.ts` and `connectionsPanel.ts` (unregister) trace-level sites are the only call sites in the plugin that stayed at trace after this pass: each catches a condition its own comment already documents as expected, not a failure a bug report would need surfaced.
 
