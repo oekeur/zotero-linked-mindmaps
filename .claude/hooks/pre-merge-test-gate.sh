@@ -277,12 +277,18 @@ else
 fi
 test_pid=$!
 
-# Wait up to 12 minutes for the summary line to appear, polling every 2s.
-# The suite takes about 150 seconds (2.5 minutes) for 274 tests in isolation
-# but stretches several-fold when other Zotero instances are running on the
-# same machine, so a tighter ceiling blocks merges that would have passed.
+# Wait up to 20 minutes for the summary line to appear, polling every 2s.
+# The suite takes about 140 seconds for 354 tests in isolation (measured
+# 2026-09-12, both via test:fast and via this gate's own path in a detached
+# worktree: 135s and 138s), but stretches several-fold when other Zotero
+# instances are running on the same machine -- a ~2min solo run has reached
+# tens of minutes under two concurrent agents. The ceiling exists to catch a
+# genuinely stalled Zotero GUI, not to bound contention, so it sits well above
+# worst-case contention rather than near the solo time; a tighter one blocks
+# merges that would have passed. The settings.json hook timeout must stay
+# above this by enough to cover the kill-and-wait cleanup below.
 elapsed=0
-while [ "$elapsed" -lt 720 ]; do
+while [ "$elapsed" -lt 1200 ]; do
   if grep -q "Test run completed" "$log" 2>/dev/null; then
     break
   fi
