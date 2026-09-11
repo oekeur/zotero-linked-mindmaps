@@ -16,6 +16,7 @@ import { logFailure, logTrace } from "../../utils/logging";
 import {
   findAllMindmapNotes,
   listMindmaps,
+  onStorageWrite,
   readDocumentFromNote,
   readMindmapDocument,
   refreshNote,
@@ -54,6 +55,54 @@ const PANE_ID = "zotero-linked-mindmaps-connections";
 const ADD_BUTTON_TYPE = "add";
 
 let registeredPaneID: string | false = false;
+
+/**
+ * The `refresh` Zotero handed each live instance of this section, keyed on
+ * the instance's own body element rather than on the window. One window
+ * holds several instances: the library pane's item-details, plus one per
+ * reader or note tab's context pane (contextPane.js builds an item-details
+ * for each). Keyed on the window, the last onInit wins, and a write's refresh
+ * lands on a note tab's copy while the library pane keeps its old answer.
+ * `body` is set once per element and handed back unchanged to onDestroy, so
+ * init and destroy agree on which entry is theirs.
+ */
+const paneRefreshers = new Map<HTMLElement, () => Promise<void>>();
+
+let unsubscribeStorageWrite: (() => void) | null = null;
+
+/** The item the pane holding `body` is displaying; undefined once detached. */
+function paneItemFor(body: HTMLElement): Zotero.Item | undefined {
+  if (!body.isConnected) {
+    return undefined;
+  }
+  const details = body.closest("item-details") as
+    (Element & { item?: Zotero.Item }) | null;
+  return details?.item ?? undefined;
+}
+
+/**
+ * `_pendingRender` and `skipRender` are private state of Zotero's
+ * item-details element (chrome/content/zotero/elements/itemDetails.js).
+ * While its tab is not the selected one it sets skipRender on every pane it
+ * owns, and `_forceRenderAll` then only marks the section pending, never the
+ * item-details itself. Reselecting the tab calls render() only when the
+ * item-details' own `_pendingRender` is set, and nothing sets it except its
+ * own render() running while suppressed, which a write never triggers. So a
+ * write made from the mindmap tab needs this second lever, or returning to
+ * the library shows the section as it was before the write. Verified against
+ * Zotero 10.0-beta (/opt/zotero-beta); re-check on a Zotero upgrade.
+ */
+type ItemDetailsElement = Element & {
+  skipRender?: boolean;
+  _pendingRender?: boolean;
+};
+
+function armPendingRenderIfSuppressed(body: HTMLElement): void {
+  const details = body.closest("item-details") as ItemDetailsElement | null;
+  if (details?.skipRender) {
+    details._pendingRender = true;
+  }
+}
 
 export class ConnectionsPanelFactory {
   static register() {
@@ -99,10 +148,53 @@ export class ConnectionsPanelFactory {
       onRender: ({ body, item }) => {
         void renderConnectionsContent(body, item);
       },
+      onInit: ({ body, refresh }) => {
+        paneRefreshers.set(body, refresh);
+      },
+      // A torn-down instance (its tab closed, or the section unregistered)
+      // must stop being a refresh target. Its refresh would call into a
+      // disconnected section, which the `initialized` guard silently no-ops
+      // on, so a leaked entry is invisible until a write is lost.
+      onDestroy: ({ body }) => {
+        paneRefreshers.delete(body);
+      },
+    });
+
+    // The section renders on selection and never again on its own, so a link
+    // added from the mindmap tab, or a node pruned by deletion cleanup, left
+    // it showing the previous answer until the user reselected. Re-rendering
+    // on every write this plugin commits is what keeps it current.
+    //
+    // Through the section's own refresh(), never by drawing into a captured
+    // body. Zotero's render loop sets box.item and hides a disabled section
+    // before deciding whether to call render(), so for an item this section
+    // is disabled for the cached render-dependency key is never updated.
+    // Drawing into the body directly then leaves that content in place, and
+    // reselecting the original item finds the key unchanged and skips the
+    // render. refresh() resets the key unconditionally and, while hidden,
+    // only marks a render pending.
+    //
+    // The library check comes first: refresh() cannot say which item it
+    // would render for, so each live instance's displayed item is read at
+    // call time and only the ones in the written library are refreshed.
+    unsubscribeStorageWrite = onStorageWrite((libraryID) => {
+      for (const [body, refresh] of paneRefreshers) {
+        const item = paneItemFor(body);
+        if (!item || item.libraryID !== libraryID) {
+          continue;
+        }
+        void refresh();
+        armPendingRenderIfSuppressed(body);
+      }
     });
   }
 
   static unregister() {
+    if (unsubscribeStorageWrite) {
+      unsubscribeStorageWrite();
+      unsubscribeStorageWrite = null;
+    }
+    paneRefreshers.clear();
     if (!registeredPaneID) {
       logTrace(
         "[zoteroLinkedMindmaps] Connections section was never registered; skipping unregister",

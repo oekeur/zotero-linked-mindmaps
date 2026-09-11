@@ -469,6 +469,7 @@ async function createNoteFor(
   item.setNote(buildNoteHtml(doc));
   item.addTag(STORAGE_TAG);
   await item.saveTx();
+  emitStorageWrite(libraryID);
   return item;
 }
 
@@ -612,6 +613,7 @@ async function saveDocumentToNote(
     item.setNote(buildNoteHtml(doc));
     await item.save();
   });
+  emitStorageWrite(item.libraryID);
 }
 
 // The whole document lives in one note, so every caller that changes part of
@@ -707,6 +709,7 @@ export async function deleteMindmap(
     if (typeof containerID === "number") {
       await eraseContainerIfEmpty(containerID);
     }
+    emitStorageWrite(libraryID);
   });
 }
 
@@ -760,4 +763,52 @@ export async function updateMindmapDocument(
  */
 export async function whenStorageIdle(): Promise<void> {
   await queue;
+}
+
+export type StorageWriteListener = (libraryID: number) => void;
+
+// A Notifier observer cannot carry this signal. At an "add" notification a
+// new note's tags are not yet queryable, so a storage note is not
+// distinguishable from any other note, and awaiting the tags or deferring a
+// tick does not change that. The write path is the one place that knows a
+// mindmap write landed, so the listener set lives here rather than on top of
+// Notifier.
+const storageWriteListeners = new Set<StorageWriteListener>();
+
+/**
+ * Subscribes to every mindmap write this module commits: a note created,
+ * a document saved, a mindmap deleted. Fires after the write has landed, so
+ * a listener that reads back sees the new state. Returns a function that
+ * removes the listener.
+ */
+export function onStorageWrite(cb: StorageWriteListener): () => void {
+  storageWriteListeners.add(cb);
+  return () => {
+    storageWriteListeners.delete(cb);
+  };
+}
+
+/**
+ * Post-commit by construction: every call site sits after an awaited
+ * saveTx, eraseTx or executeTransaction. A listener that throws, or returns
+ * a promise that rejects, is logged and does not stop the others. Iterates
+ * a snapshot of the set, so a listener that unsubscribes and resubscribes
+ * itself inside its own handler is not visited twice on one emit.
+ */
+function emitStorageWrite(libraryID: number): void {
+  for (const listener of Array.from(storageWriteListeners)) {
+    try {
+      const result: unknown = listener(libraryID);
+      if (result && typeof (result as Promise<void>).then === "function") {
+        (result as Promise<void>).catch((err) => {
+          logFailure(
+            "[zoteroLinkedMindmaps] a storage write listener threw",
+            err,
+          );
+        });
+      }
+    } catch (err) {
+      logFailure("[zoteroLinkedMindmaps] a storage write listener threw", err);
+    }
+  }
 }
