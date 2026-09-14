@@ -1,0 +1,13 @@
+diff --git a/types/zoteroTabs.d.ts b/types/zoteroTabs.d.ts
+index f1733f1..8b49cce 100644
+--- a/types/zoteroTabs.d.ts
++++ b/types/zoteroTabs.d.ts
+@@ -35,7 +35,7 @@ declare namespace _ZoteroTypes {
+       id?: string;
+       type: string;
+       title: string;
+-      data?: any;
++      data: object;
+       index?: number;
+       select?: boolean;
+       onClose?: Function;

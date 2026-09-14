@@ -11,3 +11,7 @@ node_modules
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Ready-to-apply upstream fixes under findings/ are diffs, not source; Prettier
+# has no parser for them and errors the lint stage otherwise.
+*.patch

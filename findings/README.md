@@ -46,6 +46,41 @@ scaffold discards Zotero's stdout is true of the installed 0.8.8 and false from
 `0.x` minor bump with a changed launch path), so the note now names the version
 rather than being dropped.
 
+### Re-checked 2026-09-14
+
+All twelve still stand; nothing was fixed upstream between 2026-09-11 and now.
+`zotero/zotero` moved (HEAD `3c959e1`, 2026-09-11) and `zotero-tabs-add-missing-data-validation`
+was re-read against it: `add()` still validates `title`/`index`/`onClose` and
+not `data`, the `typeof type` block is still empty, and `_update()` still reads
+`tab.data.icon` unguarded, so the crash is intact. The other five target repos
+were at the exact SHAs of the 2026-09-11 check (scaffold `54b93b3`, template
+`306d4e2`, toolkit `ec6353c`, zotero-types `6c57b6b`, docs `e92475c`), so those
+findings are byte-for-byte unchanged; each location was spot-confirmed anyway.
+`scaffold-zotero-stdout-discarded` remains partial (serve fixed in 0.9.1, the
+test runner still drops output).
+
+### Ready-to-apply fixes
+
+Four findings now carry a `fix.patch` next to their write-up, generated against
+the HEADs above and verified to apply cleanly:
+
+- `scaffold-no-remote-arg-missing-dash/fix.patch` and
+  `types-zotero-tabs-data-not-optional/fix.patch` are complete one-line fixes.
+- `scaffold-parse-repo-url/fix.patch` and
+  `scaffold-placeholder-not-substituted/fix.patch` are drafts that carry a design
+  choice a maintainer may weigh in on (a regex rewrite that avoids adding
+  `hosted-git-info`; a warn-not-fail leftover-token scan scoped to text assets).
+  Their runtime logic is tested (the parser handles SSH/scp/optional-`.git`/dotted
+  names/non-`.com` hosts and rejects nested paths; the scan handles the no-match
+  case), but they were not compiled against the scaffold's pnpm workspace -- run
+  `pnpm build:tsc` in the fork before opening the PR.
+
+Apply from the root of a fork clone with `git apply path/to/fix.patch`. The two
+scaffold `package.json`-validation fixes (`parse-repo-url`, `placeholder`) are one
+PR's worth of work; `no-remote` pairs with the process-lifecycle `kill-zotero`
+finding, which has no patch yet (it needs the detach/process-group rework the
+write-up describes).
+
 ## Where this directory lives
 
 Decision, 2026-09-11: `findings/` is brought into `main` on this branch as a

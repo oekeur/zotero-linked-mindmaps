@@ -1,0 +1,34 @@
+diff --git a/src/core/builder/replace.ts b/src/core/builder/replace.ts
+index f3009fc..54afe95 100644
+--- a/src/core/builder/replace.ts
++++ b/src/core/builder/replace.ts
+@@ -56,4 +56,29 @@ export default async function replaceDefine(dist: string, define: BuildConfig["d
+     to: [...replaceMap.values()],
+     // isGlob: false,
+   });
++
++  // A `__key__` token whose key is absent from `define` is left untouched and
++  // shipped verbatim, then fails far from its cause -- at install time, with a
++  // message naming a manifest key rather than the package.json field to edit.
++  // Warn (rather than fail) here so the miss surfaces at build time, listing
++  // the file and token. Scoped to the text assets that carry these tokens, to
++  // avoid scanning binary files under addon/content.
++  const leftoverToken = /__[A-Za-z0-9_]+__/g;
++  const textFiles = await glob(
++    `${dist}/addon/**/*.{html,xhtml,ftl,css,json,js,txt}`,
++  );
++  const leftovers: string[] = [];
++  await Promise.all(
++    textFiles.map(async (path) => {
++      const contents = await readFile(path, "utf-8");
++      for (const token of new Set(contents.match(leftoverToken)))
++        leftovers.push(`${path}: ${token}`);
++    }),
++  );
++  if (leftovers.length > 0) {
++    logger.warn(
++      `Unsubstituted placeholder tokens remain in the build (no matching key `
++      + `in \`define\`):\n  ${leftovers.join("\n  ")}`,
++    );
++  }
+ }

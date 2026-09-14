@@ -1,0 +1,36 @@
+diff --git a/src/utils/string.ts b/src/utils/string.ts
+index 20f7af0..4c9eca6 100644
+--- a/src/utils/string.ts
++++ b/src/utils/string.ts
+@@ -43,12 +43,27 @@ export function parseRepoUrl(url?: string): {
+   owner: string;
+   repo: string;
+ } {
+-  if (!url)
+-    throw new Error("Parse repository URL failed.");
++  if (!url) {
++    throw new Error(
++      "Parse repository URL failed: package.json#repository.url is not set.",
++    );
++  }
+ 
+-  const match = (url).match(/:\/\/.+com\/([^/]+)\/([^.]+)\.git$/);
++  // Accept https/git+https/ssh URLs and scp-like `git@host:owner/repo` remotes,
++  // any host, an optional `.git` suffix and trailing slash, and dots in the repo
++  // name. Owner and repo are each a single path segment, so a nested path does
++  // not silently mis-parse -- it fails and is reported.
++  const normalized = url
++    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
++    .replace(/^[^/@]+@/, "")
++    .replace(":", "/");
++  const match = normalized.match(/^[^/]+\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+   if (!match) {
+-    throw new Error("Parse repository URL failed.");
++    throw new Error(
++      `Parse repository URL failed: could not read owner and repo from `
++      + `package.json#repository.url ("${url}"). Expected a form like `
++      + `https://github.com/owner/repo(.git) or git@github.com:owner/repo.git.`,
++    );
+   }
+   const [, owner, repo] = match;
+   return { owner, repo };

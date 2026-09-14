@@ -1,0 +1,13 @@
+diff --git a/src/utils/zotero-runner.ts b/src/utils/zotero-runner.ts
+index edae403..791c277 100644
+--- a/src/utils/zotero-runner.ts
++++ b/src/utils/zotero-runner.ts
+@@ -167,7 +167,7 @@ export class ZoteroRunner {
+ 
+   private async startZoteroInstance() {
+     // Build args
+-    let args: string[] = ["--purgecaches", "no-remote"];
++    let args: string[] = ["--purgecaches", "--no-remote"];
+     if (this.options.profile.path) {
+       args.push("-profile", resolve(this.options.profile.path));
+     }
