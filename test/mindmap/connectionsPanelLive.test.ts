@@ -44,7 +44,13 @@ describe("mindmap/connectionsPanel: the registered section", function () {
     article.setField("title", "Connections Section Live Article");
     // Zotero selects a single item added through the API unless told not to,
     // which would render the section here, before the spec's own write, and
-    // turn its later selectItem into a no-op.
+    // turn its later selectItem into a no-op. skipSelect covers the add path
+    // alone. Zotero 7 to 9 also keep the erased previous article's row index
+    // in the tree's selection set once the list is empty; the next add makes
+    // that index valid again and sort() restores it as a selection of the
+    // new item, skipSelect or not. Clearing the set first closes that path.
+    // Zotero 10's rewritten item tree does not carry the stale index.
+    win.ZoteroPane.itemsView.selection.clearSelection();
     await article.saveTx({ skipSelect: true });
   });
 
