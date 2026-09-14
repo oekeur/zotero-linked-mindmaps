@@ -46,6 +46,14 @@ Bring up a dev Zotero for this checkout, seeded and observable.
    6107 upward for worktrees. The bare `zotero-dev` entry is zoteroTimeline's and
    will answer confidently about the wrong Zotero. Confirm with `zotero_ping`.
 5. `zotero_clear_logs`, so the error reads below start from a clean slate.
+6. Check `pgrep -f "zotero-plugin test"` first, and again if your Zotero dies
+   for no reason. When any scaffold test run on the machine exits, in this
+   project or another, `zotero-plugin-scaffold` 0.8.8 runs `pkill -9 zotero`
+   (see `findings/scaffold-kill-zotero-unscoped`), which takes your dev
+   instance with it seconds after "Server Ready". Four restarts were lost to
+   parallel zoteroTimeline runs on 2026-09-14. Mindmap state survives in the
+   profile, so a restart resumes where you were; a run stuck in watch mode
+   never reaches the kill and is safe to start alongside.
 
 The fixture gives you six journal articles, one book, a standalone note, a child
 note on "Attention Mechanisms in Sparse Graphs", and one link attachment on
@@ -77,10 +85,10 @@ An empty body cost a false bug report during the first walk of J1. The error
 console was clean throughout, which is the tell: a section that threw would
 have left an entry.
 
-## Driving the rig: six things that will waste your time
+## Driving the rig: eight things that will waste your time
 
 Walking these through `zotero_execute_js` and `zotero_click_element` hits the
-same traps every time. All six were paid for once already.
+same traps every time. All eight were paid for once already.
 
 **Wrap in an async IIFE yourself.** The tool auto-wraps code with a top-level
 `return`, but that wrapper failed on at least one script here with "await is only
@@ -123,6 +131,27 @@ General instead. Click
 "Mindmaps") in `#prefs-navigation` first. The pane is inlined into the
 preferences document, not iframed, so once shown it is queryable directly.
 
+**A `_cyreg.cy` handle dies on the next write.** `attachLiveRefresh` answers
+every storage notification by destroying the Cytoscape instance and rendering a
+new one. A handle taken before an add, a link save or a group change keeps
+answering afterwards, with the old node count, and never throws. Read
+`document.getElementById("zoterolinkedmindmaps-mindmap-container")._cyreg.cy`
+again after each step that writes; J3 step 3 looked like a live-refresh failure
+until the handle was re-read.
+
+**Group rename and ungroup live behind a right-click on the region.** There is
+no button for them: `attachGroupingHandlers` listens for Cytoscape's `cxttap` on
+the core and hit-tests the position against the group overlay. `cy.emit()` with
+an event object built in the debugger compartment fails with
+`events.split is not a function`, because Cytoscape's plain-object check does not
+recognise it. Dispatch real `MouseEvent`s (`mousedown` then `mouseup`, `button:
+2`) on the container's last `<canvas>` at a client position inside the region
+but outside the node: model `x` of the node minus 33, converted with
+`cy.zoom()` and `cy.pan()`, lands inside a single-node region (radius 40) and
+clear of the node (radius 25). The menu is `div.mindmap-group-menu` inside the
+container, holding an `<input>` with the current name and the buttons "Rename
+group" and "Ungroup".
+
 **The journeys are not independent.** J2 and J3 assume the mindmap tab is open
 and a mindmap selected, which is where J1 leaves you; J7's link-type steps assume
 links exist, which is where J2 leaves you. Reopening the tab selects the **first**
@@ -148,12 +177,13 @@ the container item that all storage hangs off. If the container is not created
 correctly nothing else in this document works, so run this one first after any
 storage change.
 
-Walked against 10.0-beta.25 on 2026-09-09; every expectation below is what
-actually happened, not what the source suggested. J2 (steps 1-4, 9-11), J3 (steps 1-2),
-J4 (steps 1-2) and J7 (step 1) were walked the same way, across two Zotero
-instances. **J5 and J6 have not been walked at all**, nor have J2 steps 5-8, J3
-steps 3-6, J4 steps 3-4 or J7 steps 2-5 — treat those as drafts, and expect a
-similar error rate to the two mistakes J1 and the one J2 turned up.
+Walked against 10.0-beta.25 on 2026-09-09, and again in full on 2026-09-14 at
+`6f88e73` on a fresh worktree profile: every step of all seven journeys, 44 in
+total, with no plugin entry in the error console at any point. Every
+expectation below is what actually happened, not what the source suggested. The
+second walk corrected J4 steps 2-4, rewrote J5 and J6 steps 4-6, and added two
+rig traps; nothing it found was a defect in the plugin, though J6 left one open
+question in `docs/internals/container-guard-explanation.md`.
 
 1. **Do** Tools → Mindmap.
    **Expect** a new tab titled "Mindmap", with
@@ -359,21 +389,32 @@ you whether one rendered.
 
 2. **Do** Select _Layout_, _Tags_ and the "Preprint (link)" attachment. Group
    them as `Layout work`.
-   **Expect** the skipped message: "1 item was left out: only items and notes can
-   be grouped." The attachment is not added — the node count rises by one (for
-   _Tags_), not two. _Layout_ now lists **both** group ids in `groupIds` and
-   carries two dots in different colours.
+   **Expect** two lines in the progress popup: "Grouped 2 items on Reading
+   trails" and "1 item was left out: only items and notes can be grouped." The
+   attachment is not added. If J3 ran first, _Tags_ is already a node and the
+   count stays at six; without J3 it rises by one, never by two. _Layout_ now
+   lists **both** group ids in `groupIds` and carries two dots in different
+   colours.
+   **Probe** the popup closes after three seconds and its text is not logged.
+   Wrap `ztoolkit.ProgressWindow.prototype.createLine` (reach it through
+   `Zotero.ZoteroLinkedMindmaps.data.ztoolkit`) to record `{type, text}` before
+   the step, then read the record.
    **Probe** screenshot. The two regions get distinct colours, overlap at
    _Layout_, and neither erases the other; both labels render above their bands.
 
-3. **Do** Select a node in a group. Rename the group, then ungroup it.
-   **Expect** the label updates; ungrouping removes the region but leaves every
-   node in place.
+3. **Do** Right-click the canvas inside a group's region (see the rig note above;
+   selecting a node does nothing here). Type a new name into the menu's input
+   and click "Rename group"; right-click the region again and click "Ungroup".
+   **Expect** the overlay's `<text>` for that group updates to the new name;
+   ungrouping removes the region and the entry in the document's `groups`, and
+   every node holds its position.
+   **Probe** node positions before and after, and `groups` in the storage note.
 
 4. **Do** In the item pane for _Layout_, use "Remove from group".
-   **Expect** the button names the group where it has one ("Remove from
-   \"Method\""). Removing from one group leaves the other membership intact and
-   drops one dot.
+   **Expect** one `button.mindmap-remove-from-group` per membership, each naming
+   its group ("Remove from \"Method\"", "Remove from \"Layout work\""). Clicking
+   the first leaves the other membership intact, drops that button, and the node
+   goes from two dots to one.
 
 **Then** `zotero_read_errors`.
 
@@ -385,28 +426,40 @@ Covers the cross-mindmap path: a node that lives on one mindmap appearing on
 another, and what happens to it when its home is deleted. This is a whole module
 (`crossMindmapCleanup.ts`) with no manual coverage otherwise.
 
-1. **Do** Create a second mindmap, `Side reading`. Add _Trails_ and _Structure_
+Walked live on 2026-09-14; every expectation below is what happened.
+
+1. **Do** Create another mindmap, `Side reading`. Add _Trails_ and _Structure_
    to it.
-   **Expect** the sidebar lists two mindmaps; switching between them swaps the
-   graph.
+   **Expect** the sidebar lists three mindmaps (the default "Mindmap" from J1
+   step 1 is still there); switching between them swaps the graph, six nodes
+   against two.
 
-2. **Do** On _Side reading_, open the add-link dialog for _Trails_ and use "Link
-   to another mindmap…".
-   **Expect** the other mindmap is offered. With only one mindmap in the library
-   this control instead reads "No other mindmaps yet."
+2. **Do** With _Trails_ selected in the library, open the section's inline form
+   (the picker reads "Side reading") and click "Link to another mindmap…".
+   **Expect** two more selects appear in the form: one listing the other
+   mindmaps ("Mindmap", "Reading trails"), one for that mindmap's nodes, empty
+   until a mindmap is chosen. Still no second window. With only one mindmap in
+   the library this control instead reads "No other mindmaps yet."
 
-3. **Do** Link _Trails_ to a node from _Reading trails_.
-   **Expect** an external node appears on _Side reading_, styled per the legend's
-   "Node from another mindmap" row and visibly distinct from a member node.
-   **Probe** screenshot, plus the node's data in Cytoscape.
+3. **Do** Choose "Reading trails", then _Attention_ from its nodes, then Save.
+   **Expect** the Target reads "Attention Mechanisms in Sparse Graphs (Reading
+   trails)" before saving. Afterwards the item pane shows "cites → Attention
+   Mechanisms in Sparse Graphs" and _Side reading_ gains a third node with the
+   Cytoscape class `external-node`, drawn with the legend's dotted outline and an
+   edge from _Trails_.
+   **Probe** screenshot, plus `n.classes()` on the new node.
 
-4. **Do** Delete _Reading trails_ (sidebar delete control).
-   **Expect** a confirm naming the title and warning that links and layout go
-   with it, and stating the items themselves stay in the library. Confirm it.
-   **Expect** on _Side reading_, the external node and its link are gone rather
-   than left dangling.
+4. **Do** Delete _Reading trails_ (`.mindmap-sidebar-delete` on its row, title
+   "Delete"). It opens a native confirm titled "Delete mindmap", drivable like
+   the group prompt.
+   **Expect** the body: `Delete "Reading trails"? Its links and layout go with
+it. The items and notes it points at stay in your library.` Confirm it.
+   **Expect** the row leaves the sidebar without a reopen, and on _Side reading_
+   the external node and its link are gone both from the live graph and from
+   the storage note's `nodes` and `links`.
    **Probe** `zotero_read_errors` immediately — cleanup runs from a notifier
-   observer, which is exactly where an unawaited write queue surfaces.
+   observer, which is exactly where an unawaited write queue surfaces. Walked
+   here: nothing new.
 
 **Then** re-seed by recreating _Reading trails_ if you plan to run J6.
 
@@ -418,7 +471,13 @@ Covers what happens when Zotero data disappears underneath the plugin. Every ste
 here is a path where the plugin is reacting to someone else's event, not handling
 its own click.
 
-Walked live on 2026-09-09: steps 1-3 behave exactly as written below.
+Walked live on 2026-09-09 (steps 1-3) and 2026-09-14 (all eight). Steps 4-6
+turned up one behaviour the source confirms and a first draft got wrong: the
+trash observer in `containerGuard.ts` only shows the warning. It refreshes
+nothing, so an open tab keeps listing and rendering a mindmap whose note was
+just trashed until the sidebar next refreshes (select another row, or close and
+reopen the tab). Recorded as an open question in the internals docs rather than
+fixed here.
 
 1. **Do** With the tab open on a mindmap, move _Attention_ to the trash from the
    library.
@@ -442,16 +501,26 @@ Walked live on 2026-09-09: steps 1-3 behave exactly as written below.
 4. **Do** Turn off the hide preference (J7 step 1), find the storage note, and
    trash it.
    **Expect** the warning "A mindmap's data note was moved to the trash. That
-   mindmap stays hidden until you restore it." The mindmap leaves the sidebar
-   rather than rendering empty.
+   mindmap stays hidden until you restore it." It is a dismiss-on-click
+   `ProgressWindow` with no close timer, so it is still there when you look.
+   The mindmap leaves the sidebar on the sidebar's next refresh, not on the
+   trash itself (see the note above); it never renders empty.
+   **Probe** the popup's text through the `createLine` wrapper from J4 step 2.
 
 5. **Do** Restore the note.
-   **Expect** the mindmap returns intact, links and layout included.
+   **Expect** the mindmap returns intact, links and layout included, again on
+   the next sidebar refresh.
 
 6. **Do** Trash the container item "Zotero Linked Mindmaps (plugin data)".
    **Expect** "The Zotero Linked Mindmaps item was moved to the trash. Every
-   mindmap in that library stays hidden until you restore it." Every mindmap
-   disappears, and no new container is created behind your back.
+   mindmap in that library stays hidden until you restore it." Close and reopen
+   the tab: the sidebar is empty and `#zoterolinkedmindmaps-mindmap-empty-state`
+   renders "No mindmaps yet. Create one to start linking items." — this is the
+   one path that reaches it. Reopening also raises a second warning, "Mindmap
+   data for this library is in the trash. Nothing new was created; restore it to
+   get your mindmaps back."
+   **Probe** the container tag query returns exactly one item and it is in
+   `deletedItems`; no untrashed container appears.
 
 7. **Do** Restart Zotero with the container still trashed.
    **Expect** the startup variant of the same warning.
@@ -483,25 +552,52 @@ mindmap must have been created at least once — opening the tab is enough.
    no stable seam to assert against. Compare `itemsView.rowCount` before and after
    — walked here it went 8 → 9 — and screenshot both states.
 
-2. **Do** Add a link type. Give it a label and mark it directional.
-   **Expect** it appears in the table with "Directional" in that column, and is
-   offered as a Type in the add-link dialog next time you open it.
+2. **Do** Click `+` (`.zoterolinkedmindmaps-type-add`). The form has a Label
+   input and a Directional checkbox, ticked by default. Type `extends` and
+   Save.
+   **Expect** a sixth `.zoterolinkedmindmaps-type-row` reading "extends
+   Directional", the same entry at the end of the `linkTypes` pref, and
+   "extends" as the last option in the add-link form's Type select the next
+   time you open it.
 
-3. **Do** Edit an existing type's label.
-   **Expect** links already using it show the new label in the item pane and on
-   the graph, since links store the type id rather than its label.
+3. **Do** Select a row, click Edit (disabled until a row is selected), change
+   the label, Save.
+   **Expect** the row shows the new label. Links already using the type show it
+   too, since links store the type id rather than its label, **but only on
+   their next render**: an item pane already showing the link keeps the old
+   label until the selection changes, and an open graph keeps it until the tab
+   is reopened or a write triggers the live refresh. Nothing observes the
+   `linkTypes` pref; only `hideMindmapNotes` has an observer.
 
-4. **Do** Delete a type that links are using.
-   **Expect** a confirm naming the count: "Delete this link type? 2 links use it
-   and will show as \"(unknown type)\" there." Confirm.
-   **Expect** those links now render with the legend's unknown-type styling and
-   read "(unknown type)" in the item pane. They are not deleted.
+4. **Do** Select a type that links are using and click `−`
+   (`.zoterolinkedmindmaps-type-remove`). It opens a native confirm titled
+   "Delete link type".
+   **Expect** the body names the count across every mindmap in every library:
+   "Delete this link type? 2 links use it and will show as \"(unknown type)\"
+   there." Confirm.
+   **Expect** the row is gone and the links are not: the storage note still
+   holds them with the deleted type id. On their next render (same caveat as
+   step 3) they read "(unknown type)" in the item pane and the edge carries the
+   Cytoscape class `unknown-type` with a dotted line, matching the legend.
 
 5. **Do** Open the Feedback section and click "Report a bug…".
    **Expect** a GitHub form opens in the browser, prefilled with plugin version,
    Zotero version, OS and recent errors. **Read what is prefilled before
    submitting anything.** Do not paste the result anywhere: this project's
    `getSystemInfo()` output embeds the full installed-plugin list.
+   **Probe** from the rig, do not let it launch the browser on the user's
+   desktop: replace `Zotero.launchURL` with a function that records its
+   argument, click the button, restore it, and parse the recorded URL. Walked
+   here it was `https://github.com/oekeur/zotero-linked-mindmaps/issues/new`
+   with `template=bug_report.yml`, `plugin-version`, `zotero-version` and
+   `os=Linux`. A `debug-output` parameter appears only when the error console
+   holds an entry carrying the `[zoteroLinkedMindmaps]` prefix; other plugins'
+   and Zotero's own entries are deliberately left out, and none of the 25
+   entries a session accumulates need be the plugin's. To exercise it, log one
+   with `Zotero.logError(new Error("[zoteroLinkedMindmaps] probe"))` and
+   **wait a moment before clicking**: the console buffer that `getErrors` reads
+   fills asynchronously, and a click in the same tick builds the URL without
+   it. That looked like a missing parameter once.
 
 **Then** `zotero_read_errors`.
 
