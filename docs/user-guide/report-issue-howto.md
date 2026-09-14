@@ -27,10 +27,17 @@ filled in.
 
 ### What ends up in the error messages
 
-Only messages this plugin logged itself. Zotero keeps one error log shared by
+Only this plugin's own errors: messages it logged itself, and uncaught
+exceptions raised inside its code. Zotero keeps one error log shared by
 everything running inside it, and the button filters that down to the plugin's
 own entries, so failures from other plugins and from Zotero itself stay out of
 the report.
+
+Each error names the plugin file and line it came from. Zotero records that as
+a full path on your disk, which runs through your home folder and so contains
+your username; the button cuts every such path down to the part inside the
+plugin (`content/scripts/zoterolinkedmindmaps.js:812`, say) before it reaches
+the form. Nothing outside the plugin's own folder is included.
 
 Zotero keeps the 25 most recent errors and no more. If the failure happened a
 while ago, or a lot has gone wrong since, it may already have been pushed out.

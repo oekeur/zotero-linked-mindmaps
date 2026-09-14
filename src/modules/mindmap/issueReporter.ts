@@ -5,41 +5,101 @@
  * The bug form carries the plugin's recent failures. Those survive to
  * Zotero.getErrors() whether or not debug logging was ever enabled, which is
  * the whole point of routing failures through logFailure - see
- * docs/internals/logging-explanation.md. Only entries carrying the plugin's own
- * prefix travel: the same buffer holds other plugins' failures and Zotero's
- * own, and those can carry absolute paths naming the user.
+ * docs/internals/logging-explanation.md. An entry travels when it carries the
+ * plugin's own prefix, or - for an uncaught exception logFailure never
+ * wrapped - when its `file:` field names the plugin's own bundle script. The
+ * same buffer holds other plugins' failures and Zotero's own; those stay out.
+ * Every file URL in what does travel is cut down to a path inside the plugin,
+ * because the absolute form sits under the profile directory and so names the
+ * user's home directory.
  */
 
-import { version as pluginVersion } from "../../../package.json";
+import {
+  config,
+  homepage,
+  version as pluginVersion,
+} from "../../../package.json";
 import { logFailure } from "../../utils/logging";
 
-const ISSUE_URL = "https://github.com/oekeur/zotero-linked-mindmaps/issues/new";
+const ISSUE_URL = `${homepage}/issues/new`;
 
 const BUG_TEMPLATE = "bug_report.yml";
 const FEATURE_TEMPLATE = "feature_request.yml";
 
 /** The prefix every logFailure message carries, per the convention in logging.ts. */
 const PLUGIN_PREFIX = "[zoteroLinkedMindmaps]";
+const PLUGIN_PREFIX_LOWER = PLUGIN_PREFIX.toLowerCase();
 
 /**
- * Ceiling for the whole percent-encoded URL. GitHub answers 414 past some
- * undocumented limit; roughly 8KB is the figure in circulation, so this leaves
- * room rather than sitting on the edge. Encoding is what actually bites: every
- * newline in a stack trace becomes three characters.
+ * The bundle's own script filename - see the `outfile` in
+ * zotero-plugin.config.ts, which names it from the same `addonRef`. An
+ * uncaught exception thrown inside the plugin's code reaches
+ * Zotero.getErrors() as a bare `[JavaScript Error: "..." {file:
+ * ".../content/scripts/<this>.js" ...}]` with no prefix at all; matching on
+ * this is what still catches it.
  */
-export const URL_BUDGET = 6000;
+const BUNDLE_SCRIPT_NAME = `${config.addonRef}.js`.toLowerCase();
+
+/**
+ * Ceiling for the whole finished URL. Measured unauthenticated against
+ * github.com: a prefilled issue form 302s up to ~6981 characters, answers 500
+ * from ~7081, and 414s from ~8300.
+ */
+export const MAX_ISSUE_URL_LENGTH = 6900;
+
+/**
+ * A representative log budget for a caller with no real plugin version,
+ * Zotero version or os to build the URL from - test code, mainly. Nothing
+ * that launches a report uses it: `openBugReport` measures the budget from
+ * the running instance's real values through `computeLogBudget`, because a
+ * `10.0-beta.25+1dbaec65b` Zotero version or a prerelease plugin version can
+ * push a fixed guess past MAX_ISSUE_URL_LENGTH.
+ */
+export const URL_BUDGET = 6750;
 
 const TRUNCATION_MARKER =
   "[older entries dropped to fit the URL; the full log is in Zotero under Help, Report Errors.]";
 
 /**
- * Encoded length, treating an unencodable string as over budget. A slice can
- * land between a surrogate pair, which encodeURIComponent rejects outright
- * rather than replacing; the search above then steps back off it.
+ * A file URL up to and including the plugin's root: the `.xpi!/` of an
+ * installed build, or the directory holding `content/` for an unpacked or
+ * dev-proxied one. What follows (`content/scripts/<bundle>.js:line`) is what
+ * a reader needs.
+ */
+const EXTENSION_ROOT =
+  /(?:jar:)?file:\/\/\/[^\s"'<>]*?(?:\.xpi!\/|\/(?=content\/))/g;
+
+/**
+ * Any other file URL, cut to its filename. A stack can pass through another
+ * plugin's bundle or a script outside `content/`, and those sit under the
+ * profile directory just the same.
+ */
+const OTHER_FILE_URL = /(?:jar:)?file:\/\/\/[^\s"'<>]*\//g;
+
+/**
+ * Reduces every file URL in an error entry to a path relative to the plugin
+ * root, or to a bare filename when it points elsewhere. The absolute form
+ * sits under the profile directory, which on every platform is under the
+ * user's home directory; leaving it in would put the OS username into a
+ * public issue.
+ */
+export function stripLocalPaths(entry: string): string {
+  return entry.replace(EXTENSION_ROOT, "").replace(OTHER_FILE_URL, "");
+}
+
+/**
+ * Encoded length of the `debug-output=<text>` field the way `buildIssueUrl`
+ * serialises it: through URLSearchParams, not encodeURIComponent. The two
+ * disagree on `( ) ' ! ~`, which URLSearchParams escapes to three characters
+ * each and encodeURIComponent leaves bare; a log built of those could pass an
+ * encodeURIComponent-measured budget and come out double in the finished
+ * URL. An unencodable string (a slice landing between a surrogate pair) is
+ * treated as over budget rather than letting the constructor throw; the
+ * search below then steps back off it.
  */
 function encodedLength(text: string): number {
   try {
-    return encodeURIComponent(text).length;
+    return new URLSearchParams({ "debug-output": text }).toString().length;
   } catch {
     return Number.POSITIVE_INFINITY;
   }
@@ -74,16 +134,28 @@ export type IssueContext = {
 };
 
 /**
- * Keeps only this plugin's entries and drops the oldest until what remains
- * fits `budget` once encoded. Newest entries are kept because they describe
- * the failure the reporter just hit; older ones are usually a previous
- * session's.
+ * Keeps only this plugin's entries, strips their local paths, and drops the
+ * oldest until what remains fits `budget` once encoded as the debug-output
+ * field. Newest entries are kept because they describe the failure the
+ * reporter just hit; older ones are usually a previous session's.
+ *
+ * An entry qualifies by carrying the prefix (case-insensitive, so an entry
+ * logged under a differently capitalised prefix still travels) or by naming
+ * the plugin's own bundle script in its `file:` field.
  *
  * Takes the array rather than calling Zotero itself so it can be tested
  * without a live instance.
  */
 export function collectErrorLog(entries: string[], budget: number): string {
-  const mine = entries.filter((entry) => entry.includes(PLUGIN_PREFIX));
+  const mine = entries
+    .filter((entry) => {
+      const lower = entry.toLowerCase();
+      return (
+        lower.includes(PLUGIN_PREFIX_LOWER) ||
+        lower.includes(BUNDLE_SCRIPT_NAME)
+      );
+    })
+    .map(stripLocalPaths);
   if (mine.length === 0) {
     return "";
   }
@@ -143,6 +215,29 @@ export function buildIssueUrl(
   return `${ISSUE_URL}?${params.toString()}`;
 }
 
+/**
+ * The ceiling for the `debug-output=<value>` field, measured from the URL
+ * these three values build with no log at all rather than from a fixed guess
+ * at their combined length.
+ *
+ * The empty-log URL omits the debug-output param entirely (see buildIssueUrl),
+ * so only the `&` joining it is added back here: `encodedLength` already
+ * counts the key and `=` in what it measures.
+ */
+export function computeLogBudget(
+  pluginVersion: string,
+  zoteroVersion: string,
+  os: string,
+): number {
+  const shellUrl = buildIssueUrl("bug", {
+    pluginVersion,
+    zoteroVersion,
+    os,
+    errorLog: "",
+  });
+  return MAX_ISSUE_URL_LENGTH - shellUrl.length - 1;
+}
+
 /** Matches the `os` dropdown's option text in bug_report.yml exactly. */
 function currentOS(): string {
   if (Zotero.isWin) return "Windows";
@@ -151,9 +246,14 @@ function currentOS(): string {
   return "Other";
 }
 
-function readErrorLog(): string {
+function readErrorLog(
+  pluginVersion: string,
+  zoteroVersion: string,
+  os: string,
+): string {
   try {
-    return collectErrorLog(Zotero.getErrors(true), URL_BUDGET);
+    const budget = computeLogBudget(pluginVersion, zoteroVersion, os);
+    return collectErrorLog(Zotero.getErrors(true), budget);
   } catch (err) {
     // A report without the log still beats no report at all.
     logFailure(
@@ -173,15 +273,20 @@ function launch(url: string): void {
   }
 }
 
+/** The bug form URL for the running instance, log included. */
+export function bugReportUrl(): string {
+  const zoteroVersion = Zotero.version;
+  const os = currentOS();
+  return buildIssueUrl("bug", {
+    pluginVersion,
+    zoteroVersion,
+    os,
+    errorLog: readErrorLog(pluginVersion, zoteroVersion, os),
+  });
+}
+
 export function openBugReport(): void {
-  launch(
-    buildIssueUrl("bug", {
-      pluginVersion,
-      zoteroVersion: Zotero.version,
-      os: currentOS(),
-      errorLog: readErrorLog(),
-    }),
-  );
+  launch(bugReportUrl());
 }
 
 export function openFeatureRequest(): void {
