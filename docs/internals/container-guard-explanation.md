@@ -54,6 +54,12 @@ The note case gets its own string instead of reusing the container's, because th
 
 What remains is the startup half. Reconciliation checks containers, so a library with a live container and a trashed note under it converges to `"ok"` and says nothing at all. A note trashed in a session the user has since closed goes missing with no message behind it. `hasHiddenMindmapData` covers part of that: if the trashed note was the library's only mindmap, opening the Mindmap tab finds an empty registry, checks the trash, and warns instead of creating a replacement. A library with three mindmaps and one of them trashed gets nothing at the next startup.
 
+## Open question: the warning fires, the tab does not refresh
+
+Observed while walking J6 of the user journeys on 2026-09-14. The trash observer only calls `warn`; it touches neither the sidebar nor the graph. With the Mindmap tab open on "Reading trails", trashing that mindmap's storage note showed the warning while the tab kept the row listed and selected and kept rendering its nodes. The row only disappeared on the sidebar's next refresh, which here meant clicking another row; closing and reopening the tab does the same. Restoring the note behaves symmetrically: the row comes back on the next refresh, not on the restore. Trashing the container is the same, except that reopening the tab then reaches the empty state and raises the second, tab-open warning as well.
+
+So for the length of a session the warning and the screen disagree: the popup says the mindmap is hidden while the tab still shows it. Nothing broke while this was observed; what a drag or link save from the still-open tab does to a trashed note was not tried, and is the first thing to test before deciding. Whether the observer should also trigger the tab's refresh is undecided. It would be one more thing running from inside a notifier callback (see [notifier-queue-explanation.md](notifier-queue-explanation.md) for what may and may not happen there), which is the reason it was not added on the spot.
+
 What the plugin will not do is un-trash. Trashing was a deliberate user action on a visible item, and reversing it would be the plugin fighting the user over their own library. The warnings say what it costs and how to undo it. The undo itself is theirs.
 
 That leaves a hole, and it is worth naming plainly: trash the container, empty the trash, and the mindmaps are gone with no recovery path. The plugin warns about it. It doesn't solve it.
