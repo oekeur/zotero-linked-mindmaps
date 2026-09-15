@@ -1,6 +1,15 @@
 startup-begin = Loading
 startup-finish = Ready
 
+# Labels of the five default link types. Data, not UI: a profile that has
+# never edited its vocabulary reads these at every lookup, and the first edit
+# persists whatever they resolved to at that moment.
+link-type-default-cites = cites
+link-type-default-supports = supports
+link-type-default-contradicts = contradicts
+link-type-default-primary-source-for = primary source for
+link-type-default-related-to = related to
+
 preferences-pane-label = Mindmaps
 preferences-heading = Link types
 preferences-library-heading = Library

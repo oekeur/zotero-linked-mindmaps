@@ -92,7 +92,9 @@ interface LinkType {
 
 `getLinkTypeById(id: string): LinkType | undefined` looks up strictly by id, never by label, so a renamed type keeps its links. Returns `undefined` for an unknown id rather than throwing.
 
-`DEFAULT_LINK_TYPES` is five entries: `cites`, `supports`, `contradicts` and `primary-source-for` (all directional), and `related-to` (not directional).
+`DEFAULT_LINK_TYPES` is five entries: `cites`, `supports`, `contradicts` and `primary-source-for` (all directional), and `related-to` (not directional). Those are the English labels. What `getLinkTypes()` returns on the fallback path is `localizedDefaultLinkTypes()`: the same ids and directionality, each label resolved through Fluent from `link-type-default-<id>` in `addon.ftl`, so a profile whose Zotero runs in Dutch sees `citeert`, `ondersteunt`, `weerspreekt`, `primaire bron voor` and `verwant aan` before it has edited anything. The English constant is the fallback when the bundle cannot answer: a read before `initLocale`, the test bundle, or a message missing from the `.ftl`, where `getString` would otherwise hand back the raw id.
+
+The decision behind this (TASK-112): labels are stored data, not UI strings, so localising them at render time would rename what the user typed. Localising the defaults instead is safe because the defaults are never persisted. The first `setLinkTypes()` writes whatever they resolved to at that moment, and from then on a locale change leaves them alone like any other label. Ids never vary with locale; a Dutch profile and an English one linking `cites` agree on what the link means.
 
 See [link-types-reference.md](../user-guide/link-types-reference.md) and [link-types-explanation.md](../user-guide/link-types-explanation.md).
 

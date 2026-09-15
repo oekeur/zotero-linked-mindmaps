@@ -6,6 +6,8 @@ The five defaults (cites, supports, contradicts, primary source for, related to)
 
 So treat the defaults as a starting point. The preference pane adds, renames and removes freely, and the defaults are only what a profile sees before it has edited anything. That has a consequence worth knowing: a profile that has never touched the list will pick up later revisions of the defaults, while a profile that has edited it never will. The first edit takes ownership of the whole list.
 
+The same rule governs language. The defaults follow Zotero's interface language for as long as they are defaults: a Dutch Zotero shows citeert, ondersteunt, weerspreekt, primaire bron voor and verwant aan. The first edit stores the labels as they read at that moment, and switching Zotero's language afterwards no longer changes them, any more than it would change a label you typed yourself. The ids underneath never change with language, so a link made in Dutch and one made in English mean the same thing.
+
 An open vocabulary costs you validation, because there isn't any. Two types called "cites" can happily coexist. Nothing warns you about near-duplicates like "supports" and "supported by", which would be better modelled as a single directional type. Keeping the list coherent falls to you.
 
 The free-text Name on each link exists for the same reason, approached from the other side. Some distinctions recur often enough to belong in the vocabulary. Others apply to exactly one pair of items and would only clutter a dropdown. The type tells you what kind of relation this is; the name tells you which one.

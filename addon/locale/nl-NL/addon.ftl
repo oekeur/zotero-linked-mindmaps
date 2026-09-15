@@ -1,6 +1,15 @@
 startup-begin = Laden
 startup-finish = Gereed
 
+# Labels van de vijf standaard koppelingstypen. Data, geen UI: een profiel dat
+# zijn vocabulaire nooit heeft bewerkt leest deze bij elke opvraging, en de
+# eerste bewerking slaat op wat ze op dat moment opleverden.
+link-type-default-cites = citeert
+link-type-default-supports = ondersteunt
+link-type-default-contradicts = weerspreekt
+link-type-default-primary-source-for = primaire bron voor
+link-type-default-related-to = verwant aan
+
 preferences-pane-label = Mindmaps
 preferences-heading = Koppelingstypen
 preferences-library-heading = Bibliotheek
