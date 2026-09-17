@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Released at 0.1.0. `src/modules/mindmap/` holds 20 real modules (~5,500 lines) and `test/mindmap/` 16 test files; none of the template's example code remains in `src/`. The `.xpi` is published on GitHub Releases (tag `v0.1.0`), with `update.json` hosted on the long-lived `release` tag; see `docs/contributing/releasing-howto.md`. Read `project/PRODUCT.md` before making design decisions: it's the product charter (goals, non-goals, and the reasoning behind data-model choices already made). User-facing and internals docs live in `docs/`.
+Released at 1.0.0. `src/modules/mindmap/` holds 20 real modules (~5,500 lines) and `test/mindmap/` 16 test files; none of the template's example code remains in `src/`. The `.xpi` is published on GitHub Releases (tag `v1.0.0`), with `update.json` hosted on the long-lived `release` tag; see `docs/contributing/releasing-howto.md`. Read `project/PRODUCT.md` before making design decisions: it's the product charter (goals, non-goals, and the reasoning behind data-model choices already made). User-facing and internals docs live in `docs/`.
 
-Every roadmap phase (0 through 6) is built. See `ROADMAP.md`.
+`ROADMAP.md` lists planned and considered features and the open issues; every original phase (0 through 6) is built and no longer listed there.
 
 Plugin name: **Zotero Linked Mindmaps** (`config.addonName`/`addonRef` in `package.json`) — chosen to avoid colliding with `samreading/zotero-mindmap`, an existing, different plugin named in `project/PRODUCT.md:23` that this project improves on.
 

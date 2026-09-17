@@ -1,49 +1,21 @@
 # Roadmap
 
-Not a task-level breakdown. Every phase below is built. Nothing here is released yet.
+Not a task-level breakdown. For what the built features actually do, read the [user guide](./docs/user-guide/); this file records what is planned, what is under consideration, and what is still open.
 
-For what the built features actually do, read the [user guide](./docs/user-guide/); this file records the order things arrived in and what is still open.
+## Planned
 
-## Phase 0: Feasibility spike (done)
+- Find and filter nodes inside an open mindmap: search nodes by label, highlight and move to the match, filter edges by link type. A view-only operation that never writes to the stored document.
+- Export a mindmap as an image and as a Zotero note outline: a picture of the rendered graph, and a note listing every node with its links, link types and names. Group regions are drawn as an overlay outside the Cytoscape canvas, so the image export has to composite them or state that they are absent.
+- Optional locator on a link: a page, section or passage reference recording where in the source the relation holds, separate from the freeform name. Documents written before the field existed must round-trip untouched.
+- Machine-readable export: a format another program can parse, with item metadata resolved instead of bare Zotero keys. The format (plugin JSON, GraphML/GEXF, CSV tables, DOT/Mermaid) and whether import is in scope are still to be decided.
 
-Confirmed Cytoscape.js renders inside Zotero's plugin window. It works, but not for free: Zotero's bootstrap scope is missing browser globals Cytoscape assumes exist, and the ones that are present are non-configurable getters that have to be installed with `defineProperty` rather than assignment. See [the Cytoscape notes](./docs/internals/cytoscape-explanation.md).
+## Considered
 
-## Phase 1: V1 MVP (done)
-
-- Data model and storage: one JSON document per mindmap, held in a Zotero note item's content, riding Zotero's own sync. See [storage internals](./docs/internals/storage-explanation.md).
-- Link types: a default set, editable in a preferences pane.
-- Mindmaps section: item-pane surface for defining links, plus entry points from the library and from an open mindmap.
-- Mindmap tab: renders the graph, link type shown as a label and a line-style cue, not color alone.
-- Link-target picker: uses Zotero's native item-selector dialog rather than a custom one.
-
-The original scope said single mindmap and items-only nodes. Both were lifted in later phases.
-
-## Phase 2: Multi-mindmap (done)
-
-Create, rename, describe, and delete multiple named mindmaps, listed in the tab sidebar.
-
-## Phase 3: Notes as nodes (done)
-
-Standalone notes and child notes are linkable nodes, same as regular items. Attachments are not.
-
-## Phase 4: Cross-mindmap links (done)
-
-Links reaching from one mindmap into a node whose membership lives in another, styled to flag it as external. Stale external nodes get pruned.
-
-## Phase 5: Library integration polish (done)
-
-Keep the plugin's storage out of the user's way in the library and in the link-target picker.
-
-The main part is done, and it needs no patched internals. Every storage note is parented to one container item per library, and Zotero's library and collection views add `noChildren` to the search that builds their rows, so a child note never renders as a top-level row. N mindmaps collapse to one visible row through Zotero's own view behavior. This replaced an earlier plan to patch `Zotero.CollectionTreeRow.prototype.getSearchObject` for the same job. See [container guard design](./docs/internals/container-guard-explanation.md).
-
-Hiding that last container row is the one part that does patch `getSearchObject`, behind the `hideMindmapNotes` toggle. It is deliberately optional and fails open: if the method is missing it logs and skips, and if the wrap throws it returns the original search, so a Zotero upgrade costs one visible row rather than an item tree that renders nothing. The honest cost is that it degrades with no signal. See [the library filter notes](./docs/internals/library-filter-explanation.md).
-
-## Phase 6: Node grouping (done)
-
-Select several nodes on a mindmap and group them, separate from a typed or named link. Groups carry an optional name.
+- Alternate arrangements and colour-by-attribute: arrange by publication year or colour nodes by item type or tag, as a temporary view. Collides with the rule that node positions are persisted and only overwritten by a drag; ships only if leaving the view restores the stored layout exactly. The colour-by half carries none of that risk and may be worth taking on its own.
+- Two-click canvas flow for linking nodes already on the mindmap: right-click a node, choose a source, click the target, and the link form opens with both ends pre-filled. Click-click rather than drag, because drag already repositions and persists. Where the pending indicator lives and whether it survives a tab switch are open.
 
 ## Open
 
-- Version 0.2.0 is published as a `.xpi` on GitHub Releases. It has had no use outside development.
+- Version 1.0.0 is published as a `.xpi` on GitHub Releases. It has had no use outside development.
 - A trashed plugin-data container hides every mindmap in that library. The plugin does warn, and the warning stays up until clicked, but it says nothing about how to undo the state it reports. A trashed individual storage note is worse: no warning fires at all. See [plugin data recovery](./docs/user-guide/plugin-data-howto.md).
 - Sync conflicts on a mindmap document are a knowingly accepted risk, not a solved problem.

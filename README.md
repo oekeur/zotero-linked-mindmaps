@@ -48,7 +48,7 @@ The build carries an update URL, so Zotero's own plugin updater offers later ver
 
 Version 0.2.0 is the current published build. The feature set above works. Expect rough edges, and read [the plugin data guide](./docs/user-guide/plugin-data-howto.md) before you go poking at the "Zotero Linked Mindmaps (plugin data)" item in your library. Trashing it hides every mindmap in that library until you restore it.
 
-See [ROADMAP.md](./ROADMAP.md) for what came in which phase and what's still open.
+See [ROADMAP.md](./ROADMAP.md) for what is planned and what is still open.
 
 ## Documentation
 
