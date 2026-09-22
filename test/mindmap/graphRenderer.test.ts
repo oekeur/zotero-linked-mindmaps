@@ -57,6 +57,7 @@ import {
   whenStorageIdle,
   writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
+import { getString } from "../../src/utils/locale";
 import { createMemberNode, refFor } from "../../src/modules/mindmap/mutations";
 import type { LinkType } from "../../src/modules/mindmap/linkTypes";
 import {
@@ -742,6 +743,27 @@ describe("mindmap/graphRenderer", function () {
     let container: HTMLDivElement;
     let teardown: (() => void) | undefined;
 
+    before(function () {
+      // getString reads addon.data.locale, which the test bundle has no copy
+      // of unless pointed at the real plugin instance already running the
+      // suite - the same setup mindmapTabLive.test.ts uses.
+      (globalThis as any).addon = (Zotero as any)[config.addonInstance];
+    });
+
+    function destroyCountingCy() {
+      let destroyed = 0;
+      return {
+        cy: {
+          destroy() {
+            destroyed += 1;
+          },
+        } as unknown as cytoscape.Core,
+        get destroyed() {
+          return destroyed;
+        },
+      };
+    }
+
     // One unplaced node, so the rebuild the notification kicks off reaches
     // layoutUnplacedNodes and actually writes a position back. A document with
     // nothing to lay out never writes, and would not exercise the deadlock.
@@ -814,6 +836,45 @@ describe("mindmap/graphRenderer", function () {
         title: "refresh-2",
       }));
       assert.equal(second?.title, "refresh-2");
+    });
+
+    it("shows a deleted state and tears down the graph when its storage note is erased directly (AC #1, #3)", async function () {
+      this.timeout(30000);
+      await writeMindmapDocument(docWithUnplacedNode());
+      const note = await findMindmapNote();
+      assert.isNotNull(note);
+
+      const rendered = destroyCountingCy();
+      teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+
+      await note!.eraseTx();
+
+      const message = await waitFor(
+        () =>
+          container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+        "the deleted-state panel",
+      );
+      assert.equal(message.textContent, getString("mindmap-deleted-state"));
+      // The graph is destroyed rather than left underneath the message: with
+      // no live Cytoscape instance, there is nothing left for a drag or an
+      // edit to land on.
+      assert.equal(rendered.destroyed, 1);
+    });
+
+    it("does not deadlock the storage queue after the note it watches is erased (AC #2)", async function () {
+      this.timeout(30000);
+      await writeMindmapDocument(docWithUnplacedNode());
+      const note = await findMindmapNote();
+
+      teardown = attachLiveRefresh(fakeCy(), container, note!.id, []);
+      await note!.eraseTx();
+
+      // A write unrelated to the erased note, through the same module-level
+      // queue: if the delete handling above ever awaited a queued write, this
+      // would hang rather than resolve.
+      const created = await createMindmap("Queue still alive");
+      assert.equal(created.title, "Queue still alive");
+      await clearStorageNotes();
     });
   });
 

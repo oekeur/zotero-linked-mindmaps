@@ -57,6 +57,7 @@ mindmap-form-description-label = Omschrijving (optioneel)
 mindmap-form-save-button = Opslaan
 mindmap-form-cancel-button = Annuleren
 mindmap-empty-state = Nog geen mindmaps. Maak er een om items te gaan koppelen.
+mindmap-deleted-state = Deze mindmap is verwijderd. Kies een andere mindmap, of maak een nieuwe aan.
 mindmap-delete-confirm-title = Mindmap verwijderen
 mindmap-delete-confirm-message = "{ $title }" verwijderen? De koppelingen en de indeling gaan mee. De items en notities waar de mindmap naar verwijst blijven in je bibliotheek staan.
 mindmap-show-in-library = Tonen in bibliotheek

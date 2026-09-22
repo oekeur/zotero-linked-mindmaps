@@ -1382,6 +1382,11 @@ export async function renderMindmap(
  * corpus size (dozens-to-low-hundreds of nodes), not a shortcut to revisit
  * unprompted.
  *
+ * The graph is not the only thing that can go stale: the note itself can be
+ * erased, locally or by a synced remote deletion. That replaces the graph
+ * with a state panel rather than redrawing stale content - deleted is
+ * terminal, since the note is gone for good.
+ *
  * Returns a teardown function that unregisters the observer and destroys
  * the currently rendered graph.
  */
@@ -1394,8 +1399,43 @@ export function attachLiveRefresh(
   rendered: RenderedState = { document: null },
 ): () => void {
   let current = cy;
+  let currentIsGraph = true;
   let refreshing = false;
   let dirty = false;
+  type LiveState = "live" | "deleted";
+  let state: LiveState = "live";
+
+  function teardownCurrent(): void {
+    if (currentIsGraph) {
+      current.destroy();
+      currentIsGraph = false;
+    }
+  }
+
+  /**
+   * Swaps the graph for a one-line explanation of why it isn't showing.
+   * Destroys the graph rather than leaving it underneath: a destroyed
+   * Cytoscape instance has no live event handlers, which is what stops a
+   * drag or edit from landing on a note that's gone.
+   */
+  function renderStatePanel(messageId: FluentMessageId): void {
+    teardownCurrent();
+    container.textContent = "";
+    const doc = container.ownerDocument;
+    if (doc) {
+      const message = doc.createElementNS(
+        "http://www.w3.org/1999/xhtml",
+        "p",
+      ) as unknown as HTMLParagraphElement;
+      message.id = "zoterolinkedmindmaps-mindmap-live-state";
+      message.textContent = getString(messageId);
+      container.appendChild(message as unknown as Node);
+    }
+    if (dockContainer) {
+      dockContainer.style.display = "none";
+      dockContainer.textContent = "";
+    }
+  }
 
   async function rebuild(): Promise<void> {
     try {
@@ -1414,7 +1454,7 @@ export function attachLiveRefresh(
       if (serializeDocument(doc) === rendered.document) {
         return;
       }
-      current.destroy();
+      teardownCurrent();
       current = await renderMindmap(
         container,
         doc,
@@ -1422,6 +1462,7 @@ export function attachLiveRefresh(
         dockContainer,
         rendered,
       );
+      currentIsGraph = true;
       await layoutUnplacedNodes(current, doc);
     } catch (err) {
       logFailure(
@@ -1466,20 +1507,27 @@ export function attachLiveRefresh(
    * a queue whose head is the task waiting for this very notification to
    * return, wedging the queue for the rest of the session - every later save
    * then hangs silently. So the rebuild is started and deliberately not
-   * awaited.
+   * awaited, and the state panel swap below awaits nothing either.
    */
   function notify(
     event: _ZoteroTypes.Notifier.Event,
     type: _ZoteroTypes.Notifier.Type,
     ids: string[] | number[],
   ): void {
-    if (event !== "modify" || type !== "item") {
+    // Deleted is terminal: the note is gone for good, so nothing past this
+    // point is worth reacting to.
+    if (type !== "item" || state === "deleted") {
       return;
     }
-    if (!ids.some((id) => Number(id) === storageNoteItemID)) {
+    const idNums = ids.map(Number);
+    if (event === "delete" && idNums.includes(storageNoteItemID)) {
+      state = "deleted";
+      renderStatePanel("mindmap-deleted-state");
       return;
     }
-    schedule();
+    if (event === "modify" && idNums.includes(storageNoteItemID)) {
+      schedule();
+    }
   }
 
   const observerID = Zotero.Notifier.registerObserver(
@@ -1490,6 +1538,6 @@ export function attachLiveRefresh(
 
   return () => {
     Zotero.Notifier.unregisterObserver(observerID);
-    current.destroy();
+    teardownCurrent();
   };
 }
