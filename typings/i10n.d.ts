@@ -89,6 +89,7 @@ export type FluentMessageId =
   | 'mindmap-sidebar-heading'
   | 'mindmap-sidebar-new-button'
   | 'mindmap-tab-title'
+  | 'mindmap-trashed-state'
   | 'mindmap-zoom-in-button'
   | 'mindmap-zoom-out-button'
   | 'preferences-add-button'

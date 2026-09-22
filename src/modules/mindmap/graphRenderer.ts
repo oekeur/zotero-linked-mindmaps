@@ -1382,10 +1382,12 @@ export async function renderMindmap(
  * corpus size (dozens-to-low-hundreds of nodes), not a shortcut to revisit
  * unprompted.
  *
- * The graph is not the only thing that can go stale: the note itself can be
- * erased, locally or by a synced remote deletion. That replaces the graph
- * with a state panel rather than redrawing stale content - deleted is
- * terminal, since the note is gone for good.
+ * The graph is not the only thing that can go stale: the note can be erased
+ * (locally, or by a synced remote deletion) and its container can be
+ * trashed, which hides every mindmap under it from Zotero.Search without
+ * touching the note itself. Both replace the graph with a state panel rather
+ * than redrawing stale content - deleted is terminal (the note is gone for
+ * good), trashed clears itself once the container is restored.
  *
  * Returns a teardown function that unregisters the observer and destroys
  * the currently rendered graph.
@@ -1402,8 +1404,27 @@ export function attachLiveRefresh(
   let currentIsGraph = true;
   let refreshing = false;
   let dirty = false;
-  type LiveState = "live" | "deleted";
+  type LiveState = "live" | "trashed" | "deleted";
   let state: LiveState = "live";
+  // The id of the container this note hangs off, read once up front so
+  // notify() can recognise a notification about it with nothing more than an
+  // id comparison. Left undefined if the read loses a race with the note
+  // being gone already; a container notification then simply does nothing.
+  let containerItemID: number | undefined;
+  void (async () => {
+    try {
+      const note = (await Zotero.Items.getAsync(storageNoteItemID)) as
+        Zotero.Item | false;
+      if (note && typeof note.parentItemID === "number") {
+        containerItemID = note.parentItemID;
+      }
+    } catch (err) {
+      logFailure(
+        `[zoteroLinkedMindmaps] mindmap live refresh could not read the note's container: ${(err as Error).message}`,
+        err,
+      );
+    }
+  })();
 
   function teardownCurrent(): void {
     if (currentIsGraph) {
@@ -1416,7 +1437,7 @@ export function attachLiveRefresh(
    * Swaps the graph for a one-line explanation of why it isn't showing.
    * Destroys the graph rather than leaving it underneath: a destroyed
    * Cytoscape instance has no live event handlers, which is what stops a
-   * drag or edit from landing on a note that's gone.
+   * drag or edit from landing on a note that's gone or unreachable.
    */
   function renderStatePanel(messageId: FluentMessageId): void {
     teardownCurrent();
@@ -1455,6 +1476,12 @@ export function attachLiveRefresh(
         return;
       }
       teardownCurrent();
+      // Cytoscape's own destroy() only cleans up the DOM it created itself,
+      // so it never removes a state panel - that one is plain markup this
+      // module put there directly. A rebuild coming back from "trashed"
+      // would otherwise render a live graph right underneath the leftover
+      // message.
+      container.textContent = "";
       current = await renderMindmap(
         container,
         doc,
@@ -1499,6 +1526,38 @@ export function attachLiveRefresh(
   }
 
   /**
+   * Re-reads the container's own trashed state rather than trusting which
+   * event name carried the notification: trashing the container fires a
+   * "modify" immediately followed by a "trash", but restoring it (clearing
+   * `deleted` and saving) fires only a "modify" - measured against a live
+   * Zotero, not assumed. Comparing against the state already shown is what
+   * keeps this idempotent across repeated notifications and turns "modify"
+   * into "restore" when it applies.
+   */
+  function scheduleContainerCheck(): void {
+    void (async () => {
+      try {
+        const containerItem = (await Zotero.Items.getAsync(
+          containerItemID!,
+        )) as Zotero.Item | false;
+        const trashed = !!containerItem && containerItem.deleted;
+        if (trashed && state !== "trashed") {
+          state = "trashed";
+          renderStatePanel("mindmap-trashed-state");
+        } else if (!trashed && state === "trashed") {
+          state = "live";
+          schedule();
+        }
+      } catch (err) {
+        logFailure(
+          `[zoteroLinkedMindmaps] mindmap container check failed: ${(err as Error).message}`,
+          err,
+        );
+      }
+    })();
+  }
+
+  /**
    * Returns nothing rather than a promise, and must keep doing so. Zotero
    * awaits each observer's return value inside the DB transaction commit
    * that fired the notification (Notifier.trigger, reached from the DB
@@ -1507,7 +1566,8 @@ export function attachLiveRefresh(
    * a queue whose head is the task waiting for this very notification to
    * return, wedging the queue for the rest of the session - every later save
    * then hangs silently. So the rebuild is started and deliberately not
-   * awaited, and the state panel swap below awaits nothing either.
+   * awaited, and nothing added here (the state panel swap, the container
+   * re-check) awaits a queued write either.
    */
   function notify(
     event: _ZoteroTypes.Notifier.Event,
@@ -1526,7 +1586,20 @@ export function attachLiveRefresh(
       return;
     }
     if (event === "modify" && idNums.includes(storageNoteItemID)) {
-      schedule();
+      // A trashed container already hides this note from Zotero.Search; a
+      // modify that reaches the notifier anyway (a sync merge, say) isn't
+      // worth redrawing for until the container check brings the tab back.
+      if (state === "live") {
+        schedule();
+      }
+      return;
+    }
+    if (
+      containerItemID !== undefined &&
+      (event === "modify" || event === "trash") &&
+      idNums.includes(containerItemID)
+    ) {
+      scheduleContainerCheck();
     }
   }
 

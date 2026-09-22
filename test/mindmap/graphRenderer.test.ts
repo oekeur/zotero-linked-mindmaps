@@ -51,6 +51,8 @@ import {
 import { layoutUnplacedNodes } from "../../src/modules/mindmap/layout";
 import {
   createMindmap,
+  findAllMindmapNotes,
+  findContainers,
   findMindmapNote,
   readMindmapDocument,
   updateMindmapDocument,
@@ -875,6 +877,92 @@ describe("mindmap/graphRenderer", function () {
       const created = await createMindmap("Queue still alive");
       assert.equal(created.title, "Queue still alive");
       await clearStorageNotes();
+    });
+
+    describe("a trashed container", function () {
+      let pluginContainer: Zotero.Item;
+      let note: Zotero.Item;
+
+      beforeEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+        await createMindmap("Behind a trashed container");
+        [pluginContainer] = await findContainers();
+        [note] = await findAllMindmapNotes();
+      });
+
+      afterEach(async function () {
+        await clearStorageNotes();
+      });
+
+      it("shows a trashed state and stops presenting the mindmap as live, without a reopen (AC #1)", async function () {
+        this.timeout(30000);
+        const rendered = destroyCountingCy();
+        teardown = attachLiveRefresh(rendered.cy, container, note.id, []);
+        // Lets the async read of the note's own container id resolve before
+        // trashing it, mirroring how long that read genuinely takes.
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([pluginContainer.id]);
+
+        const message = await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the trashed-state panel",
+        );
+        assert.equal(message.textContent, getString("mindmap-trashed-state"));
+        assert.isAtLeast(rendered.destroyed, 1);
+      });
+
+      it("returns to the live mindmap once the container is restored, without a reopen (AC #2)", async function () {
+        this.timeout(30000);
+        teardown = attachLiveRefresh(fakeCy(), container, note.id, []);
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([pluginContainer.id]);
+        await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the trashed-state panel",
+        );
+
+        pluginContainer.deleted = false;
+        await pluginContainer.saveTx();
+
+        await waitFor(
+          () =>
+            container.querySelector(
+              "#zoterolinkedmindmaps-mindmap-live-state",
+            ) === null || null,
+          "the trashed-state panel to clear",
+        );
+        await waitFor(
+          () => container.querySelector(`.${TOOLBAR_CLASS}`),
+          "the graph to redraw once restored",
+        );
+      });
+
+      it("still triggers no rebuild for an unrelated item modify (AC #3)", async function () {
+        this.timeout(30000);
+        const other = new Zotero.Item("journalArticle");
+        other.libraryID = Zotero.Libraries.userLibraryID;
+        other.setField("title", "Unrelated to the mindmap");
+        await other.saveTx();
+
+        const rendered = destroyCountingCy();
+        teardown = attachLiveRefresh(rendered.cy, container, note.id, []);
+        await Zotero.Promise.delay(200);
+        const before = rendered.destroyed;
+
+        other.setField("title", "Still unrelated to the mindmap");
+        await other.saveTx();
+        // Nothing to poll for: the assertion is that no rebuild happens, so
+        // the wait has to give one time to arrive if it were coming.
+        await Zotero.Promise.delay(300);
+
+        assert.equal(rendered.destroyed, before);
+        await other.eraseTx();
+      });
     });
   });
 
