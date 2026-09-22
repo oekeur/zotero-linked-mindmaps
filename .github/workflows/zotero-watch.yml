@@ -19,3 +19,4 @@ jobs:
     uses: oekeur/zotero-plugin-ci/.github/workflows/zotero-release-watch.yml@main
     with:
       dry-run: ${{ inputs.dry-run == true }}
+      min-version: "10.0.1"
