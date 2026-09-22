@@ -591,9 +591,11 @@ mindmap must have been created at least once — opening the tab is enough.
    here it was `https://github.com/oekeur/zotero-linked-mindmaps/issues/new`
    with `template=bug_report.yml`, `plugin-version`, `zotero-version` and
    `os=Linux`. A `debug-output` parameter appears only when the error console
-   holds an entry carrying the `[zoteroLinkedMindmaps]` prefix; other plugins'
-   and Zotero's own entries are deliberately left out, and none of the 25
-   entries a session accumulates need be the plugin's. To exercise it, log one
+   holds an entry the plugin claims: one carrying the `[zoteroLinkedMindmaps]`
+   prefix, or one whose `file:` field names the plugin's own bundle script,
+   which is how an uncaught exception with no prefix still travels. Other
+   plugins' and Zotero's own entries are deliberately left out, and none of the
+   25 entries a session accumulates need be the plugin's. To exercise it, log one
    with `Zotero.logError(new Error("[zoteroLinkedMindmaps] probe"))` and
    **wait a moment before clicking**: the console buffer that `getErrors` reads
    fills asynchronously, and a click in the same tick builds the URL without
