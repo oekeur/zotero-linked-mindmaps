@@ -11,7 +11,7 @@ import pkg from "./package.json";
 // default: 6100 is zoteroTimeline's, and falling back onto it would attach this
 // checkout to that project's MCP entry.
 const mcpRdpPort =
-  Number.parseInt(process.env.ZOTERO_MCP_RDP_PORT ?? "", 10) || 6106;
+  Number.parseInt(process.env.ZOTERO_MCP_RDP_PORT ?? "", 10) || 6110;
 
 export default defineConfig({
   source: ["src", "addon"],

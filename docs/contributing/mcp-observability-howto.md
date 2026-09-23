@@ -52,18 +52,20 @@ The RDP ports are one machine-wide resource shared with zoteroTimeline, which
 carries the same rig. Two Zoteros cannot bind the same port, so the range is
 split by static range:
 
-| checkout                 | ports     | MCP entry           |
-| ------------------------ | --------- | ------------------- |
-| zoteroTimeline main      | 6100      | `zotero-dev`        |
-| zoteroTimeline worktrees | 6101-6105 | `zotero-dev-<port>` |
-| **zoteroMindmap main**   | **6106**  | `zotero-dev-6106`   |
-| zoteroMindmap worktrees  | 6107-6110 | `zotero-dev-<port>` |
+| checkout                 | ports     | MCP entry                                  |
+| ------------------------ | --------- | ------------------------------------------ |
+| zoteroTimeline main      | 6100      | `zotero-timeline-0`                        |
+| zoteroTimeline worktrees | 6101-6107 | `zotero-timeline-1` .. `zotero-timeline-7` |
+| **zoteroMindmap main**   | **6110**  | `zotero-mindmap-0`                         |
+| zoteroMindmap worktrees  | 6111-6117 | `zotero-mindmap-1` .. `zotero-mindmap-7`   |
 
-**This repo never answers on the bare `zotero-dev` entry.** That one is
-zoteroTimeline's, and since entries are registered per checkout it is no longer
+An entry's slot number is the last digit of its port; 6108-6109 are unused.
+
+**This repo never answers on a `zotero-timeline-*` entry.** Those are
+zoteroTimeline's, and since entries are registered per checkout they are not
 even present in a session started here.
 
-A session in the main checkout carries the whole 6106-6110 range, so it can
+A session in the main checkout carries the whole 6110-6117 range, so it can
 drive every worktree's Zotero in parallel. That is deliberate: subagents reuse
 the parent session's connections rather than spawning their own, so an
 orchestrator needs the sibling entries present at its own launch, and they

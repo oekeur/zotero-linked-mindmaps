@@ -42,9 +42,9 @@ Bring up a dev Zotero for this checkout, seeded and observable.
    duplicating.
 
 4. Note which MCP client answers for this checkout. It is keyed by the
-   `ZOTERO_MCP_RDP_PORT` in your `.env`: `zotero-dev-6106` for the main checkout,
-   6107 upward for worktrees. The bare `zotero-dev` entry is zoteroTimeline's and
-   will answer confidently about the wrong Zotero. Confirm with `zotero_ping`.
+   `ZOTERO_MCP_RDP_PORT` in your `.env`: `zotero-mindmap-0` (6110) for the main
+   checkout, `zotero-mindmap-N` (6110+N) for worktrees. The `zotero-timeline-*`
+   entries are zoteroTimeline's and will answer confidently about the wrong Zotero. Confirm with `zotero_ping`.
 5. `zotero_clear_logs`, so the error reads below start from a clean slate.
 6. Check `pgrep -f "zotero-plugin test"` first, and again if your Zotero dies
    for no reason. When any scaffold test run on the machine exits, in this

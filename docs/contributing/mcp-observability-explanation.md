@@ -35,8 +35,8 @@ worktree comes up observable instead of needing a manual install into a profile
 that `worktree-init.sh` had just replaced.
 
 The port pool is split with zoteroTimeline, and **this repo does not own 6100**.
-That is the one thing most likely to waste someone's afternoon: the bare
-`zotero-dev` entry is the other project's, and pointing it at work done here
+That is the one thing most likely to waste someone's afternoon: the
+`zotero-timeline-*` entries are the other project's, and pointing it at work done here
 either fails to connect or quietly answers from the wrong Zotero. The split is
 static because neither hook can see the other repo's checkouts; the reasoning is
 in the howto.
