@@ -258,8 +258,11 @@ gate_xvfb_pids() {
 # to (`env -u WAYLAND_DISPLAY xvfb-run -a npm test`), but that outer xvfb-run
 # does not set the HEADLESS_WRAPPED sentinel headless.mjs checks for, so the
 # inner `npm test` wrapped again rather than no-op'ing: two Xvfb servers and
-# two xvfb-run shells per run instead of one, and the inner one is never
-# reachable for cleanup once its outer sibling is killed (see TASK-116).
+# two xvfb-run shells per run instead of one. `pkill -9 -P "$test_pid"` below
+# only reaches the direct child of the subshell -- the outer xvfb-run -- so
+# the inner one was never killed and its own EXIT trap, the thing that deletes
+# its auth directory, never ran either. Its Xvfb died (found and killed
+# separately, by descent), but the directory outlived it for good.
 #
 # `xvfb-run` alone is not enough on a Wayland session, and it fails silently:
 # the Zotero launcher exports MOZ_ENABLE_WAYLAND=1, so Gecko connects to the
