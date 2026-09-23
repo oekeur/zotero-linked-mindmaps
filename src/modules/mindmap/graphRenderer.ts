@@ -1427,14 +1427,6 @@ export function attachLiveRefresh(
   let currentView: ViewKind = "graph";
   let refreshing = false;
   let dirty = false;
-  // Bumped by every applyView request. A graph request captures its value
-  // before the note read that stands between it and painting; if the count
-  // has moved by the time that read resolves, a later request (a panel or a
-  // fresher graph) already decided what belongs on screen and this one
-  // discards. Panel and deleted requests never await anything first, so for
-  // them the bump and the paint happen back to back with nothing able to
-  // land in between.
-  let renderGeneration = 0;
   // The id of the container this note hangs off, read once up front so
   // notify() can recognise a notification about it with nothing more than an
   // id comparison. Left undefined if the read loses a race with the note
@@ -1536,30 +1528,36 @@ export function attachLiveRefresh(
    * `currentView`. Deleted is terminal and absorbing: once shown, every
    * later request (including a second "deleted") is refused outright.
    *
-   * A graph request re-reads the note fresh - it may be answering a
-   * notification about a write that landed a moment ago, exactly when the
-   * cache lags - then checks its generation is still current before
-   * touching anything, so a panel decided while that read was in flight
-   * wins instead of being painted over. It also skips the redraw entirely
-   * when the stored document already matches what a live graph is showing
-   * (the common case for a drag's own write notification), but only while a
-   * graph is actually on screen: coming back from a panel always redraws,
-   * since the last thing rendered was not a graph at all.
+   * A panel or deleted request never awaits anything before it paints, so
+   * nothing can ever land in the gap between deciding on one and showing it -
+   * whichever such request runs last always wins.
    *
-   * Immediately before painting, it re-checks trashed state itself rather
-   * than trusting that whoever queued this request was right that the
-   * mindmap was live. That request can be a plain retry with no notification
-   * of its own behind it (schedule()'s dirty flag, set by an earlier write
-   * while this graph paint's note read was already in flight) - by the time
-   * it is ready to paint, a trash that landed and was already handled in the
-   * meantime would otherwise be invisible to it, and a graph would go up
-   * over a note that is currently in the trash.
+   * A graph request is the one case with a real gap: it has to re-read the
+   * note (it may be answering a notification about a write that landed a
+   * moment ago, exactly when the cache lags), then re-checks trashed state
+   * itself via readTrashState rather than trusting that whoever queued this
+   * request was right that the mindmap was live - that request can be a
+   * plain retry with no notification of its own behind it (schedule()'s
+   * dirty flag, set by an earlier write while this graph paint's note read
+   * was already in flight), so by the time it is ready to paint, a trash
+   * that landed and was already handled in the meantime would otherwise be
+   * invisible to it. readTrashState only speaks to trashed, not erased - an
+   * outright delete during that same gap needs its own recheck against
+   * `currentView`, taken as late as possible, right before the destructive
+   * part of a repaint. A graph paint's own read-then-paint is never itself
+   * interrupted by another graph paint: schedule() below only ever runs one
+   * at a time.
+   *
+   * It also skips the redraw entirely when the stored document already
+   * matches what a live graph is showing (the common case for a drag's own
+   * write notification), but only while a graph is actually on screen:
+   * coming back from a panel always redraws, since the last thing rendered
+   * was not a graph at all.
    */
   async function applyView(kind: ViewKind): Promise<void> {
     if (currentView === "deleted") {
       return;
     }
-    const generation = ++renderGeneration;
     if (kind !== "graph") {
       paintPanel(kind);
       return;
@@ -1572,11 +1570,15 @@ export function attachLiveRefresh(
         storageNoteItemID,
       )) as Zotero.Item;
       const doc = readDocumentFromNote(await refreshNote(item));
-      if (generation !== renderGeneration) {
-        return;
-      }
       const trashState = await readTrashState();
-      if (generation !== renderGeneration) {
+      // The note can have been erased outright while the two reads above
+      // were in flight - readTrashState reports that as "not trashed" (there
+      // is nothing left to be trashed), so deleted is checked again here
+      // explicitly. TypeScript narrowed currentView to exclude "deleted" from
+      // the check at the top of this function and doesn't know the awaits
+      // above can let a concurrent applyView("deleted") call change it - it
+      // genuinely can, which is the entire point of this check.
+      if ((currentView as ViewKind) === "deleted") {
         return;
       }
       if (trashState) {
