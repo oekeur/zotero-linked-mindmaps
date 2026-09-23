@@ -253,28 +253,32 @@ gate_xvfb_pids() {
 
 # The suite drives a live Zotero GUI, so without a wrapper the gate takes over
 # the real desktop for its whole run and competes for focus with whatever is on
-# it. xvfb-run puts it on a virtual display instead.
+# it. `npm test` already routes through scripts/headless.mjs, which puts it on
+# a virtual display itself -- this hook does not wrap it a second time. It used
+# to (`env -u WAYLAND_DISPLAY xvfb-run -a npm test`), but that outer xvfb-run
+# does not set the HEADLESS_WRAPPED sentinel headless.mjs checks for, so the
+# inner `npm test` wrapped again rather than no-op'ing: two Xvfb servers and
+# two xvfb-run shells per run instead of one, and the inner one is never
+# reachable for cleanup once its outer sibling is killed (see TASK-116).
 #
 # `xvfb-run` alone is not enough on a Wayland session, and it fails silently:
 # the Zotero launcher exports MOZ_ENABLE_WAYLAND=1, so Gecko connects to the
 # compositor named by the inherited WAYLAND_DISPLAY and paints on the real
 # screen while DISPLAY points at an Xvfb nothing ever draws on. The launcher's
 # own export cannot be overridden from outside, so removing WAYLAND_DISPLAY is
-# the only lever there is -- do not reduce this back to a bare `xvfb-run -a`.
-# The probe that tells the two apart is written up in scripts/verify.sh, which
-# carries the same wrapper: read the Zotero process's environ for
-# WAYLAND_DISPLAY and count children of the Xvfb root. Absence of visible
+# the only lever there is -- headless.mjs applies it, so do not reintroduce a
+# bare `xvfb-run -a` here. The probe that tells the two apart is written up in
+# docs/contributing/npm-scripts-reference.md: read the Zotero process's environ
+# for WAYLAND_DISPLAY and count children of the Xvfb root. Absence of visible
 # windows is not the test; the bare wrapper hides nothing, it paints elsewhere.
 #
 # The kill machinery below is unaffected: it identifies this run's Zoteros by
 # the $work path in their arguments, which xvfb-run does not change, and this
-# run's Xvfb by descent from the subshell. Absent xvfb-run the suite runs on
-# the real display, as before.
-if command -v xvfb-run >/dev/null 2>&1; then
-  ( cd "$work" && env -u WAYLAND_DISPLAY xvfb-run -a npm test >"$log" 2>&1 ) &
-else
-  ( cd "$work" && npm test >"$log" 2>&1 ) &
-fi
+# run's Xvfb by descent from the subshell -- still true with headless.mjs in
+# the chain, since it execs xvfb-run as a child rather than replacing itself.
+# Absent xvfb-run, headless.mjs runs the suite on the real display itself and
+# warns once; there is no longer a branch here for that case.
+( cd "$work" && npm test >"$log" 2>&1 ) &
 test_pid=$!
 
 # Wait up to 20 minutes for the summary line to appear, polling every 2s.
