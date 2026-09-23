@@ -57,14 +57,26 @@ Do not run two `npm start` instances against the same profile path.
 ## start:headless
 
 ```
-env -u WAYLAND_DISPLAY xvfb-run -a npm start
+node scripts/headless.mjs npm start
 ```
 
-The same serve on a virtual display, so the dev Zotero does not take over the desktop. An agent working unattended uses this; a human watching the UI uses `npm start`.
+The same serve, run through `scripts/headless.mjs` so the dev Zotero opens on a virtual display instead of taking over the desktop. An agent working unattended uses this; a human watching the UI uses `npm start`. See [headless.mjs](#headlessmjs) below for what the wrapper does and why.
 
-**`xvfb-run` alone does not make Zotero headless on a Wayland session.** The Zotero launcher exports `MOZ_ENABLE_WAYLAND=1`, so Gecko connects to the compositor named by the inherited `WAYLAND_DISPLAY` and paints on the real screen while `DISPLAY` points at an Xvfb nothing ever draws on, silently. The launcher's own export cannot be overridden from outside, so removing `WAYLAND_DISPLAY` is the lever. Measured 2026-09-04: under a bare `xvfb-run -a` the Zotero process still carried `WAYLAND_DISPLAY=wayland-0` and the Xvfb root had 0 children; with it unset the same probe listed 18 windows.
+## headless.mjs
+
+```
+node scripts/headless.mjs <command>
+```
+
+Not an npm script itself — `start:headless`, `test`, and `test:fast` all invoke it as a prefix to their real command, so every entry point that can put a Zotero window on the real desktop is wrapped exactly once, in one place.
+
+No-ops when `WAYLAND_DISPLAY` is already absent (something upstream already wrapped, which doubles as the guard against nesting a second Xvfb) or when `xvfb-run` is missing (CI images, macOS); the wrapped command then just runs directly, unwrapped.
+
+**`xvfb-run` alone does not make Zotero headless on a Wayland session.** The Zotero launcher exports `MOZ_ENABLE_WAYLAND=1`, so Gecko connects to the compositor named by the inherited `WAYLAND_DISPLAY` and paints on the real screen while `DISPLAY` points at an Xvfb nothing ever draws on, silently. The launcher's own export cannot be overridden from outside, so removing `WAYLAND_DISPLAY` is the lever. Measured 2026-09-04: under a bare `xvfb-run -a` the Zotero process still carried `WAYLAND_DISPLAY=wayland-0` and the Xvfb root had 0 children; with it unset the same probe listed 18 windows including `My Library - Zotero`.
 
 To check which display a run actually used, read the Zotero process's own `environ` for `WAYLAND_DISPLAY` and count children of the Xvfb root with `xwininfo -root -children`. Pass `XAUTHORITY` from the Xvfb process's `-auth` argument or the query fails on the cookie rather than telling you anything.
+
+It also reaps an Xvfb stranded by a SIGKILLed run. `xvfb-run` reaps its own Xvfb from a shell `EXIT` trap, and a SIGKILL to the wrapper skips that trap — `test:fast`'s own `run-tests.mjs` does exactly this, killing its process group on the completion line rather than waiting for Zotero to exit on its own. Measured 2026-09-10: killing `xvfb-run` with `-9` left the Xvfb alive, reparented to `systemd --user` rather than to pid 1 (a user systemd runs as a subreaper here), still holding its display and its `/tmp/xvfb-run.*` auth dir. `headless.mjs` reaps a stray Xvfb at its next invocation, matched on that `-auth` path and on whether an `xvfb-run` is still alive to own it, never on pid 1, and removes its auth dir.
 
 ## build
 
@@ -116,10 +128,10 @@ Type-checks `src/` and `typings/` through the root `tsconfig.json`, then `test/`
 ## test
 
 ```
-zotero-plugin test
+node scripts/headless.mjs npx zotero-plugin test
 ```
 
-Builds the plugin, bundles `test/` into a temporary tester plugin, empties and recreates `.scaffold/test/profile`, `.scaffold/test/data`, and `.scaffold/test/resource`, then launches Zotero with both plugins installed and runs the Mocha suite inside it. Results stream back over HTTP to the CLI process on a free port chosen at launch; each `pass`, `fail`, and `pending` prints as it arrives, and the run ends with `Test run completed - N passed` or `Test run completed - N passed, M failed`.
+Routed through [headless.mjs](#headlessmjs) so it lands on a virtual display instead of the real desktop. `npx zotero-plugin test` itself builds the plugin, bundles `test/` into a temporary tester plugin, empties and recreates `.scaffold/test/profile`, `.scaffold/test/data`, and `.scaffold/test/resource`, then launches Zotero with both plugins installed and runs the Mocha suite inside it. Results stream back over HTTP to the CLI process on a free port chosen at launch; each `pass`, `fail`, and `pending` prints as it arrives, and the run ends with `Test run completed - N passed` or `Test run completed - N passed, M failed`.
 
 Configured in `zotero-plugin.config.ts` under `test`, which sets only `waitForPlugin: "() => Zotero.ZoteroLinkedMindmaps.data.initialized"`. Scaffold defaults supply the rest: entries `"test"`, Mocha timeout 10000 ms, `startupDelay` 1000 ms, `abortOnFail` false, `headless` false, `watch` true.
 
@@ -128,10 +140,10 @@ Watch is the part that surprises people. Without `--exit-on-finish` or `--no-wat
 ## test:fast
 
 ```
-node scripts/run-tests.mjs
+node scripts/headless.mjs node scripts/run-tests.mjs
 ```
 
-Spawns `npx zotero-plugin test` with `detached: true`, pipes its stdout through unchanged, and watches for `/Test run completed - (\d+) passed(?:, (\d+) failed)?/`. On a match it logs `run-tests: completion line seen, killing Zotero instead of waiting for its own exit (failed=N)`, SIGKILLs the child's process group, and exits 1 if any test failed, 0 otherwise.
+Also routed through [headless.mjs](#headlessmjs). `scripts/run-tests.mjs` spawns `npx zotero-plugin test` with `detached: true`, pipes its stdout through unchanged, and watches for `/Test run completed - (\d+) passed(?:, (\d+) failed)?/`. On a match it logs `run-tests: completion line seen, killing Zotero instead of waiting for its own exit (failed=N)`, SIGKILLs the child's process group, and exits 1 if any test failed, 0 otherwise.
 
 Because it kills a process group rather than matching on process names, it leaves every Zotero it did not start alone, so it is safe to run alongside `npm start` or a test run in another worktree. Detaching also means Ctrl-C no longer reaches Zotero through the terminal, so the script traps `SIGINT` and `SIGTERM` and kills the group itself.
 
