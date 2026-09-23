@@ -1262,6 +1262,108 @@ describe("mindmap/graphRenderer", function () {
         assert.isOk(stillReadable, "mindmap document must still be readable");
       });
     });
+
+    // Timing race, not a deterministic one: the window is between the note
+    // read a graph rebuild starts with and the moment it commits, and
+    // nothing observable from outside attachLiveRefresh marks when that read
+    // resolves, so there is no hook to hold it open on demand. The delay
+    // sweep is what stands in for that - reproduced consistently in this
+    // window across separate runs of the pre-fix tree, but a given run can
+    // still miss it if the note read happens to settle a few milliseconds
+    // either side of where it did last time.
+    describe("a rebuild in flight when the note is trashed", function () {
+      let containerItem: Zotero.Item;
+      let note: Zotero.Item;
+
+      function unplacedNode(id: string): MindmapNode {
+        return {
+          membership: "member",
+          id,
+          position: null,
+          ref: {
+            kind: "item",
+            libraryID: Zotero.Libraries.userLibraryID,
+            key: "NOSUCHKEY",
+          },
+        };
+      }
+
+      beforeEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+        await createMindmap("Behind a rebuild racing a trash");
+        [containerItem] = await findContainers();
+        [note] = await findAllMindmapNotes();
+      });
+
+      afterEach(async function () {
+        await clearStorageNotes();
+      });
+
+      for (const delay of [0, 40, 80, 85, 90, 95, 130, 250]) {
+        it(`does not leave a live graph on screen for a note trashed while a rebuild is in flight (delay=${delay}ms)`, async function () {
+          this.timeout(30000);
+          // An unplaced node makes every rebuild reach layoutUnplacedNodes,
+          // which writes back through the storage queue - that is what keeps
+          // the first rebuild in flight long enough for the trash below to
+          // land before it commits.
+          await updateMindmapDocument((doc) => ({
+            ...doc,
+            nodes: [unplacedNode("node-a")],
+            links: [],
+          }));
+          teardown = attachLiveRefresh(
+            fakeCy(),
+            container,
+            note.id,
+            [],
+            undefined,
+            await renderedStateFor(),
+          );
+          await Zotero.Promise.delay(50);
+
+          // Two writes in a row so the second's notification finds the first
+          // rebuild still running and requeues rather than coalescing away.
+          void updateMindmapDocument((doc) => ({
+            ...doc,
+            title: `h1-${delay}`,
+            nodes: [unplacedNode("node-a")],
+          }));
+          void updateMindmapDocument((doc) => ({
+            ...doc,
+            title: `h2-${delay}`,
+            nodes: [unplacedNode("node-b")],
+          }));
+          await Zotero.Promise.delay(delay);
+          await Zotero.Items.trashTx([note.id]);
+          await Zotero.Promise.delay(1000);
+
+          assert.isNull(
+            container.querySelector(`.${TOOLBAR_CLASS}`),
+            `a live graph is on screen for a trashed note (delay=${delay}ms)`,
+          );
+          const message = container.querySelector(
+            "#zoterolinkedmindmaps-mindmap-live-state",
+          );
+          assert.equal(
+            message?.textContent,
+            getString("mindmap-note-trashed-state"),
+            `panel does not name the trashed note (delay=${delay}ms)`,
+          );
+
+          // Not just a transient flash: a notification the observer does
+          // react to must not resurrect the graph once the panel has won.
+          containerItem.setField("extra", `poke-${delay}`);
+          await containerItem.saveTx();
+          await whenStorageIdle();
+          await Zotero.Promise.delay(300);
+          assert.isNull(
+            container.querySelector(`.${TOOLBAR_CLASS}`),
+            `a live graph reappeared after an unrelated notification (delay=${delay}ms)`,
+          );
+        });
+      }
+    });
   });
 
   describe("external nodes", function () {

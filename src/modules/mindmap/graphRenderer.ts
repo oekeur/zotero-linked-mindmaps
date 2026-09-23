@@ -1389,6 +1389,25 @@ export async function renderMindmap(
  * redrawing stale content - deleted is terminal (the note is gone for
  * good), trashed clears itself once the note or its container is restored.
  *
+ * `applyView` is the only thing in this closure that writes to `container`,
+ * `current` or `currentView` - a graph paint and a panel paint are two
+ * branches of the same function rather than two separate ones, so there is
+ * nowhere left for the DOM and the state variable to disagree about what is
+ * on screen. Every other function here only ever *asks* applyView for a
+ * view; none of them touch the container directly.
+ *
+ * A graph paint is the one branch with a real await gap before it touches
+ * anything (the note has to be re-read from storage first), which is what
+ * makes it interruptible: a trashed/deleted view decided while that read is
+ * in flight must win, since it reflects a fact discovered after the graph
+ * request was issued. applyView arbitrates this with a generation counter
+ * bumped on every request - a graph paint whose generation is no longer
+ * current when its read resolves discards without touching the container,
+ * rather than painting a live graph back over a panel that is already
+ * correct. It does not retry itself; whatever superseded it already owns
+ * the screen, and a later notification is what will ask for a graph again
+ * if the mindmap actually is live.
+ *
  * Returns a teardown function that unregisters the observer and destroys
  * the currently rendered graph.
  */
@@ -1400,21 +1419,22 @@ export function attachLiveRefresh(
   dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
 ): () => void {
+  type ViewKind = "graph" | "note-trashed" | "container-trashed" | "deleted";
   let current = cy;
-  let currentIsGraph = true;
+  // What is actually on screen right now, updated by applyView alone and by
+  // nothing else - the single fact every other function here reads instead
+  // of keeping its own idea of "are we live" or "which panel is showing".
+  let currentView: ViewKind = "graph";
   let refreshing = false;
   let dirty = false;
-  // Deleted is terminal and absorbing: once set, nothing below ever clears
-  // it or renders anything else again.
-  let deleted = false;
-  // Which trashed-state panel is on screen right now, or null when the live
-  // graph is showing. This is the thing scheduleTrashCheck must keep in
-  // sync with the facts on every call, not just the first time it differs
-  // from "live" - a coarser live/trashed flag can't tell "still trashed,
-  // but for the other reason now" from "nothing changed", so it never
-  // re-renders when the cause flips.
-  type TrashPanel = "note" | "container";
-  let shownPanel: TrashPanel | null = null;
+  // Bumped by every applyView request. A graph request captures its value
+  // before the note read that stands between it and painting; if the count
+  // has moved by the time that read resolves, a later request (a panel or a
+  // fresher graph) already decided what belongs on screen and this one
+  // discards. Panel and deleted requests never await anything first, so for
+  // them the bump and the paint happen back to back with nothing able to
+  // land in between.
+  let renderGeneration = 0;
   // The id of the container this note hangs off, read once up front so
   // notify() can recognise a notification about it with nothing more than an
   // id comparison. Left undefined if the read loses a race with the note
@@ -1435,25 +1455,27 @@ export function attachLiveRefresh(
     }
   })();
 
-  function teardownCurrent(): void {
-    if (currentIsGraph) {
+  function teardownCurrentView(): void {
+    if (currentView === "graph") {
       current.destroy();
-      currentIsGraph = false;
     }
   }
 
+  const PANEL_MESSAGE: Record<Exclude<ViewKind, "graph">, FluentMessageId> = {
+    "note-trashed": "mindmap-note-trashed-state",
+    "container-trashed": "mindmap-trashed-state",
+    deleted: "mindmap-deleted-state",
+  };
+
   /**
-   * Swaps the graph for a one-line explanation of why it isn't showing.
-   * Destroys the graph rather than leaving it underneath: a destroyed
-   * Cytoscape instance has no live event handlers, which is what stops a
-   * drag or edit from landing on a note that's gone or unreachable.
+   * Swaps whatever is on screen for a one-line explanation of why the graph
+   * isn't showing. Destroys the graph rather than leaving it underneath: a
+   * destroyed Cytoscape instance has no live event handlers, which is what
+   * stops a drag or edit from landing on a note that's gone or unreachable.
+   * Only ever called from applyView, once a view has already been decided.
    */
-  function renderStatePanel(messageId: FluentMessageId): void {
-    teardownCurrent();
-    // Otherwise a restore's rebuild() compares the live document against
-    // what the trashed graph last rendered, finds them equal, and returns
-    // without redrawing - the panel would stay on screen forever.
-    rendered.document = null;
+  function paintPanel(view: Exclude<ViewKind, "graph">): void {
+    teardownCurrentView();
     container.textContent = "";
     const doc = container.ownerDocument;
     if (doc) {
@@ -1462,16 +1484,40 @@ export function attachLiveRefresh(
         "p",
       ) as unknown as HTMLParagraphElement;
       message.id = "zoterolinkedmindmaps-mindmap-live-state";
-      message.textContent = getString(messageId);
+      message.textContent = getString(PANEL_MESSAGE[view]);
       container.appendChild(message as unknown as Node);
     }
     if (dockContainer) {
       dockContainer.style.display = "none";
       dockContainer.textContent = "";
     }
+    currentView = view;
   }
 
-  async function rebuild(): Promise<void> {
+  /**
+   * The one function that ever writes to `container`, `current` or
+   * `currentView`. Deleted is terminal and absorbing: once shown, every
+   * later request (including a second "deleted") is refused outright.
+   *
+   * A graph request re-reads the note fresh - it may be answering a
+   * notification about a write that landed a moment ago, exactly when the
+   * cache lags - then checks its generation is still current before
+   * touching anything, so a panel decided while that read was in flight
+   * wins instead of being painted over. It also skips the redraw entirely
+   * when the stored document already matches what a live graph is showing
+   * (the common case for a drag's own write notification), but only while a
+   * graph is actually on screen: coming back from a panel always redraws,
+   * since the last thing rendered was not a graph at all.
+   */
+  async function applyView(kind: ViewKind): Promise<void> {
+    if (currentView === "deleted") {
+      return;
+    }
+    const generation = ++renderGeneration;
+    if (kind !== "graph") {
+      paintPanel(kind);
+      return;
+    }
     try {
       // Reads the note this graph was opened from rather than looking a
       // mindmap up again: with several mindmaps in the library, an id-less
@@ -1479,21 +1525,20 @@ export function attachLiveRefresh(
       const item = (await Zotero.Items.getAsync(
         storageNoteItemID,
       )) as Zotero.Item;
-      // Refreshed first: this runs on a notification about a write that may
-      // have landed a moment ago, which is exactly when the cache lags.
       const doc = readDocumentFromNote(await refreshNote(item));
-      // Nothing to redraw when the stored document is already what the graph
-      // shows - the drag write is the common case, since it moved the nodes
-      // before it saved them, and rebuilding for it would only flash.
-      if (serializeDocument(doc) === rendered.document) {
+      if (generation !== renderGeneration) {
         return;
       }
-      teardownCurrent();
+      if (
+        currentView === "graph" &&
+        serializeDocument(doc) === rendered.document
+      ) {
+        return;
+      }
+      teardownCurrentView();
       // Cytoscape's own destroy() only cleans up the DOM it created itself,
       // so it never removes a state panel - that one is plain markup this
-      // module put there directly. A rebuild coming back from "trashed"
-      // would otherwise render a live graph right underneath the leftover
-      // message.
+      // module put there directly.
       container.textContent = "";
       current = await renderMindmap(
         container,
@@ -1502,7 +1547,7 @@ export function attachLiveRefresh(
         dockContainer,
         rendered,
       );
-      currentIsGraph = true;
+      currentView = "graph";
       await layoutUnplacedNodes(current, doc);
     } catch (err) {
       logFailure(
@@ -1513,7 +1558,7 @@ export function attachLiveRefresh(
   }
 
   /**
-   * Runs one rebuild at a time, and runs another straight after when a
+   * Runs one graph rebuild at a time, and runs another straight after when a
    * notification arrived while the first was in flight. A rebuild awaits
    * several times over (the note read, the render, the layout), so simply
    * dropping notifications that land in that window loses them: a prune from
@@ -1530,7 +1575,7 @@ export function attachLiveRefresh(
       try {
         do {
           dirty = false;
-          await rebuild();
+          await applyView("graph");
         } while (dirty);
       } finally {
         refreshing = false;
@@ -1545,24 +1590,21 @@ export function attachLiveRefresh(
    * by a "trash", but restoring it (clearing `deleted` and saving) fires
    * only a "modify" - measured against a live Zotero, not assumed.
    *
-   * Derives which panel *should* be showing from those two facts and always
-   * renders when that differs from `shownPanel`, rather than gating on
-   * whether some coarser "am I showing a panel at all" flag changed. That
-   * distinction matters because the note and the container can each be
-   * trashed and restored independently, in either order: a check that only
-   * asks "is anything trashed" cannot tell "still trashed, but the cause
-   * flipped" from "nothing changed", so it never re-renders when the note
-   * is restored while the container is still trashed (or the reverse), and
-   * the panel goes on naming whichever was trashed first for the rest of
+   * Derives which view *should* be showing from those two facts and always
+   * asks applyView for it when that differs from `currentView`, rather than
+   * gating on whether some coarser "am I showing a panel at all" flag
+   * changed. That distinction matters because the note and the container can
+   * each be trashed and restored independently, in either order: a check
+   * that only asks "is anything trashed" cannot tell "still trashed, but the
+   * cause flipped" from "nothing changed", so it never re-renders when the
+   * note is restored while the container is still trashed (or the reverse),
+   * and the panel goes on naming whichever was trashed first for the rest of
    * the session.
    *
-   * Decides trashed-or-live before ever touching `schedule()`, in the same
-   * async chain rather than a second one started alongside it. A modify that
-   * precedes the note's own trash still reaches this function first: kicking
-   * off a content rebuild in parallel let it finish after this had already
-   * reset `rendered.document` for the panel, so the rebuild's dedupe check
-   * saw a mismatch and painted a live graph right back over the panel it was
-   * just given.
+   * A panel is requested directly and immediately, since deciding to show
+   * one needs nothing further; going back to live only ever runs through
+   * `schedule()` below, since applyView needs to re-read the note's content
+   * before it knows whether there is even anything to redraw.
    *
    * `contentMayHaveChanged` covers a plain edit on the note itself, which
    * only its own notification carries; a container's own fields never touch
@@ -1604,26 +1646,19 @@ export function attachLiveRefresh(
         }
         // A delete landing while this was already in flight is terminal; a
         // check that started before it must not undo that.
-        if (deleted) {
+        if (currentView === "deleted") {
           return;
         }
-        const desiredPanel: TrashPanel | null = noteTrashed
-          ? "note"
+        const desiredView: ViewKind = noteTrashed
+          ? "note-trashed"
           : containerTrashed
-            ? "container"
-            : null;
-        const wasShowingPanel = shownPanel !== null;
-        if (desiredPanel !== shownPanel) {
-          shownPanel = desiredPanel;
-          if (desiredPanel) {
-            renderStatePanel(
-              desiredPanel === "note"
-                ? "mindmap-note-trashed-state"
-                : "mindmap-trashed-state",
-            );
-          }
+            ? "container-trashed"
+            : "graph";
+        const wasShowingPanel = currentView !== "graph";
+        if (desiredView !== "graph" && desiredView !== currentView) {
+          void applyView(desiredView);
         }
-        if (desiredPanel) {
+        if (desiredView !== "graph") {
           return;
         }
         if (contentMayHaveChanged || wasShowingPanel) {
@@ -1657,13 +1692,12 @@ export function attachLiveRefresh(
   ): void {
     // Deleted is terminal: the note is gone for good, so nothing past this
     // point is worth reacting to.
-    if (type !== "item" || deleted) {
+    if (type !== "item" || currentView === "deleted") {
       return;
     }
     const idNums = ids.map(Number);
     if (event === "delete" && idNums.includes(storageNoteItemID)) {
-      deleted = true;
-      renderStatePanel("mindmap-deleted-state");
+      void applyView("deleted");
       return;
     }
     if (
@@ -1690,6 +1724,6 @@ export function attachLiveRefresh(
 
   return () => {
     Zotero.Notifier.unregisterObserver(observerID);
-    teardownCurrent();
+    teardownCurrentView();
   };
 }
