@@ -1141,6 +1141,127 @@ describe("mindmap/graphRenderer", function () {
         assert.equal(message.textContent, getString("mindmap-trashed-state"));
       });
     });
+
+    describe("the trashed cause flipping while the panel is already showing", function () {
+      let containerItem: Zotero.Item;
+      let note: Zotero.Item;
+
+      beforeEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+        await createMindmap("Behind a flipping trash cause");
+        [containerItem] = await findContainers();
+        [note] = await findAllMindmapNotes();
+      });
+
+      afterEach(async function () {
+        await clearStorageNotes();
+      });
+
+      async function restore(item: Zotero.Item): Promise<void> {
+        item.deleted = false;
+        await item.saveTx();
+      }
+
+      it("stops naming the note once it's restored while the container is still trashed", async function () {
+        this.timeout(30000);
+        teardown = attachLiveRefresh(
+          fakeCy(),
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([note.id]);
+        const noteMessage = await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the note-trashed panel",
+        );
+        assert.equal(
+          noteMessage.textContent,
+          getString("mindmap-note-trashed-state"),
+        );
+
+        await Zotero.Items.trashTx([containerItem.id]);
+        await Zotero.Promise.delay(50);
+        await restore(note);
+
+        await waitFor(() => {
+          const el = container.querySelector(
+            "#zoterolinkedmindmaps-mindmap-live-state",
+          );
+          return el?.textContent === getString("mindmap-trashed-state");
+        }, "the panel to switch to the library-wide trashed message");
+      });
+
+      it("stops naming the library once the container is restored while the note is still trashed", async function () {
+        this.timeout(30000);
+        teardown = attachLiveRefresh(
+          fakeCy(),
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([containerItem.id]);
+        const containerMessage = await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the container-trashed panel",
+        );
+        assert.equal(
+          containerMessage.textContent,
+          getString("mindmap-trashed-state"),
+        );
+
+        await Zotero.Items.trashTx([note.id]);
+        await Zotero.Promise.delay(50);
+        await restore(containerItem);
+
+        await waitFor(() => {
+          const el = container.querySelector(
+            "#zoterolinkedmindmaps-mindmap-live-state",
+          );
+          return el?.textContent === getString("mindmap-note-trashed-state");
+        }, "the panel to switch to the note-trashed message");
+      });
+
+      it("does not blank a still-readable mindmap when a note reparented to top level leaves its old container trashed", async function () {
+        this.timeout(30000);
+        teardown = attachLiveRefresh(
+          fakeCy(),
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
+        await Zotero.Promise.delay(50);
+
+        note.parentItemID = false;
+        await note.saveTx();
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([containerItem.id]);
+        // Nothing to poll for a negative: give a stale-id rebuild time to
+        // arrive if the cleared id were never actually cleared.
+        await Zotero.Promise.delay(300);
+
+        assert.isNull(
+          container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "trashing the note's former container must no longer be recognised",
+        );
+        const stillReadable = await readMindmapDocument();
+        assert.isOk(stillReadable, "mindmap document must still be readable");
+      });
+    });
   });
 
   describe("external nodes", function () {

@@ -1404,8 +1404,17 @@ export function attachLiveRefresh(
   let currentIsGraph = true;
   let refreshing = false;
   let dirty = false;
-  type LiveState = "live" | "trashed" | "deleted";
-  let state: LiveState = "live";
+  // Deleted is terminal and absorbing: once set, nothing below ever clears
+  // it or renders anything else again.
+  let deleted = false;
+  // Which trashed-state panel is on screen right now, or null when the live
+  // graph is showing. This is the thing scheduleTrashCheck must keep in
+  // sync with the facts on every call, not just the first time it differs
+  // from "live" - a coarser live/trashed flag can't tell "still trashed,
+  // but for the other reason now" from "nothing changed", so it never
+  // re-renders when the cause flips.
+  type TrashPanel = "note" | "container";
+  let shownPanel: TrashPanel | null = null;
   // The id of the container this note hangs off, read once up front so
   // notify() can recognise a notification about it with nothing more than an
   // id comparison. Left undefined if the read loses a race with the note
@@ -1535,9 +1544,17 @@ export function attachLiveRefresh(
    * notification: trashing either one fires a "modify" immediately followed
    * by a "trash", but restoring it (clearing `deleted` and saving) fires
    * only a "modify" - measured against a live Zotero, not assumed.
-   * Comparing against the state already shown is what keeps this idempotent
-   * across repeated notifications and turns "modify" into "restore" when it
-   * applies.
+   *
+   * Derives which panel *should* be showing from those two facts and always
+   * renders when that differs from `shownPanel`, rather than gating on
+   * whether some coarser "am I showing a panel at all" flag changed. That
+   * distinction matters because the note and the container can each be
+   * trashed and restored independently, in either order: a check that only
+   * asks "is anything trashed" cannot tell "still trashed, but the cause
+   * flipped" from "nothing changed", so it never re-renders when the note
+   * is restored while the container is still trashed (or the reverse), and
+   * the panel goes on naming whichever was trashed first for the rest of
+   * the session.
    *
    * Decides trashed-or-live before ever touching `schedule()`, in the same
    * async chain rather than a second one started alongside it. A modify that
@@ -1550,12 +1567,14 @@ export function attachLiveRefresh(
    * `contentMayHaveChanged` covers a plain edit on the note itself, which
    * only its own notification carries; a container's own fields never touch
    * the mindmap's document, so its notification only earns a rebuild when
-   * it's the one that flips the tab back from "trashed".
+   * it's the one that flips the tab back from "live".
    *
    * The note and the container are trashed independently and mean different
    * things: a trashed note is this one mindmap gone missing, a trashed
    * container is every mindmap in the library gone missing. The panel says
-   * which actually happened rather than collapsing both into one message.
+   * which actually happened rather than collapsing both into one message,
+   * and a note trashed on its own takes priority over its container when
+   * both are trashed at once.
    */
   function scheduleTrashCheck(contentMayHaveChanged: boolean): void {
     void (async () => {
@@ -1566,9 +1585,14 @@ export function attachLiveRefresh(
         // read at attach: a note reparented while the tab is open would
         // otherwise leave this watching a container that is no longer its
         // own, and the very reparent fires a "modify" on the note's own id
-        // that reaches here and heals it.
-        if (note && typeof note.parentItemID === "number") {
-          containerItemID = note.parentItemID;
+        // that reaches here and heals it. Cleared to undefined rather than
+        // left stale when the note is now top-level, or trashing the old
+        // container would blank a mindmap that is still fully readable.
+        if (note) {
+          containerItemID =
+            typeof note.parentItemID === "number"
+              ? note.parentItemID
+              : undefined;
         }
         const noteTrashed = !!note && note.deleted;
         let containerTrashed = false;
@@ -1580,23 +1604,29 @@ export function attachLiveRefresh(
         }
         // A delete landing while this was already in flight is terminal; a
         // check that started before it must not undo that.
-        if (state === "deleted") {
+        if (deleted) {
           return;
         }
-        if (noteTrashed || containerTrashed) {
-          if (state !== "trashed") {
-            state = "trashed";
+        const desiredPanel: TrashPanel | null = noteTrashed
+          ? "note"
+          : containerTrashed
+            ? "container"
+            : null;
+        const wasShowingPanel = shownPanel !== null;
+        if (desiredPanel !== shownPanel) {
+          shownPanel = desiredPanel;
+          if (desiredPanel) {
             renderStatePanel(
-              noteTrashed
+              desiredPanel === "note"
                 ? "mindmap-note-trashed-state"
                 : "mindmap-trashed-state",
             );
           }
+        }
+        if (desiredPanel) {
           return;
         }
-        const wasTrashed = state === "trashed";
-        state = "live";
-        if (contentMayHaveChanged || wasTrashed) {
+        if (contentMayHaveChanged || wasShowingPanel) {
           schedule();
         }
       } catch (err) {
@@ -1627,12 +1657,12 @@ export function attachLiveRefresh(
   ): void {
     // Deleted is terminal: the note is gone for good, so nothing past this
     // point is worth reacting to.
-    if (type !== "item" || state === "deleted") {
+    if (type !== "item" || deleted) {
       return;
     }
     const idNums = ids.map(Number);
     if (event === "delete" && idNums.includes(storageNoteItemID)) {
-      state = "deleted";
+      deleted = true;
       renderStatePanel("mindmap-deleted-state");
       return;
     }
