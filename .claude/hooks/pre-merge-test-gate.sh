@@ -275,10 +275,18 @@ gate_xvfb_pids() {
 # for WAYLAND_DISPLAY and count children of the Xvfb root. Absence of visible
 # windows is not the test; the bare wrapper hides nothing, it paints elsewhere.
 #
-# The kill machinery below is unaffected: it identifies this run's Zoteros by
-# the $work path in their arguments, which xvfb-run does not change, and this
-# run's Xvfb by descent from the subshell -- still true with headless.mjs in
-# the chain, since it execs xvfb-run as a child rather than replacing itself.
+# Identification is unaffected: this run's Zoteros are still found by the
+# $work path in their arguments and its Xvfb still by descent from the
+# subshell, both unchanged by headless.mjs sitting in the chain. But on the
+# normal path, what actually reclaims xvfb-run's auth dir is not
+# `pkill -9 -P "$test_pid"` below -- that only reaches npm. Killing the
+# Zoteros makes zotero-plugin-scaffold's own `zotero.on("close") ->
+# process.exit()` collapse everything under npm in turn, down through
+# xvfb-run, whose own EXIT trap is what removes the dir. On a run with
+# nothing to collapse that chain -- no live Zotero and no completion line --
+# xvfb-run now sits one level deeper than before this change and nothing
+# here reaches it directly: its Xvfb still dies, by descent, but the orphaned
+# shell's EXIT trap never runs and its auth dir is never removed.
 # Absent xvfb-run, headless.mjs runs the suite on the real display itself and
 # warns once; there is no longer a branch here for that case.
 ( cd "$work" && npm test >"$log" 2>&1 ) &
