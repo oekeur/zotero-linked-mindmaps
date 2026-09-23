@@ -55,6 +55,7 @@ import {
   findContainers,
   findMindmapNote,
   readMindmapDocument,
+  serializeDocument,
   updateMindmapDocument,
   whenStorageIdle,
   writeMindmapDocument,
@@ -766,6 +767,16 @@ describe("mindmap/graphRenderer", function () {
       };
     }
 
+    // mindmapTab.load shares one RenderedState between the graph's initial
+    // render and attachLiveRefresh, populated with what's already on screen -
+    // never the default `{ document: null }`, which can't equal a serialized
+    // document and so would never take the dedupe branch in rebuild(). A
+    // spec that never populates it can't tell a working restore from a
+    // rebuild that runs unconditionally.
+    async function renderedStateFor(): Promise<RenderedState> {
+      return { document: serializeDocument(await readMindmapDocument()) };
+    }
+
     // One unplaced node, so the rebuild the notification kicks off reaches
     // layoutUnplacedNodes and actually writes a position back. A document with
     // nothing to lay out never writes, and would not exercise the deadlock.
@@ -897,8 +908,15 @@ describe("mindmap/graphRenderer", function () {
 
       it("shows a trashed state and stops presenting the mindmap as live, without a reopen (AC #1)", async function () {
         this.timeout(30000);
-        const rendered = destroyCountingCy();
-        teardown = attachLiveRefresh(rendered.cy, container, note.id, []);
+        const counting = destroyCountingCy();
+        teardown = attachLiveRefresh(
+          counting.cy,
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
         // Lets the async read of the note's own container id resolve before
         // trashing it, mirroring how long that read genuinely takes.
         await Zotero.Promise.delay(50);
@@ -911,12 +929,19 @@ describe("mindmap/graphRenderer", function () {
           "the trashed-state panel",
         );
         assert.equal(message.textContent, getString("mindmap-trashed-state"));
-        assert.isAtLeast(rendered.destroyed, 1);
+        assert.isAtLeast(counting.destroyed, 1);
       });
 
       it("returns to the live mindmap once the container is restored, without a reopen (AC #2)", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(fakeCy(), container, note.id, []);
+        teardown = attachLiveRefresh(
+          fakeCy(),
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
         await Zotero.Promise.delay(50);
 
         await Zotero.Items.trashTx([pluginContainer.id]);
@@ -933,7 +958,7 @@ describe("mindmap/graphRenderer", function () {
           () =>
             container.querySelector(
               "#zoterolinkedmindmaps-mindmap-live-state",
-            ) === null || null,
+            ) === null,
           "the trashed-state panel to clear",
         );
         await waitFor(
@@ -949,10 +974,17 @@ describe("mindmap/graphRenderer", function () {
         other.setField("title", "Unrelated to the mindmap");
         await other.saveTx();
 
-        const rendered = destroyCountingCy();
-        teardown = attachLiveRefresh(rendered.cy, container, note.id, []);
+        const counting = destroyCountingCy();
+        teardown = attachLiveRefresh(
+          counting.cy,
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
         await Zotero.Promise.delay(200);
-        const before = rendered.destroyed;
+        const before = counting.destroyed;
 
         other.setField("title", "Still unrelated to the mindmap");
         await other.saveTx();
@@ -960,8 +992,82 @@ describe("mindmap/graphRenderer", function () {
         // the wait has to give one time to arrive if it were coming.
         await Zotero.Promise.delay(300);
 
-        assert.equal(rendered.destroyed, before);
+        assert.equal(counting.destroyed, before);
         await other.eraseTx();
+      });
+    });
+
+    describe("a trashed storage note", function () {
+      let note: Zotero.Item;
+
+      beforeEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+        await createMindmap("Behind a trashed note");
+        [note] = await findAllMindmapNotes();
+      });
+
+      afterEach(async function () {
+        await clearStorageNotes();
+      });
+
+      it("shows a trashed state and stops presenting the mindmap as live, without a reopen (AC #4)", async function () {
+        this.timeout(30000);
+        const counting = destroyCountingCy();
+        teardown = attachLiveRefresh(
+          counting.cy,
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([note.id]);
+
+        const message = await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the trashed-state panel",
+        );
+        assert.equal(message.textContent, getString("mindmap-trashed-state"));
+        assert.isAtLeast(counting.destroyed, 1);
+      });
+
+      it("returns to the live mindmap once the note is restored, without a reopen", async function () {
+        this.timeout(30000);
+        teardown = attachLiveRefresh(
+          fakeCy(),
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([note.id]);
+        await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the trashed-state panel",
+        );
+
+        note.deleted = false;
+        await note.saveTx();
+
+        await waitFor(
+          () =>
+            container.querySelector(
+              "#zoterolinkedmindmaps-mindmap-live-state",
+            ) === null,
+          "the trashed-state panel to clear",
+        );
+        await waitFor(
+          () => container.querySelector(`.${TOOLBAR_CLASS}`),
+          "the graph to redraw once restored",
+        );
       });
     });
   });

@@ -1383,11 +1383,11 @@ export async function renderMindmap(
  * unprompted.
  *
  * The graph is not the only thing that can go stale: the note can be erased
- * (locally, or by a synced remote deletion) and its container can be
- * trashed, which hides every mindmap under it from Zotero.Search without
- * touching the note itself. Both replace the graph with a state panel rather
- * than redrawing stale content - deleted is terminal (the note is gone for
- * good), trashed clears itself once the container is restored.
+ * (locally, or by a synced remote deletion), and either the note itself or
+ * its container can be trashed, which hides it from Zotero.Search without
+ * erasing it. Both replace the graph with a state panel rather than
+ * redrawing stale content - deleted is terminal (the note is gone for
+ * good), trashed clears itself once the note or its container is restored.
  *
  * Returns a teardown function that unregisters the observer and destroys
  * the currently rendered graph.
@@ -1441,6 +1441,10 @@ export function attachLiveRefresh(
    */
   function renderStatePanel(messageId: FluentMessageId): void {
     teardownCurrent();
+    // Otherwise a restore's rebuild() compares the live document against
+    // what the trashed graph last rendered, finds them equal, and returns
+    // without redrawing - the panel would stay on screen forever.
+    rendered.document = null;
     container.textContent = "";
     const doc = container.ownerDocument;
     if (doc) {
@@ -1526,31 +1530,55 @@ export function attachLiveRefresh(
   }
 
   /**
-   * Re-reads the container's own trashed state rather than trusting which
-   * event name carried the notification: trashing the container fires a
-   * "modify" immediately followed by a "trash", but restoring it (clearing
-   * `deleted` and saving) fires only a "modify" - measured against a live
-   * Zotero, not assumed. Comparing against the state already shown is what
-   * keeps this idempotent across repeated notifications and turns "modify"
-   * into "restore" when it applies.
+   * Re-reads the note's own trashed state and its container's, rather than
+   * trusting which event name or which of the two ids carried the
+   * notification: trashing either one fires a "modify" immediately followed
+   * by a "trash", but restoring it (clearing `deleted` and saving) fires
+   * only a "modify" - measured against a live Zotero, not assumed.
+   * Comparing against the state already shown is what keeps this idempotent
+   * across repeated notifications and turns "modify" into "restore" when it
+   * applies.
+   *
+   * Decides trashed-or-live before ever touching `schedule()`, in the same
+   * async chain rather than a second one started alongside it. A modify that
+   * precedes the note's own trash still reaches this function first: kicking
+   * off a content rebuild in parallel let it finish after this had already
+   * reset `rendered.document` for the panel, so the rebuild's dedupe check
+   * saw a mismatch and painted a live graph right back over the panel it was
+   * just given.
+   *
+   * `contentMayHaveChanged` covers a plain edit on the note itself, which
+   * only its own notification carries; a container's own fields never touch
+   * the mindmap's document, so its notification only earns a rebuild when
+   * it's the one that flips the tab back from "trashed".
    */
-  function scheduleContainerCheck(): void {
+  function scheduleTrashCheck(contentMayHaveChanged: boolean): void {
     void (async () => {
       try {
-        const containerItem = (await Zotero.Items.getAsync(
-          containerItemID!,
-        )) as Zotero.Item | false;
-        const trashed = !!containerItem && containerItem.deleted;
-        if (trashed && state !== "trashed") {
-          state = "trashed";
-          renderStatePanel("mindmap-trashed-state");
-        } else if (!trashed && state === "trashed") {
-          state = "live";
+        const note = (await Zotero.Items.getAsync(storageNoteItemID)) as
+          Zotero.Item | false;
+        let trashed = !!note && note.deleted;
+        if (!trashed && containerItemID !== undefined) {
+          const containerItem = (await Zotero.Items.getAsync(
+            containerItemID,
+          )) as Zotero.Item | false;
+          trashed = !!containerItem && containerItem.deleted;
+        }
+        if (trashed) {
+          if (state !== "trashed") {
+            state = "trashed";
+            renderStatePanel("mindmap-trashed-state");
+          }
+          return;
+        }
+        const wasTrashed = state === "trashed";
+        state = "live";
+        if (contentMayHaveChanged || wasTrashed) {
           schedule();
         }
       } catch (err) {
         logFailure(
-          `[zoteroLinkedMindmaps] mindmap container check failed: ${(err as Error).message}`,
+          `[zoteroLinkedMindmaps] mindmap trash check failed: ${(err as Error).message}`,
           err,
         );
       }
@@ -1585,13 +1613,11 @@ export function attachLiveRefresh(
       renderStatePanel("mindmap-deleted-state");
       return;
     }
-    if (event === "modify" && idNums.includes(storageNoteItemID)) {
-      // A trashed container already hides this note from Zotero.Search; a
-      // modify that reaches the notifier anyway (a sync merge, say) isn't
-      // worth redrawing for until the container check brings the tab back.
-      if (state === "live") {
-        schedule();
-      }
+    if (
+      (event === "modify" || event === "trash") &&
+      idNums.includes(storageNoteItemID)
+    ) {
+      scheduleTrashCheck(true);
       return;
     }
     if (
@@ -1599,7 +1625,7 @@ export function attachLiveRefresh(
       (event === "modify" || event === "trash") &&
       idNums.includes(containerItemID)
     ) {
-      scheduleContainerCheck();
+      scheduleTrashCheck(false);
     }
   }
 
