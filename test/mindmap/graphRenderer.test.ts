@@ -1011,7 +1011,7 @@ describe("mindmap/graphRenderer", function () {
         await clearStorageNotes();
       });
 
-      it("shows a trashed state and stops presenting the mindmap as live, without a reopen (AC #4)", async function () {
+      it("shows a note-trashed state (not the library-wide message) and stops presenting the mindmap as live, without a reopen (AC #4, #5)", async function () {
         this.timeout(30000);
         const counting = destroyCountingCy();
         teardown = attachLiveRefresh(
@@ -1031,7 +1031,10 @@ describe("mindmap/graphRenderer", function () {
             container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
           "the trashed-state panel",
         );
-        assert.equal(message.textContent, getString("mindmap-trashed-state"));
+        assert.equal(
+          message.textContent,
+          getString("mindmap-note-trashed-state"),
+        );
         assert.isAtLeast(counting.destroyed, 1);
       });
 
@@ -1068,6 +1071,74 @@ describe("mindmap/graphRenderer", function () {
           () => container.querySelector(`.${TOOLBAR_CLASS}`),
           "the graph to redraw once restored",
         );
+      });
+    });
+
+    // The sync route that actually reparents a note (containerGuard's
+    // reconcileContainer) only runs at startup, before any tab exists, so it
+    // cannot drive this from a live notification. Setting parentItemID
+    // directly is the same write reconcileContainer makes and fires the same
+    // notification shape; it proves the observer re-reads its container id
+    // rather than trusting the value cached at attach, but not that a real
+    // sync-driven reparent reaches this path the same way.
+    describe("a note reparented while the tab is open (AC #6)", function () {
+      let originalContainer: Zotero.Item;
+      let newParent: Zotero.Item;
+      let note: Zotero.Item;
+
+      beforeEach(async function () {
+        this.timeout(30000);
+        await clearStorageNotes();
+        await createMindmap("Behind a reparented note");
+        [originalContainer] = await findContainers();
+        [note] = await findAllMindmapNotes();
+        newParent = new Zotero.Item("journalArticle");
+        newParent.libraryID = Zotero.Libraries.userLibraryID;
+        newParent.setField("title", "Stand-in parent after reparenting");
+        await newParent.saveTx();
+      });
+
+      afterEach(async function () {
+        await clearStorageNotes();
+        await newParent.eraseTx();
+      });
+
+      it("tracks the note's current parent instead of the one resolved at attach: trashing the old container does nothing, trashing the new parent shows the trashed state", async function () {
+        this.timeout(30000);
+        teardown = attachLiveRefresh(
+          fakeCy(),
+          container,
+          note.id,
+          [],
+          undefined,
+          await renderedStateFor(),
+        );
+        // Lets the async read of the note's container id resolve before
+        // reparenting it.
+        await Zotero.Promise.delay(50);
+
+        note.parentItemID = newParent.id;
+        await note.saveTx();
+        // Lets the reparent's own "modify" notification on the note refresh
+        // the observer's cached container id before either trash follows.
+        await Zotero.Promise.delay(50);
+
+        await Zotero.Items.trashTx([originalContainer.id]);
+        // Nothing to poll for a negative: give a stale-id rebuild time to
+        // arrive if the id were never refreshed.
+        await Zotero.Promise.delay(300);
+        assert.isNull(
+          container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "trashing the note's former container must no longer be recognised",
+        );
+
+        await Zotero.Items.trashTx([newParent.id]);
+        const message = await waitFor(
+          () =>
+            container.querySelector("#zoterolinkedmindmaps-mindmap-live-state"),
+          "the trashed-state panel once the note's actual current parent is trashed",
+        );
+        assert.equal(message.textContent, getString("mindmap-trashed-state"));
       });
     });
   });

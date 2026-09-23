@@ -1551,23 +1551,46 @@ export function attachLiveRefresh(
    * only its own notification carries; a container's own fields never touch
    * the mindmap's document, so its notification only earns a rebuild when
    * it's the one that flips the tab back from "trashed".
+   *
+   * The note and the container are trashed independently and mean different
+   * things: a trashed note is this one mindmap gone missing, a trashed
+   * container is every mindmap in the library gone missing. The panel says
+   * which actually happened rather than collapsing both into one message.
    */
   function scheduleTrashCheck(contentMayHaveChanged: boolean): void {
     void (async () => {
       try {
         const note = (await Zotero.Items.getAsync(storageNoteItemID)) as
           Zotero.Item | false;
-        let trashed = !!note && note.deleted;
-        if (!trashed && containerItemID !== undefined) {
+        // Refreshed from the note itself rather than trusted from the value
+        // read at attach: a note reparented while the tab is open would
+        // otherwise leave this watching a container that is no longer its
+        // own, and the very reparent fires a "modify" on the note's own id
+        // that reaches here and heals it.
+        if (note && typeof note.parentItemID === "number") {
+          containerItemID = note.parentItemID;
+        }
+        const noteTrashed = !!note && note.deleted;
+        let containerTrashed = false;
+        if (!noteTrashed && containerItemID !== undefined) {
           const containerItem = (await Zotero.Items.getAsync(
             containerItemID,
           )) as Zotero.Item | false;
-          trashed = !!containerItem && containerItem.deleted;
+          containerTrashed = !!containerItem && containerItem.deleted;
         }
-        if (trashed) {
+        // A delete landing while this was already in flight is terminal; a
+        // check that started before it must not undo that.
+        if (state === "deleted") {
+          return;
+        }
+        if (noteTrashed || containerTrashed) {
           if (state !== "trashed") {
             state = "trashed";
-            renderStatePanel("mindmap-trashed-state");
+            renderStatePanel(
+              noteTrashed
+                ? "mindmap-note-trashed-state"
+                : "mindmap-trashed-state",
+            );
           }
           return;
         }

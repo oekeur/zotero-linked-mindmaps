@@ -79,6 +79,7 @@ export type FluentMessageId =
   | 'mindmap-legend-undirectional'
   | 'mindmap-legend-unknown-type'
   | 'mindmap-new-button'
+  | 'mindmap-note-trashed-state'
   | 'mindmap-relayout-button'
   | 'mindmap-relayout-confirm-all'
   | 'mindmap-relayout-confirm-selection'
