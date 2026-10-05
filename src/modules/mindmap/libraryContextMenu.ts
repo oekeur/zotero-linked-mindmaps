@@ -297,18 +297,43 @@ function windowOf(menu: Element): _ZoteroTypes.MainWindow {
  */
 const openingPerEntry = new WeakMap<Element, Event>();
 
+/** The listener that ends each entry's current opening, so a rebuild replaces
+ * it rather than stacking a second one. */
+const closerPerEntry = new WeakMap<Element, EventListener>();
+
+/**
+ * Starts an opening: hides the entry until its shape is known, and hides it
+ * again when the item menu itself closes.
+ *
+ * The close is this plugin's own listener rather than Zotero's onHidden hook.
+ * Zotero adds that hook with `once`, and a submenu's popuphidden bubbles up to
+ * the item menu first: Zotero's handler ignores it as the wrong target, but
+ * `once` has already removed the listener, so after any submenu opened the
+ * item menu's own close never reaches onHidden.
+ */
 function beginOpening(context: LibraryMenuContext, event: Event): void {
   context.setVisible(false);
-  if (context.menuElem) {
-    openingPerEntry.set(context.menuElem, event);
+  const menu = context.menuElem;
+  const popup = menu?.parentElement;
+  if (!menu || !popup) {
+    return;
   }
-}
-
-function endOpening(context: LibraryMenuContext): void {
-  context.setVisible(false);
-  if (context.menuElem) {
-    openingPerEntry.delete(context.menuElem);
+  openingPerEntry.set(menu, event);
+  const previous = closerPerEntry.get(menu);
+  if (previous) {
+    popup.removeEventListener("popuphidden", previous);
   }
+  const close = (ev: Event) => {
+    if (ev.target !== popup) {
+      return;
+    }
+    popup.removeEventListener("popuphidden", close);
+    closerPerEntry.delete(menu);
+    openingPerEntry.delete(menu);
+    (menu as XULElement).hidden = true;
+  };
+  closerPerEntry.set(menu, close);
+  popup.addEventListener("popuphidden", close);
 }
 
 function stillOpening(menu: Element | undefined, event: Event): boolean {
@@ -396,7 +421,6 @@ function mindmapActionEntries(action: MindmapAction): LibraryMenuData[] {
           }
         });
       },
-      onHidden: (_event, context) => endOpening(context),
       onCommand: (_event, context) => act(windowOf(context.menuElem)),
     },
     {
@@ -429,7 +453,6 @@ function mindmapActionEntries(action: MindmapAction): LibraryMenuData[] {
           },
         );
       },
-      onHidden: (_event, context) => endOpening(context),
     },
   ];
 }

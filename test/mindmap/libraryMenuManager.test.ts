@@ -150,6 +150,23 @@ describe("mindmap/libraryContextMenu: the registered menus", function () {
     assert.deepEqual(shownIds(opened), []);
   });
 
+  // A submenu's popuphidden bubbles to the item menu, where it consumes any
+  // once-only popuphidden listener before the item menu itself closes.
+  it("hides every entry again when the menu closes after a submenu was opened", async function () {
+    await createMindmap("First mindmap");
+    await createMindmap("Second mindmap");
+    await select(2);
+    const opened = await openSettled("menu-add-link-submenu");
+    const subPopup = opened
+      .entry("menu-add-link-submenu")!
+      .querySelector(":scope > menupopup")!;
+    subPopup.dispatchEvent(new win.Event("popupshowing", { bubbles: true }));
+    subPopup.dispatchEvent(new win.Event("popuphidden", { bubbles: true }));
+    opened.close();
+    menu = undefined;
+    assert.deepEqual(shownIds(opened), []);
+  });
+
   it("adds the selection from the plain entry's command, on a later opening too", async function () {
     const mindmap = await createMindmap("Only mindmap");
     await select(1);
