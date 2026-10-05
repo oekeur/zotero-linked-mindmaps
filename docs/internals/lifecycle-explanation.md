@@ -6,19 +6,21 @@ Three decisions in `src/hooks.ts` don't become obvious from reading it: one tool
 
 `zotero-plugin-toolkit`'s `unregisterAll()` removes every element the toolkit it is called on created, in whichever window it created them. That is the whole mechanism: the toolkit keeps a registry of what it made, and tearing it down walks that registry.
 
-With a single shared toolkit, `onMainWindowUnload` had exactly one thing it could call. So closing either of two open main windows tore down every registration the plugin had made across both. The Tools-menu "Mindmap" entry and the "Add to Mindmap" item context-menu entry vanished from the window still on screen, and nothing short of restarting Zotero put them back.
+With a single shared toolkit, `onMainWindowUnload` had exactly one thing it could call. So closing either of two open main windows tore down every registration the plugin had made across both. When the menus were toolkit registrations, the Tools-menu "Mindmap" entry and the "Add to Mindmap" item context-menu entry vanished from the window still on screen, and nothing short of restarting Zotero put them back.
 
-`windowToolkits: Map<Window, ZToolkit>` fixes that by making the teardown unit match the registration unit. `onMainWindowLoad` builds a toolkit, files it under the window, and points `addon.data.ztoolkit` at it, so `registerMindmapMenu()` and `LibraryContextMenuFactory.register(win)` register against the toolkit belonging to the window they are decorating. `onMainWindowUnload` looks up that one toolkit, drops it from the map, and unregisters only it.
+The menus no longer go through the toolkit: they register once with `Zotero.MenuManager`, which builds them into every main window itself (see [lifecycle-reference.md](lifecycle-reference.md#menus)). Nothing in `onMainWindowLoad` registers through the per-window toolkit any more; the structure below stays because it is what keeps a future per-window registration from repeating that failure.
+
+`windowToolkits: Map<Window, ZToolkit>` fixes that by making the teardown unit match the registration unit. `onMainWindowLoad` builds a toolkit, files it under the window, and points `addon.data.ztoolkit` at it, so anything it registers lands on the toolkit belonging to the window it is decorating. `onMainWindowUnload` looks up that one toolkit, drops it from the map, and unregisters only it.
 
 The global `ztoolkit` is a getter (installed in `src/index.ts`) that reads `addon.data.ztoolkit` on every access, so "the current toolkit" is a single mutable pointer instead of something modules capture at import time. Registration code never has to know which window it is targeting. It reads the global and gets whatever `onMainWindowLoad` most recently set.
 
-Following a pointer like that has a cost. Code running outside a window-load that reads `ztoolkit` gets the most recently loaded window's toolkit, not any particular one. For the ProgressWindow calls that is fine, since a progress window belongs to whichever window is frontmost anyway. Anything that needs a specific window gets it passed explicitly, which is why `LibraryContextMenuFactory.register` takes `win` and closes over it.
+Following a pointer like that has a cost. Code running outside a window-load that reads `ztoolkit` gets the most recently loaded window's toolkit, not any particular one. For the ProgressWindow calls that is fine, since a progress window belongs to whichever window is frontmost anyway. Anything that needs a specific window gets it passed explicitly; the item-menu actions, for instance, read it from the menu element they were clicked in.
 
 ## Why the global toolkit is handed to a surviving window
 
 `addon.data.ztoolkit` points at the last window that loaded. Close that window and the pointer is left aiming at a toolkit that has just had `unregisterAll()` called on it, attached to a dead window.
 
-Anything reading the global afterwards (a ProgressWindow from the container guard, a menu registration from a window loading a moment later) would be operating against a torn-down toolkit in a closed window. So `onMainWindowUnload` checks whether the toolkit it just destroyed was the one the global pointed at, and if so moves the pointer to the first toolkit still in `windowToolkits`, falling back to `startupToolkit`, falling back to leaving it alone. That last fallback covers the case where every main window is gone, where there is no better answer available and a stale pointer is no worse than an undefined one.
+Anything reading the global afterwards (a ProgressWindow from the container guard) would be operating against a torn-down toolkit in a closed window. So `onMainWindowUnload` checks whether the toolkit it just destroyed was the one the global pointed at, and if so moves the pointer to the first toolkit still in `windowToolkits`, falling back to `startupToolkit`, falling back to leaving it alone. That last fallback covers the case where every main window is gone, where there is no better answer available and a stale pointer is no worse than an undefined one.
 
 ## Why `startupToolkit` is tracked separately
 

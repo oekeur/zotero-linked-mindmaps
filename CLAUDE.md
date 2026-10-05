@@ -33,7 +33,7 @@ Per-worktree setup is not a project script: run `~/.claude/scripts/worktree-init
 
 ## Architecture
 
-zoteroMindmap is a **Zotero 7 plugin** (item pane panel + main-window tab, per Zotero's plugin platform), not a standalone app. It gives users typed/named links between Zotero items and notes, organized into multiple named mindmaps, rendered with a graph-layout library rather than a custom layout engine. Full rationale for each design choice (own data model instead of tags/`relatedItem`, multi-mindmap instead of one global graph, items+notes as nodes, separate item-pane "Mindmaps" section vs. main mindmap view) is in `project/PRODUCT.md` — read it before proposing a different approach, since most obvious alternatives were already considered and ruled out there.
+zoteroMindmap is a **Zotero 8+ plugin** (item pane panel + main-window tab, per Zotero's plugin platform), not a standalone app. It gives users typed/named links between Zotero items and notes, organized into multiple named mindmaps, rendered with a graph-layout library rather than a custom layout engine. Full rationale for each design choice (own data model instead of tags/`relatedItem`, multi-mindmap instead of one global graph, items+notes as nodes, separate item-pane "Mindmaps" section vs. main mindmap view) is in `project/PRODUCT.md` — read it before proposing a different approach, since most obvious alternatives were already considered and ruled out there.
 
 ### Repository layout
 

@@ -15,6 +15,7 @@ import { getLocaleID } from "../../src/utils/locale";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
 import { query } from "../dom";
+import { isShown, openItemMenu } from "../itemMenu";
 
 /**
  * Drives the Connections section the plugin actually registered, through a
@@ -121,24 +122,26 @@ describe("mindmap/connectionsPanel: the registered section", function () {
 
   describe("re-rendering on a storage write", function () {
     const LIBRARY_TAB = "zotero-pane";
-    const ADD_TO_MINDMAP_MENUITEM =
-      "#zotero-linked-mindmaps-itemmenu-add-to-mindmap";
 
     /**
-     * The plugin's own write path, not this bundle's copy of it: the
-     * menuitem ztoolkit registered carries the plugin's addToMindmap, which
-     * writes through the plugin's storage queue and so reaches the listener
-     * the registered section subscribed. A write made through this bundle's
-     * storage import would emit on a different listener set and prove
-     * nothing about the live section.
+     * The plugin's own write path, not this bundle's copy of it: the entry
+     * the plugin registered with Zotero.MenuManager carries the plugin's
+     * addToMindmap, which writes through the plugin's storage queue and so
+     * reaches the listener the registered section subscribed. A write made
+     * through this bundle's storage import would emit on a different
+     * listener set and prove nothing about the live section.
      */
-    function addSelectionToMindmapThroughMenu(): void {
-      const menuitem = query(
-        win.document,
-        ADD_TO_MINDMAP_MENUITEM,
-        "the plugin's Add to Mindmap menuitem",
-      );
-      menuitem.dispatchEvent(new win.Event("command"));
+    async function addSelectionToMindmapThroughMenu(): Promise<void> {
+      const menu = await openItemMenu(win);
+      try {
+        const menuitem = await waitFor(() => {
+          const entry = menu.entry("menu-add-to-mindmap-flat");
+          return isShown(entry) ? entry : null;
+        }, "the plugin's Add to Mindmap entry to be revealed");
+        menuitem.dispatchEvent(new win.Event("command"));
+      } finally {
+        menu.close();
+      }
     }
 
     async function selectAndAwaitEmptyState(
@@ -175,7 +178,7 @@ describe("mindmap/connectionsPanel: the registered section", function () {
       await createMindmap("Written to from outside the panel");
       const body = await selectAndAwaitEmptyState(article);
 
-      addSelectionToMindmapThroughMenu();
+      await addSelectionToMindmapThroughMenu();
 
       await waitFor(
         () => body.querySelector(".mindmap-current"),
@@ -331,7 +334,7 @@ describe("mindmap/connectionsPanel: the registered section", function () {
         );
         win.Zotero_Tabs.select(LIBRARY_TAB);
 
-        addSelectionToMindmapThroughMenu();
+        await addSelectionToMindmapThroughMenu();
 
         await waitFor(
           () => body.querySelector(".mindmap-current"),

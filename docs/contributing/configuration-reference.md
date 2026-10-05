@@ -96,7 +96,7 @@ This file is a template, not the shipped manifest. The build copies it into `.sc
     "zotero": {
       "id": "__addonID__",
       "update_url": "__updateURL__",
-      "strict_min_version": "6.999",
+      "strict_min_version": "7.999",
       "strict_max_version": "10.0.*"
     }
   }
@@ -109,7 +109,7 @@ This file is a template, not the shipped manifest. The build copies it into `.sc
 
 `icons` are paths relative to the built addon root, resolved against `addon/content/icons/`.
 
-`strict_min_version` is `6.999`. Zotero 7 betas report versions above 6.999 and below 7, so this is the conventional way to say "Zotero 7 or later" and exclude Zotero 6.
+`strict_min_version` is `7.999`. Zotero 8 betas report versions above 7.999 and below 8, so this is the conventional way to say "Zotero 8 or later" and exclude Zotero 7. The floor is Zotero 8 because the menus register through `Zotero.MenuManager`, which Zotero 8 introduced. Zotero 7 users stay on v1.0.0: the generated `update.json` carries the same floor, so Zotero 7 is never offered a newer version.
 
 `strict_max_version` is `10.0.*`. **This one fails silently.** If a Zotero version exceeds the ceiling, Zotero refuses to load the plugin: no console error, no install failure, no message anywhere. The only symptom is the plugin's absence from Tools, then Plugins. Check this field whenever the plugin stops appearing after a Zotero upgrade.
 

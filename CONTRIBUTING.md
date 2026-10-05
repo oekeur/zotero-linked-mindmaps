@@ -16,7 +16,7 @@ Open a [feature request](https://github.com/oekeur/zotero-linked-mindmaps/issues
 
 ## Setting up
 
-[Development setup](./docs/contributing/development-setup.md) goes from a fresh clone to a running Zotero with the plugin hot-reloading. You need a local Zotero 7 install and a dev profile separate from the one holding your real library.
+[Development setup](./docs/contributing/development-setup.md) goes from a fresh clone to a running Zotero with the plugin hot-reloading. You need a local Zotero 8 or later install and a dev profile separate from the one holding your real library.
 
 ```sh
 cp .env.example .env

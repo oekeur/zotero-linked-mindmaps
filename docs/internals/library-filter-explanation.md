@@ -14,9 +14,7 @@ Two row kinds are excluded from wrapping, because scoping them would change what
 
 ## Why the patch is global, not per window
 
-Every other UI registration in this plugin is per main window: the File-menu item, the item context-menu entries, each with its own toolkit, for reasons covered in [lifecycle-explanation.md](lifecycle-explanation.md).
-
-The item-tree filter is the exception, and `onStartup` says so in a comment on the call. `Zotero.CollectionTreeRow` is one constructor shared by every window, and its prototype is one object. Patch it once and the behavior changes everywhere. Patch it per window and you stack N wrappers on the same prototype, each calling through to the one below. The rows would get filtered N times, which is harmless, but unregistering one window's wrapper would restore whichever function happened to be underneath it, which very much isn't.
+The menus are global too, but only because `Zotero.MenuManager` does the per-window work itself: it builds each registered entry into every main window. The filter has no such API behind it; it patches Zotero's own code, so being global is a constraint on it rather than a convenience, and `onStartup` says so in a comment on the call. `Zotero.CollectionTreeRow` is one constructor shared by every window, and its prototype is one object. Patch it once and the behavior changes everywhere. Patch it per window and you stack N wrappers on the same prototype, each calling through to the one below. The rows would get filtered N times, which is harmless, but unregistering one window's wrapper would restore whichever function happened to be underneath it, which very much isn't.
 
 So `registerLibraryFilter()` runs once in `onStartup` and `unregisterLibraryFilter()` once in `onShutdown`, and the register function guards on `original` being set so a second call is a no-op.
 

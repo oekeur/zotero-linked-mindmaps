@@ -40,7 +40,6 @@ import { appendGlyph } from "./uiElements";
 import type { MindmapDocument } from "./schema";
 
 const TAB_TYPE = "zoterolinkedmindmaps-mindmap";
-const MENU_ID = "zotero-linked-mindmaps-menuitem-open-mindmap";
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -589,16 +588,30 @@ export async function openMindmapTab(): Promise<void> {
   await controller.refresh();
 }
 
-// Tools, not File: File holds Zotero's own import and export actions, and
-// Tools is where a plugin entry is looked for, next to Tools > Plugins.
-export function registerMindmapMenu(): void {
-  ztoolkit.Menu.register("menuTools", {
-    tag: "menuitem",
-    id: MENU_ID,
-    label: getString("menuitem-mindmap-open"),
-    commandListener: () => {
-      void openMindmapTab();
-    },
+/**
+ * Adds the Tools > Mindmap entry.
+ *
+ * Tools, not File: File holds Zotero's own import and export actions, and
+ * Tools is where a plugin entry is looked for, next to Tools > Plugins.
+ *
+ * Once, from onStartup: Zotero.MenuManager builds the entry into every main
+ * window's Tools menu each time it opens, and drops the registration when the
+ * plugin shuts down, keyed on pluginID.
+ */
+export function registerMindmapMenu(): string | false {
+  return Zotero.MenuManager.registerMenu({
+    menuID: "tools-open-mindmap",
+    pluginID: addon.data.config.addonID,
+    target: "main/menubar/tools",
+    menus: [
+      {
+        menuType: "menuitem",
+        l10nID: `${addon.data.config.addonRef}-menu-tools-mindmap`,
+        onCommand: () => {
+          void openMindmapTab();
+        },
+      },
+    ],
   });
 }
 

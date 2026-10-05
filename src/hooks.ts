@@ -1,7 +1,7 @@
 import { getString, initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
 import { ConnectionsPanelFactory } from "./modules/mindmap/connectionsPanel";
-import { LibraryContextMenuFactory } from "./modules/mindmap/libraryContextMenu";
+import { registerLibraryContextMenu } from "./modules/mindmap/libraryContextMenu";
 import {
   closeMindmapTab,
   registerMindmapMenu,
@@ -30,11 +30,10 @@ let deletionObserverID: string | undefined;
 let containerObserverID: string | undefined;
 
 /**
- * One toolkit per main window. `unregisterAll()` takes down every element the
- * toolkit it is called on created, in whichever window it created them - so a
- * single shared toolkit meant closing either of two main windows stripped the
- * File-menu entry and the "Add to mindmap" context-menu entry from the one
- * still open.
+ * One toolkit per main window. `unregisterAll()` takes down everything the
+ * toolkit it is called on registered, in whichever window it did so - so a
+ * single shared toolkit meant closing either of two main windows also took
+ * down what the one still open depended on.
  */
 const windowToolkits = new Map<Window, ZToolkit>();
 
@@ -70,6 +69,12 @@ async function onStartup() {
     stylesheets: [`${rootURI}content/preferences.css`],
   });
 
+  // Once each, not per window: Zotero.MenuManager builds the entries into
+  // every main window's menus itself, including windows opened later, and
+  // drops them when the plugin shuts down, keyed on pluginID.
+  registerMindmapMenu();
+  registerLibraryContextMenu();
+
   startupToolkit = addon.data.ztoolkit;
   registerMindmapShortcut();
 
@@ -99,9 +104,6 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   );
 
   insertStylesheet(win);
-
-  registerMindmapMenu();
-  LibraryContextMenuFactory.register(win);
 
   const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
     closeOnClick: true,

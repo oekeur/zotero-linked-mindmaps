@@ -38,7 +38,7 @@ That changed. It used to clean up with `pkill -9 -f zotero-bin`, which matched e
 
 ## Run the suite against a different Zotero version
 
-CI runs the suite against every Zotero major the manifest claims support for, currently 7.0.32, 8.0.4, 9.0.4 and 10.0, pinned in the `test` job's matrix in `.github/workflows/ci.yml`. Locally you only need the one Zotero you develop against, so there is no local matrix and no script for one.
+CI runs the suite against every Zotero major the manifest claims support for, currently 8.0.4, 9.0.4 and 10.0, pinned in the `test` job's matrix in `.github/workflows/ci.yml`. Locally you only need the one Zotero you develop against, so there is no local matrix and no script for one.
 
 When CI reports a failure on a version you don't run, point the runner at that version's binary for a single run:
 
@@ -51,11 +51,11 @@ The variable overrides the path from `.env` for that run, and the scaffold uses 
 To get a binary, unpack the version you need next to wherever you keep scratch files:
 
 ```sh
-curl -fL --output zotero.tar https://download.zotero.org/client/release/7.0.32/Zotero-7.0.32_linux-x86_64.tar.bz2
+curl -fL --output zotero.tar https://download.zotero.org/client/release/8.0.4/Zotero-8.0.4_linux-x86_64.tar.xz
 tar -xf zotero.tar
 ```
 
-Zotero 7 ships `.tar.bz2` and 8 and later ship `.tar.xz`; `tar -xf` detects both, so only the URL changes. Each unpacked install is roughly 480 MB, so delete it when you're done rather than accumulating one per major.
+Only the version in the URL changes between majors. Each unpacked install is roughly 480 MB, so delete it when you're done rather than accumulating one per major.
 
 ## Read a failure
 

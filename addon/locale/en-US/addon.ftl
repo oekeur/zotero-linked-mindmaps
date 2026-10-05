@@ -44,11 +44,6 @@ container-trashed-now = The Zotero Linked Mindmaps item was moved to the trash. 
 container-trashed-startup = The Zotero Linked Mindmaps item is in the trash. Every mindmap in that library stays hidden until you restore it.
 storage-note-trashed-now = A mindmap's data note was moved to the trash. That mindmap stays hidden until you restore it.
 mindmap-data-trashed-open = Mindmap data for this library is in the trash. Nothing new was created; restore it to get your mindmaps back.
-itemmenu-add-to-mindmap = Add to Mindmap
-itemmenu-add-link = Add Link…
-itemmenu-add-link-submenu = Add Link in
-itemmenu-group-on-mindmap = Group Items on Mindmap…
-itemmenu-group-on-mindmap-submenu = Group Items on Mindmap
 add-to-mindmap-progress =
     { $count ->
         [one] Added { $count } item to { $mindmap }

@@ -27,14 +27,13 @@ import {
 } from "./mutations";
 import { refsMatch } from "./schema";
 
-const ADD_TO_MINDMAP_MENU_ID = "zotero-linked-mindmaps-itemmenu-add-to-mindmap";
-const ADD_LINK_MENU_ID = "zotero-linked-mindmaps-itemmenu-add-link";
-const GROUP_ON_MINDMAP_MENU_ID =
-  "zotero-linked-mindmaps-itemmenu-group-on-mindmap";
-const SEPARATOR_ID = "zotero-linked-mindmaps-itemmenu-separator";
+type LibraryMenuContext = _ZoteroTypes.MenuManager.LibraryMenuContext;
+type LibraryMenuData = _ZoteroTypes.MenuManager.MenuData<LibraryMenuContext>;
+
+const ITEM_MENU_ID = "library-item-actions";
 
 // Rendered via -moz-context-properties/fill: currentColor (set by Zotero's
-// own menuitem-iconic styling), so each tracks light and dark on its own.
+// own custom-menu styling), so each tracks light and dark on its own.
 //
 // Built lazily rather than as a module-level constant: `addon` isn't set on
 // the global until index.ts's own top-level code runs, which happens after
@@ -218,13 +217,12 @@ async function addLinkForSelection(
  *
  * Rebuilt on every open rather than at registration: mindmaps are created and
  * deleted from the tab while the menu sits registered, and a list captured
- * once would go stale with no way to notice. The toolkit only wires its
- * onShowing hook for menuitem and menuseparator, so for a menu the visibility
- * hook - which it does attach to the parent popup's popupshowing, and awaits -
- * is where this has to happen.
+ * once would go stale with no way to notice. The rows carry no
+ * zotero-custom-menu-item class, so Zotero.MenuManager, which clears only its
+ * own elements from the submenu's popup, leaves them in place.
  *
- * A library with nothing to choose between gets no submenu at all - see the
- * pair of registrations below.
+ * A library with nothing to choose between gets no submenu at all - see
+ * mindmapActionEntries.
  */
 async function rebuildMindmapSubmenu(
   menu: Element,
@@ -256,9 +254,11 @@ async function rebuildMindmapSubmenu(
 /**
  * The library's mindmaps, read once per opening of the item menu.
  *
- * Four entries share this - a flat one and a submenu for each of the two
- * actions - and each has its own visibility hook, so without it one right
- * click parses every storage note in the library four times over.
+ * Six entries share this - a flat one and a submenu for each of the three
+ * actions - and each has its own onShowing, so without it one right click
+ * parses every storage note in the library six times over. Keyed on the
+ * popupshowing event, which Zotero.MenuManager passes identically to every
+ * entry's onShowing for one opening of the menu.
  */
 const listedPerPopup = new WeakMap<Event, Promise<MindmapSummary[]>>();
 
@@ -281,41 +281,96 @@ function mindmapsForPopup(
   return listing;
 }
 
+function windowOf(menu: Element): _ZoteroTypes.MainWindow {
+  return menu.ownerGlobal as unknown as _ZoteroTypes.MainWindow;
+}
+
 /**
- * Registers one action twice: a plain entry that acts on its own, and a
+ * Which opening of the item menu each entry is currently showing for.
+ *
+ * onShowing reveals an entry only once the mindmap listing settles, by which
+ * time the menu may already have closed. The reveal checks it is still the
+ * same opening, so a late answer can't leave an entry visible for the next
+ * one - which matters because ZoteroPane skips the plugin's hooks entirely
+ * when an annotation is selected, so that opening would show whatever the
+ * last one left.
+ */
+const openingPerEntry = new WeakMap<Element, Event>();
+
+function beginOpening(context: LibraryMenuContext, event: Event): void {
+  context.setVisible(false);
+  if (context.menuElem) {
+    openingPerEntry.set(context.menuElem, event);
+  }
+}
+
+function endOpening(context: LibraryMenuContext): void {
+  context.setVisible(false);
+  if (context.menuElem) {
+    openingPerEntry.delete(context.menuElem);
+  }
+}
+
+function stillOpening(menu: Element | undefined, event: Event): boolean {
+  return !!menu && openingPerEntry.get(menu) === event;
+}
+
+type MindmapAction = {
+  /** Unprefixed Fluent ids of the two forms' `.label` messages. */
+  l10n: { flat: string; submenu: string };
+  icon: string;
+  submenuItemSuffix: string;
+  act: (win: _ZoteroTypes.MainWindow, mindmapId?: string) => void;
+  selection?: (win: _ZoteroTypes.MainWindow) => Zotero.Item[];
+  minSelection?: number;
+  hideBelowMinimum?: boolean;
+};
+
+/**
+ * One action as two entries: a plain entry that acts on its own, and a
  * submenu of the library's mindmaps. Exactly one of the two is ever shown.
  *
  * Splitting it is what keeps the common case a single click. With no mindmap
  * yet, or exactly one, there is nothing to choose and the plain entry acts
  * directly - the no-mindmap case still creating the default mindmap on save,
  * as it always has. Only a library holding several shows the submenu. A
- * toolkit menu cannot become a menuitem after registration, so the two are
- * registered up front and the choice is made each time the menu opens.
+ * registered entry cannot change its menuType, so both are registered up
+ * front and the choice is made each time the menu opens.
+ *
+ * Both start hidden and are revealed once the listing settles: Zotero calls
+ * onShowing synchronously and does not await it.
  *
  * `selection` and `minSelection` gate whether either shape shows at all,
  * defaulting to the original two entries' rule: at least one eligible item,
  * read through eligibleSelection. Below the minimum, the submenu shape always
- * hides - but the plain shape's own hidden check treats "below minimum" the
- * same as "nothing to choose between", i.e. shown, unless `hideBelowMinimum`
- * says otherwise. "Add to Mindmap" and "Add Link..." rely on that default:
- * they stay visible, inert, over a selection with nothing eligible in it
- * (documented in library-menu-reference.md). "Group items on mindmap" needs
- * the opposite - grouping a single item says nothing a node doesn't already -
- * so it passes `hideBelowMinimum: true` along with its own two-item floor.
+ * hides - but the plain shape treats "below minimum" the same as "nothing to
+ * choose between", i.e. shown, unless `hideBelowMinimum` says otherwise. "Add
+ * to Mindmap" and "Add Link..." rely on that default: they stay visible,
+ * inert, over a selection with nothing eligible in it (documented in
+ * library-menu-reference.md). "Group items on mindmap" needs the opposite -
+ * grouping a single item says nothing a node doesn't already - so it passes
+ * `hideBelowMinimum: true` along with its own two-item floor.
+ *
+ * The selection is read from the window at each use, not taken from the menu
+ * context, so a command always acts on what is selected when it is clicked.
  */
-function registerMindmapAction(
-  win: _ZoteroTypes.MainWindow,
-  id: string,
-  labels: { flat: string; submenu: string },
-  icon: string,
-  submenuItemSuffix: string,
-  act: (mindmapId?: string) => void,
-  selection: () => Zotero.Item[] = () => eligibleSelection(win),
-  minSelection = 1,
-  hideBelowMinimum = false,
-): void {
-  async function count(event: Event): Promise<number> {
-    const selected = selection();
+function mindmapActionEntries(action: MindmapAction): LibraryMenuData[] {
+  const {
+    l10n,
+    icon,
+    submenuItemSuffix,
+    act,
+    selection = eligibleSelection,
+    minSelection = 1,
+    hideBelowMinimum = false,
+  } = action;
+  const prefix = addon.data.config.addonRef;
+
+  async function count(
+    win: _ZoteroTypes.MainWindow,
+    event: Event,
+  ): Promise<number> {
+    const selected = selection(win);
     if (selected.length < minSelection) {
       return -1;
     }
@@ -325,42 +380,58 @@ function registerMindmapAction(
   // The ellipsis belongs on the entry that opens a dialog, not on a submenu
   // parent - and the two never appear at the same time, so each gets the
   // label that is right for it.
-  ztoolkit.Menu.register("item", {
-    tag: "menuitem",
-    id,
-    label: labels.flat,
-    icon,
-    commandListener: () => act(),
-    isHidden: async (_elem, event) => {
-      const mindmapCount = await count(event);
-      return mindmapCount === -1 ? hideBelowMinimum : mindmapCount > 1;
+  return [
+    {
+      menuType: "menuitem",
+      l10nID: `${prefix}-${l10n.flat}`,
+      icon,
+      onShowing: (event, context) => {
+        beginOpening(context, event);
+        const menu = context.menuElem;
+        void count(windowOf(menu), event).then((mindmapCount) => {
+          if (stillOpening(menu, event)) {
+            context.setVisible(
+              mindmapCount === -1 ? !hideBelowMinimum : mindmapCount <= 1,
+            );
+          }
+        });
+      },
+      onHidden: (_event, context) => endOpening(context),
+      onCommand: (_event, context) => act(windowOf(context.menuElem)),
     },
-  });
-
-  ztoolkit.Menu.register("item", {
-    tag: "menu",
-    id: `${id}-submenu`,
-    popupId: `${id}-popup`,
-    label: labels.submenu,
-    icon,
-    isHidden: async (elem, event) => {
-      const selected = selection();
-      if (selected.length < minSelection) {
-        return true;
-      }
-      const mindmaps = await mindmapsForPopup(event, selected[0].libraryID);
-      if (mindmaps.length <= 1) {
-        return true;
-      }
-      await rebuildMindmapSubmenu(
-        elem as unknown as Element,
-        mindmaps,
-        act,
-        submenuItemSuffix,
-      );
-      return false;
+    {
+      menuType: "submenu",
+      l10nID: `${prefix}-${l10n.submenu}`,
+      icon,
+      // Required for a submenu, and left empty: the rows are this plugin's
+      // own, rebuilt from the library's mindmaps on each opening.
+      menus: [],
+      onShowing: (event, context) => {
+        beginOpening(context, event);
+        const menu = context.menuElem;
+        const win = windowOf(menu);
+        const selected = selection(win);
+        if (selected.length < minSelection) {
+          return;
+        }
+        void mindmapsForPopup(event, selected[0].libraryID).then(
+          async (mindmaps) => {
+            if (mindmaps.length <= 1 || !stillOpening(menu, event)) {
+              return;
+            }
+            await rebuildMindmapSubmenu(
+              menu,
+              mindmaps,
+              (mindmapId) => act(win, mindmapId),
+              submenuItemSuffix,
+            );
+            context.setVisible(true);
+          },
+        );
+      },
+      onHidden: (_event, context) => endOpening(context),
     },
-  });
+  ];
 }
 
 /**
@@ -420,78 +491,73 @@ function groupSelectionOnMindmap(
   );
 }
 
-export class LibraryContextMenuFactory {
-  static register(win: _ZoteroTypes.MainWindow): void {
-    registerMindmapAction(
-      win,
-      ADD_TO_MINDMAP_MENU_ID,
-      {
-        flat: getString("itemmenu-add-to-mindmap"),
-        submenu: getString("itemmenu-add-to-mindmap"),
-      },
-      addToMindmapIcon(),
-      "",
-      (mindmapId) => {
-        void addToMindmap(eligibleSelection(win), mindmapId).then(
-          ({ added, mindmapTitle, crossLibrary }) => {
-            if (crossLibrary) {
-              reportCrossLibraryRefusal();
-              return;
-            }
-            new ztoolkit.ProgressWindow(addon.data.config.addonName)
-              .createLine({
-                text: getString("add-to-mindmap-progress", {
-                  args: { count: added, mindmap: mindmapTitle },
-                }),
-                type: "success",
-              })
-              .show()
-              .startCloseTimer(3000);
-          },
-        );
-      },
-    );
-
-    registerMindmapAction(
-      win,
-      ADD_LINK_MENU_ID,
-      {
-        flat: getString("itemmenu-add-link"),
-        submenu: getString("itemmenu-add-link-submenu"),
-      },
-      ADD_LINK_ICON,
-      DIALOG_ELLIPSIS,
-      (mindmapId) => {
-        void addLinkForSelection(win, eligibleSelection(win), mindmapId);
-      },
-    );
-
-    registerMindmapAction(
-      win,
-      GROUP_ON_MINDMAP_MENU_ID,
-      {
-        flat: getString("itemmenu-group-on-mindmap"),
-        submenu: getString("itemmenu-group-on-mindmap-submenu"),
-      },
-      addToMindmapIcon(),
-      DIALOG_ELLIPSIS,
-      (mindmapId) => {
-        groupSelectionOnMindmap(win, mindmapId);
-      },
-      () => rawSelection(win),
-      2,
-      true,
-    );
-
-    // Groups the plugin's entries apart from Zotero's own, which sit above
-    // them in the item menu. Anchored to the flat Add-to-mindmap entry, which
-    // is always in the DOM (hidden, not removed, when a submenu form shows
-    // instead), so the separator lands above whichever form is visible.
-    ztoolkit.Menu.register(
-      "item",
-      { tag: "menuseparator", id: SEPARATOR_ID },
-      "before",
-      win.document.querySelector(`#${ADD_TO_MINDMAP_MENU_ID}`) as XUL.Element,
-    );
-  }
+/**
+ * Adds the plugin's three actions to the library item menu.
+ *
+ * Once, from onStartup: Zotero.MenuManager builds the entries into every main
+ * window's item menu itself, each time that menu opens, and drops the
+ * registration when the plugin shuts down, keyed on pluginID.
+ *
+ * One registration for all six entries, because Zotero orders separate
+ * registrations by menuID and keeps array order only within one. Zotero puts
+ * its own separator above plugin entries and refuses one from a plugin here.
+ */
+export function registerLibraryContextMenu(): string | false {
+  return Zotero.MenuManager.registerMenu({
+    menuID: ITEM_MENU_ID,
+    pluginID: addon.data.config.addonID,
+    target: "main/library/item",
+    menus: [
+      ...mindmapActionEntries({
+        l10n: {
+          flat: "menu-add-to-mindmap-flat",
+          submenu: "menu-add-to-mindmap-submenu",
+        },
+        icon: addToMindmapIcon(),
+        submenuItemSuffix: "",
+        act: (win, mindmapId) => {
+          void addToMindmap(eligibleSelection(win), mindmapId).then(
+            ({ added, mindmapTitle, crossLibrary }) => {
+              if (crossLibrary) {
+                reportCrossLibraryRefusal();
+                return;
+              }
+              new ztoolkit.ProgressWindow(addon.data.config.addonName)
+                .createLine({
+                  text: getString("add-to-mindmap-progress", {
+                    args: { count: added, mindmap: mindmapTitle },
+                  }),
+                  type: "success",
+                })
+                .show()
+                .startCloseTimer(3000);
+            },
+          );
+        },
+      }),
+      ...mindmapActionEntries({
+        l10n: {
+          flat: "menu-add-link-flat",
+          submenu: "menu-add-link-submenu",
+        },
+        icon: ADD_LINK_ICON,
+        submenuItemSuffix: DIALOG_ELLIPSIS,
+        act: (win, mindmapId) => {
+          void addLinkForSelection(win, eligibleSelection(win), mindmapId);
+        },
+      }),
+      ...mindmapActionEntries({
+        l10n: {
+          flat: "menu-group-on-mindmap-flat",
+          submenu: "menu-group-on-mindmap-submenu",
+        },
+        icon: addToMindmapIcon(),
+        submenuItemSuffix: DIALOG_ELLIPSIS,
+        act: (win, mindmapId) => groupSelectionOnMindmap(win, mindmapId),
+        selection: rawSelection,
+        minSelection: 2,
+        hideBelowMinimum: true,
+      }),
+    ],
+  });
 }

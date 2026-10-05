@@ -21,7 +21,7 @@ Source: `addon/bootstrap.js`, `src/index.ts`, `src/addon.ts`, `src/hooks.ts`.
 
 `shutdown({ id, version, resourceURI, rootURI }, reason)` returns immediately when `reason === APP_SHUTDOWN`; Zotero is closing, so nothing needs unwinding. Otherwise it awaits `hooks.onShutdown()` and then calls `chromeHandle.destruct()`, clearing the handle.
 
-`manifest.json` declares `strict_min_version` `6.999` and `strict_max_version` `10.0.*` under `applications.zotero`. A `strict_max_version` below the running Zotero blocks the plugin with no console error and no install failure; see [configuration-reference.md](../contributing/configuration-reference.md).
+`manifest.json` declares `strict_min_version` `7.999` and `strict_max_version` `10.0.*` under `applications.zotero`. A `strict_max_version` below the running Zotero blocks the plugin with no console error and no install failure; see [configuration-reference.md](../contributing/configuration-reference.md).
 
 ## Bundle entry point
 
@@ -70,10 +70,11 @@ Async. Called once, from `bootstrap.js` `startup()`.
 5. `registerContainerObserver()`. `Zotero.Notifier.registerObserver` on type `item` with observer id `zoterolinkedmindmaps-container-guard`, stored in `containerObserverID`.
 6. `registerLibraryFilter()`. Replaces `Zotero.CollectionTreeRow.prototype.getSearchObject` and registers a `Zotero.Prefs` observer on `extensions.zotero.zoterolinkedmindmaps.hideMindmapNotes`. See [library-filter-reference.md](library-filter-reference.md).
 7. `await Zotero.PreferencePanes.register({ pluginID, id: "zoterolinkedmindmaps-link-types-pane", src: rootURI + "content/preferences.xhtml", label: getString("preferences-pane-label"), image: rootURI + "content/icons/favicon.png", stylesheets: [rootURI + "content/preferences.css"] })`.
-8. `startupToolkit = addon.data.ztoolkit`, then `registerMindmapShortcut()`, which calls `ztoolkit.Keyboard.register` on that toolkit and opens the mindmap tab on `Shift+G` unless the event target is an input, textarea, or contenteditable element.
-9. `await Promise.all(Zotero.getMainWindows().map((win) => onMainWindowLoad(win)))`. Zotero does not replay `onMainWindowLoad` for windows already open when the plugin starts, so startup drives them itself.
-10. `await reconcileContainers()`. Runs after step 9 on purpose; see [lifecycle-explanation.md](lifecycle-explanation.md).
-11. `addon.data.initialized = true`.
+8. `registerMindmapMenu()` and `registerLibraryContextMenu()`, once each. See "Menus" below.
+9. `startupToolkit = addon.data.ztoolkit`, then `registerMindmapShortcut()`, which calls `ztoolkit.Keyboard.register` on that toolkit and opens the mindmap tab on `Shift+G` unless the event target is an input, textarea, or contenteditable element.
+10. `await Promise.all(Zotero.getMainWindows().map((win) => onMainWindowLoad(win)))`. Zotero does not replay `onMainWindowLoad` for windows already open when the plugin starts, so startup drives them itself.
+11. `await reconcileContainers()`. Runs after step 10 on purpose; see [lifecycle-explanation.md](lifecycle-explanation.md).
+12. `addon.data.initialized = true`.
 
 ## `onMainWindowLoad(win)`
 
@@ -82,18 +83,25 @@ Async. Called from `bootstrap.js` for every main window opened after startup, an
 1. `createZToolkit()` produces a toolkit for this window. It goes into the module-level `windowToolkits: Map<Window, ZToolkit>` keyed by the window, and into `addon.data.ztoolkit`, which the bare `ztoolkit` global resolves through. Everything registered below therefore lands on this window's toolkit.
 2. `win.MozXULElement.insertFTLIfNeeded("zoterolinkedmindmaps-mainWindow.ftl")` adds the main-window Fluent file to that window's l10n context, which is what `data-l10n-id` attributes resolve against.
 3. `insertStylesheet(win)` appends a `<link id="zoterolinkedmindmaps-stylesheet" rel="stylesheet">` pointing at `content/zoteroPane.css` to the window's `documentElement`, unless one is already there. This is the only route the plugin's own CSS reaches a main window; the preferences window and the standalone Add link document each load their sheet separately.
-4. `registerMindmapMenu()`. `ztoolkit.Menu.register("menuTools", …)` adds a Tools-menu item labelled from `menuitem-mindmap-open` whose command listener calls `openMindmapTab()`.
-5. `LibraryContextMenuFactory.register(win)`. Three item-menu actions, each carrying an icon: "Add to Mindmap" (`itemmenu-add-to-mindmap`), "Add Link…" (`itemmenu-add-link`) and "Group on Mindmap" (`itemmenu-group-on-mindmap`). Each action costs two `ztoolkit.Menu.register("item", …)` calls, a flat `menuitem` and a `menu` submenu carrying one entry per mindmap, because only one of the two is ever visible: the flat form shows when there is at most one mindmap to choose, the submenu when there is more than one. A seventh call registers a `menuseparator` anchored before the flat Add-to-Mindmap entry, which is always in the DOM and so keeps the separator above whichever form is showing. Every entry hides itself when the window's selection contains no eligible item. See [library-menu-reference.md](../user-guide/library-menu-reference.md).
-6. Shows a `ztoolkit.ProgressWindow` reading `startup-begin`, waits 1000 ms via `Zotero.Promise.delay`, rewrites the line to `[100%] ` plus `startup-finish`, and starts a 5000 ms close timer. This is template scaffolding that has not been removed.
+4. Shows a `ztoolkit.ProgressWindow` reading `startup-begin`, waits 1000 ms via `Zotero.Promise.delay`, rewrites the line to `[100%] ` plus `startup-finish`, and starts a 5000 ms close timer. This is template scaffolding that has not been removed.
 
-The registrations in steps 4 and 5 have no direct unregister call anywhere. They are torn down through `toolkit.unregisterAll()` in `onMainWindowUnload` and `onShutdown`. The stylesheet is not a toolkit registration and is removed explicitly, by id, in both.
+The stylesheet is not a toolkit registration and is removed explicitly, by id, in `onMainWindowUnload` and `onShutdown`.
+
+## Menus
+
+Both menus go through `Zotero.MenuManager.registerMenu` with the plugin's `pluginID`, once from `onStartup`. Zotero builds the entries into every main window's menu each time that menu opens, windows opened later included, so nothing is registered per window. Labels are `.label` messages in `mainWindow.ftl`, set as `data-l10n-id`, which is the only way the API labels an entry.
+
+- `registerMindmapMenu()` (menuID `tools-open-mindmap`, target `main/menubar/tools`): one `menuitem` labelled from `menu-tools-mindmap` whose command calls `openMindmapTab()`.
+- `registerLibraryContextMenu()` (menuID `library-item-actions`, target `main/library/item`): three actions, each carrying an icon: "Add to Mindmap", "Add Link…" and "Group Items on Mindmap…". Each action is two entries, a flat `menuitem` (`menu-<action>-flat`) and a `submenu` (`menu-<action>-submenu`) carrying one row per mindmap, because only one of the two is ever visible: the flat form shows when there is at most one mindmap to choose, the submenu when there is more than one. All six sit in one registration because Zotero orders separate registrations by menuID. Zotero puts its own separator above plugin entries and refuses one from a plugin on this target. Every entry starts hidden on each opening and is revealed once the mindmap listing settles, and hides again when the menu closes. See [library-menu-reference.md](../user-guide/library-menu-reference.md).
+
+Neither has an unregister call. Zotero drops a plugin's registrations by `pluginID` after its shutdown hook returns; Zotero 9 and later also remove entries already built into a menu, Zotero 8 leaves them until that menu is next built.
 
 ## `onMainWindowUnload(win)`
 
 Async, though it awaits nothing.
 
 1. `removeStylesheet(win)` drops the `<link>` added on load, by id.
-2. Looks the window's toolkit up in `windowToolkits`, deletes the entry, and calls `toolkit?.unregisterAll()`. That removes the Tools-menu item, every item context-menu entry and its separator, and any other element that toolkit created in that window.
+2. Looks the window's toolkit up in `windowToolkits`, deletes the entry, and calls `toolkit?.unregisterAll()`, removing whatever that toolkit registered in that window.
 3. If `addon.data.ztoolkit` was the toolkit just torn down, reassigns it to the first remaining value in `windowToolkits`, falling back to `startupToolkit`, falling back to leaving it as it was.
 4. `addon.data.dialog?.window?.close()`.
 
@@ -108,7 +116,7 @@ Synchronous. Called from `bootstrap.js` `shutdown()` for every reason except `AP
 | `unregisterContainerObserver(containerObserverID)`, then clears the id                                  | the container-guard observer                                                                          |
 | `unregisterLibraryFilter()`                                                                             | the `getSearchObject` patch and the pref observer                                                     |
 | `closeMindmapTab()`                                                                                     | closes the mindmap tab through `Zotero_Tabs.close` if one is open, and clears the module-level tab id |
-| `for (const toolkit of windowToolkits.values()) toolkit.unregisterAll()`, then `windowToolkits.clear()` | every per-window menu registration                                                                    |
+| `for (const toolkit of windowToolkits.values()) toolkit.unregisterAll()`, then `windowToolkits.clear()` | whatever each per-window toolkit registered                                                           |
 | `startupToolkit?.unregisterAll()`, then clears it                                                       | the `Shift+G` keyboard shortcut                                                                       |
 | `ztoolkit.unregisterAll()`                                                                              | whatever the current global toolkit still holds                                                       |
 | `addon.data.dialog?.window?.close()`                                                                    | an open dialog                                                                                        |

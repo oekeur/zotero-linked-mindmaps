@@ -44,11 +44,6 @@ container-trashed-now = Het item Zotero Linked Mindmaps is naar de prullenbak ve
 container-trashed-startup = Het item Zotero Linked Mindmaps staat in de prullenbak. Alle mindmaps in die bibliotheek blijven verborgen totdat je het item terugzet.
 storage-note-trashed-now = De gegevensnotitie van een mindmap is naar de prullenbak verplaatst. Die mindmap blijft verborgen totdat je de notitie terugzet.
 mindmap-data-trashed-open = De mindmapgegevens van deze bibliotheek staan in de prullenbak. Er is niets nieuws aangemaakt; zet ze terug om je mindmaps weer te krijgen.
-itemmenu-add-to-mindmap = Aan mindmap toevoegen
-itemmenu-add-link = Koppeling toevoegen…
-itemmenu-add-link-submenu = Koppeling toevoegen in
-itemmenu-group-on-mindmap = Items groeperen op mindmap…
-itemmenu-group-on-mindmap-submenu = Items groeperen op mindmap
 add-to-mindmap-progress =
     { $count ->
         [one] { $count } item toegevoegd aan { $mindmap }

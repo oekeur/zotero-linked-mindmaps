@@ -39,7 +39,7 @@ jobs:
           path: .scaffold/build
 
   # One job per Zotero major the manifest claims support for
-  # (addon/manifest.json: strict_min_version 6.999, strict_max_version 10.*).
+  # (addon/manifest.json: strict_min_version 7.999, strict_max_version 10.*).
   #
   # The versions are pinned rather than pulled from the beta channel. Left to
   # itself the scaffold downloads `channel=beta` un-pinned, so CI would test a
@@ -56,9 +56,6 @@ jobs:
   # same packages up front means the scaffold's `dpkg-query -W` check finds
   # them and never shells out, and the explicit lock timeout turns a hang that
   # does happen into a bounded, visible failure.
-  #
-  # Zotero 7 ships .tar.bz2 and 8+ ship .tar.xz. `tar -xf` detects both, so the
-  # compression only varies in the URL.
   test:
     name: test (Zotero ${{ matrix.zotero }})
     runs-on: ubuntu-latest
@@ -72,8 +69,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - zotero: "7"
-            url: "https://download.zotero.org/client/release/7.0.32/Zotero-7.0.32_linux-x86_64.tar.bz2"
           - zotero: "8"
             url: "https://download.zotero.org/client/release/8.0.4/Zotero-8.0.4_linux-x86_64.tar.xz"
           - zotero: "9"
