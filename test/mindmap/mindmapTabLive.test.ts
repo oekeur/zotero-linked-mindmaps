@@ -5,7 +5,11 @@ import {
   closeMindmapTab,
   openMindmapTab,
 } from "../../src/modules/mindmap/mindmapTab";
-import { createMindmap } from "../../src/modules/mindmap/storage";
+import {
+  createMindmap,
+  updateMindmapMetadata,
+  whenStorageIdle,
+} from "../../src/modules/mindmap/storage";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
 
@@ -180,5 +184,70 @@ describe("mindmap/mindmapTab live tab", function () {
     );
 
     assert.isAbove(graph.getBoundingClientRect().width, before);
+  });
+
+  /**
+   * Edits the mindmap and reports whether anything repainted `graph`, which
+   * the caller has already emptied. A live-refresh observer that outlived its
+   * tab is the only thing left that would.
+   */
+  async function repaintsAfterEdit(
+    graph: Element,
+    mindmapId: string,
+  ): Promise<boolean> {
+    graph.textContent = "";
+    await updateMindmapMetadata(mindmapId, { title: "Edited after close" });
+    await whenStorageIdle();
+    await Zotero.Promise.delay(1500);
+    return graph.innerHTML !== "";
+  }
+
+  it("closes cleanly before its first load has started", async function () {
+    this.timeout(30000);
+    const mindmap = await createMindmap("Closed early");
+
+    const opening = openMindmapTab();
+    const graph = mainDocument().querySelector(GRAPH);
+    assert.isNotNull(graph, "the tab builds its graph area synchronously");
+    closeMindmapTab();
+    await opening;
+
+    assert.isFalse(
+      await repaintsAfterEdit(graph!, mindmap.id),
+      "a closed tab repainted its graph area after an edit",
+    );
+  });
+
+  it("closes cleanly while its first load is in flight", async function () {
+    this.timeout(30000);
+    const mindmap = await createMindmap("Closed mid-load");
+
+    const opening = openMindmapTab();
+    const doc = mainDocument();
+    const graph = doc.querySelector(GRAPH);
+    const sidebar = doc.querySelector(SIDEBAR);
+    assert.isNotNull(graph, "the tab builds its graph area synchronously");
+    assert.isNotNull(sidebar, "the tab builds its sidebar synchronously");
+    // refresh() fills the sidebar and starts load() in the same tick, and a
+    // mutation callback runs before load()'s first storage read can settle,
+    // so closing here lands inside load() every time rather than when a
+    // timer happens to fire.
+    let closedMidLoad = false;
+    const watcher = new doc.defaultView!.MutationObserver(() => {
+      if (!closedMidLoad && sidebar!.childElementCount > 0) {
+        closedMidLoad = true;
+        watcher.disconnect();
+        closeMindmapTab();
+      }
+    });
+    watcher.observe(sidebar!, { childList: true, subtree: true });
+    await opening;
+    watcher.disconnect();
+
+    assert.isTrue(closedMidLoad, "the tab never reached its first load");
+    assert.isFalse(
+      await repaintsAfterEdit(graph!, mindmap.id),
+      "a tab closed mid-load repainted its graph area after an edit",
+    );
   });
 });

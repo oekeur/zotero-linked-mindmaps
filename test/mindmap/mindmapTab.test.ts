@@ -18,7 +18,10 @@ import {
   createMindmap,
   listMindmaps,
   readMindmapDocument,
+  updateMindmapMetadata,
+  whenStorageIdle,
 } from "../../src/modules/mindmap/storage";
+import { TOOLBAR_CLASS } from "../../src/modules/mindmap/graphRenderer";
 import { clearStorageNotes } from "./storageNotes";
 import { reportableError, waitFor } from "../waitFor";
 import { query } from "../dom";
@@ -332,6 +335,71 @@ describe("mindmap/mindmapTab", function () {
 
     assert.equal(selectedRowId(), second.id);
     assert.equal((await readMindmapDocument(second.id)).title, "Second");
+  });
+
+  // An orphaned live-refresh observer can't be counted from here, since
+  // Zotero.Notifier's observer table is out of the test bundle's reach. One
+  // that is still registered repaints the graph area on the next edit, so
+  // these empty the area after teardown and look for a repaint instead.
+  it("leaves no observer behind when torn down while a load is in flight", async function () {
+    this.timeout(30000);
+    const mindmap = await createMindmap("In flight");
+
+    const inFlight = controller.refresh();
+    controller.teardown();
+    await inFlight;
+
+    surfaces.graph.textContent = "";
+    await updateMindmapMetadata(mindmap.id, { title: "Edited after teardown" });
+    await whenStorageIdle();
+    await Zotero.Promise.delay(1500);
+
+    assert.equal(
+      surfaces.graph.innerHTML,
+      "",
+      "a torn-down tab repainted its graph area after an edit",
+    );
+  });
+
+  it("loads nothing once torn down", async function () {
+    this.timeout(30000);
+    const mindmap = await createMindmap("After teardown");
+    controller.teardown();
+
+    await controller.refresh();
+    await updateMindmapMetadata(mindmap.id, { title: "Edited after teardown" });
+    await whenStorageIdle();
+    await Zotero.Promise.delay(1500);
+
+    assert.isNull(surfaces.graph.querySelector(`.${TOOLBAR_CLASS}`));
+  });
+
+  it("leaves one observer when two row clicks overlap", async function () {
+    this.timeout(30000);
+    const first = await createMindmap("First");
+    const second = await createMindmap("Second");
+    await controller.refresh();
+    await waitFor(
+      () => surfaces.graph.querySelector(`.${TOOLBAR_CLASS}`),
+      "the first mindmap to render",
+    );
+
+    rowFor(first.id).click();
+    rowFor(second.id).click();
+    await Zotero.Promise.delay(3000);
+
+    controller.teardown();
+    surfaces.graph.textContent = "";
+    await updateMindmapMetadata(first.id, { title: "First edited" });
+    await updateMindmapMetadata(second.id, { title: "Second edited" });
+    await whenStorageIdle();
+    await Zotero.Promise.delay(1500);
+
+    assert.equal(
+      surfaces.graph.innerHTML,
+      "",
+      "an observer from the superseded load outlived teardown",
+    );
   });
 
   // Deleting is not driven from here: handleDelete blocks on

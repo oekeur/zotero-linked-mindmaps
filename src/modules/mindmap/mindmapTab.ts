@@ -98,6 +98,14 @@ export function createMindmapTabController(
   let currentDocument: MindmapDocument | undefined;
   let currentMindmapId: string | undefined;
   let teardownLiveRefresh: (() => void) | undefined;
+  // load() attaches its observer only after several awaits, and the slot it
+  // writes holds the one unregister that will ever exist for it. A load that
+  // a newer load or a teardown overtook would overwrite that slot after
+  // detachGraph() had already emptied it, leaving an observer nothing can
+  // reach for the rest of the session. Each load takes a token and, once the
+  // token is no longer current, gives up without attaching anything.
+  let latestLoad = 0;
+  let tornDown = false;
   let formMode: FormMode = "none";
   // Which row's Edit was clicked, rather than whatever is loaded: the two
   // differ as soon as the user edits a mindmap they aren't looking at.
@@ -115,19 +123,31 @@ export function createMindmapTabController(
    * live-refresh observer pointing at a note that is no longer on screen.
    */
   async function load(mindmapId?: string): Promise<void> {
+    const token = ++latestLoad;
+    const overtaken = () => tornDown || token !== latestLoad;
     detachGraph();
     surfaces.graph.textContent = "";
     surfaces.dock.style.display = "none";
     surfaces.dock.textContent = "";
 
     let note: Zotero.Item;
+    // Read from here on rather than currentDocument, which a newer load can
+    // replace while this one is waiting on render or layout.
+    let doc: MindmapDocument;
     try {
       const resolved = await resolveMindmap(mindmapId);
+      if (overtaken()) {
+        return;
+      }
       note = resolved.item;
-      currentDocument = resolved.doc;
+      doc = resolved.doc;
+      currentDocument = doc;
     } catch (err) {
       if (!(err instanceof StorageError)) {
         throw err;
+      }
+      if (overtaken()) {
+        return;
       }
       currentDocument = undefined;
       const message = el(surfaces.graph.ownerDocument!, "p");
@@ -135,7 +155,7 @@ export function createMindmapTabController(
       surfaces.graph.appendChild(message as unknown as Node);
       return;
     }
-    currentMindmapId = currentDocument.id;
+    currentMindmapId = doc.id;
 
     const linkTypes = getLinkTypes();
     // One box shared by the graph and its observer, so the observer knows what
@@ -144,12 +164,23 @@ export function createMindmapTabController(
     const rendered: RenderedState = { document: null };
     const cy = await renderMindmap(
       surfaces.graph,
-      currentDocument,
+      doc,
       linkTypes,
       surfaces.dock,
       rendered,
     );
-    const laidOut = await layoutUnplacedNodes(cy, currentDocument);
+    // Whatever overtook this load owns the graph area now; the graph built
+    // here goes the way detachGraph() would have sent it. Checked before the
+    // layout too, since the layout saves positions to the note.
+    if (overtaken()) {
+      cy.destroy();
+      return;
+    }
+    const laidOut = await layoutUnplacedNodes(cy, doc);
+    if (overtaken()) {
+      cy.destroy();
+      return;
+    }
     if (laidOut) {
       currentDocument = laidOut;
       // The layout moved the nodes on screen before saving them, so the graph
@@ -476,6 +507,7 @@ export function createMindmapTabController(
   return {
     refresh,
     teardown() {
+      tornDown = true;
       detachGraph();
       currentDocument = undefined;
       currentMindmapId = undefined;
@@ -583,9 +615,13 @@ export async function openMindmapTab(): Promise<void> {
     "display: none; flex: 0 0 320px; height: 100%; overflow: auto; border-left: 1px solid; padding: 8px; box-sizing: border-box;";
   body.appendChild(dock as unknown as Node);
 
-  controller = createMindmapTabController({ sidebar, graph, dock });
+  // Held locally: closing the tab while this is still running clears the
+  // module's `controller` from onClose, and this must still finish against
+  // the controller it built, which that close has already torn down.
+  const opened = createMindmapTabController({ sidebar, graph, dock });
+  controller = opened;
   await createDefaultMindmapIfNeeded();
-  await controller.refresh();
+  await opened.refresh();
 }
 
 /**
