@@ -36,7 +36,7 @@ Zotero discovers `.ftl` files by scanning the built add-on's `locale/<lang>/` di
 
 Two separate consumers resolve those files, and they do not share a registry:
 
-**Window l10n contexts**, which `data-l10n-id` attributes resolve against. `onMainWindowLoad` calls `win.MozXULElement.insertFTLIfNeeded("zoterolinkedmindmaps-mainWindow.ftl")` for each main window. The item-pane section registered through `Zotero.ItemPaneManager.registerSection` takes `l10nID` values (built with `getLocaleID`) and Zotero resolves them itself. A window the plugin opens for itself gets neither; see [the bundle-scope limit](#the-bundle-scope-limit).
+**Window l10n contexts**, which `data-l10n-id` attributes resolve against. `onMainWindowLoad` calls `ensureMainWindowFTL` (`src/modules/mindmap/mainWindowFTL.ts`) for each main window, which links `zoterolinkedmindmaps-mainWindow.ftl` once into the window's `<linkset>`; `onShutdown` removes that link again. The item-pane section registered through `Zotero.ItemPaneManager.registerSection` takes `l10nID` values (built with `getLocaleID`) and Zotero resolves them itself. A window the plugin opens for itself gets neither; see [the bundle-scope limit](#the-bundle-scope-limit).
 
 **The plugin's own bundle**, which `getString` formats against. That bundle is built by `initLocale()` from `LOCALE_FILES` and nothing else.
 
@@ -103,7 +103,7 @@ Returns `` `${config.addonRef}-${id}` ``. For passing an id to something that re
 
 ## The bundle-scope limit
 
-`initLocale()`'s bundle belongs to the plugin scope. It does not add the plugin's `.ftl` files to any window's l10n context, and `insertFTLIfNeeded` only reaches the main windows the plugin loads into.
+`initLocale()`'s bundle belongs to the plugin scope. It does not add the plugin's `.ftl` files to any window's l10n context, and `ensureMainWindowFTL` only reaches the main windows the plugin loads into.
 
 Zotero's preferences window is a partial exception, scoped per pane rather than window-wide. `Zotero.PreferencePanes.register` loads each pane's `src` as an XHTML fragment and, once, the first time that pane is opened, awaits `document.l10n.ready` and calls `document.l10n.translateFragment(pane.container)` (see `chrome/content/zotero/preferences/preferences.js` in Zotero's own source). That resolves `data-l10n-id` against whatever the fragment's own `<linkset>` declares, the same declarative pattern `addon/content/addLink.xhtml` uses (below) and the one the community plugin-dev docs document for preference panes. `addon/content/preferences.xhtml` declares one for `zoterolinkedmindmaps-addon.ftl`, and every static control in the pane carries `data-l10n-id` and resolves for real: the three groupbox headings (link types, library, feedback), the hide-plugin-data checkbox and its help text, and the two feedback buttons with their help text.
 
@@ -151,6 +151,6 @@ Two conventions are not machine-checked and need care by hand:
 
 ## See also
 
-- [lifecycle-reference.md](lifecycle-reference.md) for where `initLocale` and `insertFTLIfNeeded` sit in startup.
+- [lifecycle-reference.md](lifecycle-reference.md) for where `initLocale` and `ensureMainWindowFTL` sit in startup.
 - [prefs-reference.md](prefs-reference.md) for the preference the library pane exposes.
 - [testing-howto.md](../contributing/testing-howto.md) for running the locale suite.

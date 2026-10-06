@@ -11,6 +11,10 @@ import {
   registerDeletionObserver,
   unregisterDeletionObserver,
 } from "./modules/mindmap/deletionCleanup";
+import {
+  ensureMainWindowFTL,
+  removeMainWindowFTL,
+} from "./modules/mindmap/mainWindowFTL";
 import { renderLinkTypesSettings } from "./modules/mindmap/linkTypesSettings";
 import {
   openBugReport,
@@ -99,9 +103,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   windowToolkits.set(win, toolkit);
   addon.data.ztoolkit = toolkit;
 
-  win.MozXULElement.insertFTLIfNeeded(
-    `${addon.data.config.addonRef}-mainWindow.ftl`,
-  );
+  ensureMainWindowFTL(win.document);
 
   insertStylesheet(win);
 
@@ -172,6 +174,7 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 function onShutdown(): void {
   for (const win of Zotero.getMainWindows()) {
     removeStylesheet(win);
+    removeMainWindowFTL(win.document);
   }
   ConnectionsPanelFactory.unregister();
   if (deletionObserverID) {
