@@ -44,7 +44,7 @@ Zotero calls `shutdown()` with `reason === APP_SHUTDOWN` when the whole applicat
 
 Every other reason (disable, uninstall, upgrade, and the reinstall that `npm start`'s hot reload performs) does run the teardown, and hot reload is what makes it matter. A registration left behind isn't merely untidy. It is what the next load stacks on top of. `unregisterLibraryFilter()` spells this out for the item-tree patch, where a patch that outlives an unload leaves the previous closure calling through to itself. See [library-filter-explanation.md](library-filter-explanation.md).
 
-The `onShutdown` ordering isn't load-bearing except at one point. `closeMindmapTab()` runs before the toolkits are torn down, because closing the tab is what reaches the tab controller's `teardown()`, and that is what unregisters the graph's live-refresh notifier observer and destroys the Cytoscape instance.
+The `onShutdown` ordering isn't load-bearing except at one point. `closeMindmapTab()` runs before the toolkits are torn down, because closing the tab is what reaches the tab controller's `teardown()`, and that is what unregisters the graph's live-refresh notifier observer and destroys the Cytoscape instance. A load still in flight when the tab closes has not attached its observer yet, so `teardown()` cannot reach it; the load sees on its next step that the controller is torn down and gives up without attaching one.
 
 ## Related
 
