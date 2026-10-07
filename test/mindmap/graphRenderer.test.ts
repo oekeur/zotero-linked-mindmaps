@@ -14,11 +14,14 @@ import {
   FIT_BUTTON_CLASS,
   GROUP_MENU_CLASS,
   LEGEND_CLASS,
+  liveRefreshTestHooks,
+  MOUNT_CLASS,
   LEGEND_TOGGLE_BUTTON_CLASS,
   MENU_ACTION_CLASS,
   NODE_MENU_ADD_LINK_CLASS,
   PARENT_CHILD_TIE_CLASS,
   renderMindmap,
+  type MindmapHandle,
   type RenderedState,
   resolveLinkVisual,
   TOOLBAR_CLASS,
@@ -756,11 +759,11 @@ describe("mindmap/graphRenderer", function () {
     function destroyCountingCy() {
       let destroyed = 0;
       return {
-        cy: {
-          destroy() {
+        handle: {
+          dispose() {
             destroyed += 1;
           },
-        } as unknown as cytoscape.Core,
+        } as unknown as MindmapHandle,
         get destroyed() {
           return destroyed;
         },
@@ -801,8 +804,8 @@ describe("mindmap/graphRenderer", function () {
       };
     }
 
-    function fakeCy(): cytoscape.Core {
-      return { destroy() {} } as unknown as cytoscape.Core;
+    function fakeHandle(): MindmapHandle {
+      return { dispose() {} } as unknown as MindmapHandle;
     }
 
     beforeEach(function () {
@@ -836,7 +839,7 @@ describe("mindmap/graphRenderer", function () {
       const note = await findMindmapNote();
       assert.isNotNull(note);
 
-      teardown = attachLiveRefresh(fakeCy(), container, note!.id, []);
+      teardown = attachLiveRefresh(fakeHandle(), container, note!.id, []);
 
       const first = await updateMindmapDocument((doc) => ({
         ...doc,
@@ -858,7 +861,7 @@ describe("mindmap/graphRenderer", function () {
       assert.isNotNull(note);
 
       const rendered = destroyCountingCy();
-      teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+      teardown = attachLiveRefresh(rendered.handle, container, note!.id, []);
 
       await note!.eraseTx();
 
@@ -879,7 +882,7 @@ describe("mindmap/graphRenderer", function () {
       await writeMindmapDocument(docWithUnplacedNode());
       const note = await findMindmapNote();
 
-      teardown = attachLiveRefresh(fakeCy(), container, note!.id, []);
+      teardown = attachLiveRefresh(fakeHandle(), container, note!.id, []);
       await note!.eraseTx();
 
       // A write unrelated to the erased note, through the same module-level
@@ -910,7 +913,7 @@ describe("mindmap/graphRenderer", function () {
         this.timeout(30000);
         const counting = destroyCountingCy();
         teardown = attachLiveRefresh(
-          counting.cy,
+          counting.handle,
           container,
           note.id,
           [],
@@ -935,7 +938,7 @@ describe("mindmap/graphRenderer", function () {
       it("returns to the live mindmap once the container is restored, without a reopen (AC #2)", async function () {
         this.timeout(30000);
         teardown = attachLiveRefresh(
-          fakeCy(),
+          fakeHandle(),
           container,
           note.id,
           [],
@@ -976,7 +979,7 @@ describe("mindmap/graphRenderer", function () {
 
         const counting = destroyCountingCy();
         teardown = attachLiveRefresh(
-          counting.cy,
+          counting.handle,
           container,
           note.id,
           [],
@@ -1015,7 +1018,7 @@ describe("mindmap/graphRenderer", function () {
         this.timeout(30000);
         const counting = destroyCountingCy();
         teardown = attachLiveRefresh(
-          counting.cy,
+          counting.handle,
           container,
           note.id,
           [],
@@ -1041,7 +1044,7 @@ describe("mindmap/graphRenderer", function () {
       it("returns to the live mindmap once the note is restored, without a reopen", async function () {
         this.timeout(30000);
         teardown = attachLiveRefresh(
-          fakeCy(),
+          fakeHandle(),
           container,
           note.id,
           [],
@@ -1106,7 +1109,7 @@ describe("mindmap/graphRenderer", function () {
       it("tracks the note's current parent instead of the one resolved at attach: trashing the old container does nothing, trashing the new parent shows the trashed state", async function () {
         this.timeout(30000);
         teardown = attachLiveRefresh(
-          fakeCy(),
+          fakeHandle(),
           container,
           note.id,
           [],
@@ -1166,7 +1169,7 @@ describe("mindmap/graphRenderer", function () {
       it("stops naming the note once it's restored while the container is still trashed", async function () {
         this.timeout(30000);
         teardown = attachLiveRefresh(
-          fakeCy(),
+          fakeHandle(),
           container,
           note.id,
           [],
@@ -1201,7 +1204,7 @@ describe("mindmap/graphRenderer", function () {
       it("stops naming the library once the container is restored while the note is still trashed", async function () {
         this.timeout(30000);
         teardown = attachLiveRefresh(
-          fakeCy(),
+          fakeHandle(),
           container,
           note.id,
           [],
@@ -1236,7 +1239,7 @@ describe("mindmap/graphRenderer", function () {
       it("does not blank a still-readable mindmap when a note reparented to top level leaves its old container trashed", async function () {
         this.timeout(30000);
         teardown = attachLiveRefresh(
-          fakeCy(),
+          fakeHandle(),
           container,
           note.id,
           [],
@@ -1313,7 +1316,7 @@ describe("mindmap/graphRenderer", function () {
             links: [],
           }));
           teardown = attachLiveRefresh(
-            fakeCy(),
+            fakeHandle(),
             container,
             note.id,
             [],
@@ -1370,6 +1373,7 @@ describe("mindmap/graphRenderer", function () {
     let container: HTMLDivElement;
     let article: Zotero.Item;
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     beforeEach(async function () {
       this.timeout(30000);
@@ -1389,7 +1393,8 @@ describe("mindmap/graphRenderer", function () {
 
     afterEach(async function () {
       this.timeout(30000);
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       container.remove();
       await article.eraseTx();
@@ -1434,7 +1439,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("marks a borrowed node so it renders differently (AC #2)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, docWithExternal(), []);
+      handle = await renderMindmap(container, docWithExternal(), []);
+      cy = handle.cy;
 
       assert.isTrue(
         cy.getElementById("n-external").hasClass(EXTERNAL_NODE_CLASS),
@@ -1446,7 +1452,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("labels and links a borrowed node like any other (AC #3)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, docWithExternal(), []);
+      handle = await renderMindmap(container, docWithExternal(), []);
+      cy = handle.cy;
 
       assert.equal(
         cy.getElementById("n-external").data("label"),
@@ -1463,7 +1470,8 @@ describe("mindmap/graphRenderer", function () {
       dock.style.display = "none";
       query<HTMLElement>(doc, ":root", "the document root").appendChild(dock);
       try {
-        cy = await renderMindmap(container, docWithExternal(), [], dock);
+        handle = await renderMindmap(container, docWithExternal(), [], dock);
+        cy = handle.cy;
 
         cy.getElementById("n-external").emit("tap");
 
@@ -1479,6 +1487,7 @@ describe("mindmap/graphRenderer", function () {
     let container: HTMLDivElement;
     let article: Zotero.Item;
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     beforeEach(async function () {
       this.timeout(30000);
@@ -1498,7 +1507,8 @@ describe("mindmap/graphRenderer", function () {
 
     afterEach(async function () {
       this.timeout(30000);
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       container.remove();
       await article.eraseTx();
@@ -1538,7 +1548,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("draws a group as a region, not as a node in the graph (AC #1)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, groupedDoc(), []);
+      handle = await renderMindmap(container, groupedDoc(), []);
+      cy = handle.cy;
 
       assert.isTrue(
         cy.getElementById("g-1").empty(),
@@ -1562,7 +1573,8 @@ describe("mindmap/graphRenderer", function () {
     it("covers its members and leaves a non-member out (AC #2)", async function () {
       this.timeout(30000);
       const doc = groupedDoc();
-      cy = await renderMindmap(container, doc, []);
+      handle = await renderMindmap(container, doc, []);
+      cy = handle.cy;
 
       const shapes = regionShapes(
         [
@@ -1582,7 +1594,8 @@ describe("mindmap/graphRenderer", function () {
     it("leaves every member where it already was (AC #3)", async function () {
       this.timeout(30000);
       const doc = groupedDoc();
-      cy = await renderMindmap(container, doc, []);
+      handle = await renderMindmap(container, doc, []);
+      cy = handle.cy;
 
       assert.deepEqual(cy.getElementById("n-a").position(), { x: 40, y: 40 });
       assert.deepEqual(cy.getElementById("n-b").position(), { x: 160, y: 40 });
@@ -1598,7 +1611,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("adds no node of its own for the group (AC #1)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, groupedDoc(), []);
+      handle = await renderMindmap(container, groupedDoc(), []);
+      cy = handle.cy;
 
       assert.deepEqual(
         cy
@@ -1611,14 +1625,15 @@ describe("mindmap/graphRenderer", function () {
 
     it("paints the region beneath Cytoscape's canvases (AC #1)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, groupedDoc(), []);
+      handle = await renderMindmap(container, groupedDoc(), []);
+      cy = handle.cy;
 
       // Cytoscape's canvas container is position:relative, z-index:0, so with
       // the overlay at the same stacking level document order is what puts the
       // region underneath. A wrong order here draws nothing and throws nothing.
-      const children = Array.from(container.children);
-      const overlay = container.querySelector(`.${GROUP_OVERLAY_CLASS}`)!;
-      const canvasHost = container.querySelector("canvas")!.parentElement!;
+      const children = Array.from(handle!.mount.children);
+      const overlay = handle!.mount.querySelector(`.${GROUP_OVERLAY_CLASS}`)!;
+      const canvasHost = handle!.mount.querySelector("canvas")!.parentElement!;
       assert.isAbove(
         children.indexOf(canvasHost),
         children.indexOf(overlay),
@@ -1628,7 +1643,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("follows a node while it is dragged, not only on release (AC #4)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, groupedDoc(), []);
+      handle = await renderMindmap(container, groupedDoc(), []);
+      cy = handle.cy;
 
       const cx = () =>
         container
@@ -1705,7 +1721,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("draws a shared node into both regions (TASK-88 AC #1)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, overlappingDoc(), []);
+      handle = await renderMindmap(container, overlappingDoc(), []);
+      cy = handle.cy;
 
       for (const groupId of ["g-1", "g-2"]) {
         assert.isNotNull(
@@ -1729,7 +1746,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("marks a shared node with one pip per group (TASK-88 AC #3)", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, overlappingDoc(), []);
+      handle = await renderMindmap(container, overlappingDoc(), []);
+      cy = handle.cy;
 
       const pipsFor = (nodeId: string) =>
         queryAll(container, `.${GROUP_PIP_CLASS}[data-node-id="${nodeId}"]`);
@@ -1746,7 +1764,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("draws no pip on a node in no group", async function () {
       this.timeout(30000);
-      cy = await renderMindmap(container, groupedDoc(), []);
+      handle = await renderMindmap(container, groupedDoc(), []);
+      cy = handle.cy;
 
       assert.isNull(
         container.querySelector(`.${GROUP_PIP_CLASS}[data-node-id="n-c"]`),
@@ -1768,7 +1787,8 @@ describe("mindmap/graphRenderer", function () {
         ...node,
         position: raised[node.id],
       }));
-      cy = await renderMindmap(container, doc, []);
+      handle = await renderMindmap(container, doc, []);
+      cy = handle.cy;
 
       const ys = ["g-1", "g-2"].map((groupId) =>
         Number(
@@ -1790,7 +1810,8 @@ describe("mindmap/graphRenderer", function () {
       const doc = groupedDoc();
       doc.groups!.push({ id: "g-empty", name: "Nobody" });
 
-      cy = await renderMindmap(container, doc, []);
+      handle = await renderMindmap(container, doc, []);
+      cy = handle.cy;
 
       assert.isTrue(cy.getElementById("g-empty").empty());
       assert.isNull(
@@ -2165,13 +2186,15 @@ describe("mindmap/graphRenderer", function () {
     }
 
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     beforeEach(async function () {
       await clearStorageNotes();
     });
 
     afterEach(async function () {
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       await clearStorageNotes();
     });
@@ -2266,11 +2289,11 @@ describe("mindmap/graphRenderer", function () {
       function destroyCountingCy() {
         let destroyed = 0;
         return {
-          cy: {
-            destroy() {
+          handle: {
+            dispose() {
               destroyed += 1;
             },
-          } as unknown as cytoscape.Core,
+          } as unknown as MindmapHandle,
           get destroyed() {
             return destroyed;
           },
@@ -2307,7 +2330,7 @@ describe("mindmap/graphRenderer", function () {
 
         const rendered = destroyCountingCy();
         teardown = attachLiveRefresh(
-          rendered.cy,
+          rendered.handle,
           container,
           note!.id,
           [],
@@ -2342,7 +2365,7 @@ describe("mindmap/graphRenderer", function () {
 
         const other = destroyCountingCy();
         teardown = attachLiveRefresh(
-          other.cy,
+          other.handle,
           container,
           note!.id,
           [],
@@ -2371,7 +2394,7 @@ describe("mindmap/graphRenderer", function () {
         await settleSetup();
 
         const rendered = destroyCountingCy();
-        teardown = attachLiveRefresh(rendered.cy, container, note!.id, []);
+        teardown = attachLiveRefresh(rendered.handle, container, note!.id, []);
         await Zotero.Promise.delay(200);
         const before = rendered.destroyed;
 
@@ -2386,9 +2409,123 @@ describe("mindmap/graphRenderer", function () {
     });
   });
 
+  describe("the render's own mount", function () {
+    let container: HTMLDivElement;
+    let handle: MindmapHandle | undefined;
+    let teardown: (() => void) | undefined;
+
+    before(function () {
+      (globalThis as any).addon = (Zotero as any)[config.addonInstance];
+    });
+
+    function oneNodeDoc(): MindmapDocument {
+      return {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        id: "doc-mount-test",
+        title: "Mount",
+        nodes: [
+          {
+            membership: "member",
+            id: "node-a",
+            position: { x: 50, y: 50 },
+            ref: {
+              kind: "item",
+              libraryID: Zotero.Libraries.userLibraryID,
+              key: "NOSUCHKEY",
+            },
+          },
+        ],
+        links: [],
+      };
+    }
+
+    beforeEach(async function () {
+      this.timeout(30000);
+      await clearStorageNotes();
+      const doc = Zotero.getMainWindow().document;
+      container = doc.createElement("div");
+      container.style.cssText =
+        "position: relative; width: 200px; height: 200px;";
+      query<HTMLElement>(doc, ":root", "the document root").appendChild(
+        container,
+      );
+    });
+
+    afterEach(async function () {
+      this.timeout(30000);
+      delete liveRefreshTestHooks.beforeGraphRender;
+      teardown?.();
+      teardown = undefined;
+      handle?.dispose();
+      handle = undefined;
+      container.remove();
+      await clearStorageNotes();
+    });
+
+    it("leaves a neighbour's markup alone when its handle is disposed", async function () {
+      handle = await renderMindmap(container, oneNodeDoc(), []);
+      const neighbour = container.ownerDocument!.createElement("p");
+      container.appendChild(neighbour);
+      assert.isNotNull(container.querySelector("canvas"));
+
+      handle.dispose();
+      handle = undefined;
+
+      assert.equal(container.children.length, 1);
+      assert.strictEqual(container.firstElementChild, neighbour);
+      assert.isNull(container.querySelector(`.${MOUNT_CLASS}`));
+      assert.isAbove(container.getBoundingClientRect().height, 0);
+    });
+
+    it("keeps a panel painted while a rebuild is pending, rather than overwriting it with the graph", async function () {
+      this.timeout(60000);
+      const doc = oneNodeDoc();
+      await writeMindmapDocument(doc);
+      const note = (await findMindmapNote())!;
+      handle = await renderMindmap(container, doc, []);
+      teardown = attachLiveRefresh(handle, container, note.id, []);
+      await Zotero.Promise.delay(100);
+
+      const PANEL = "#zoterolinkedmindmaps-mindmap-live-state";
+      const seen: string[] = [];
+      liveRefreshTestHooks.beforeGraphRender = async () => {
+        delete liveRefreshTestHooks.beforeGraphRender;
+        await Zotero.Items.trashTx([note.id]);
+        await waitFor(
+          () =>
+            container.querySelector(PANEL)?.textContent ===
+              getString("mindmap-note-trashed-state") || null,
+          "the trashed panel",
+        );
+        seen.push((teardown as any).view());
+        await note.eraseTx();
+        await waitFor(
+          () =>
+            container.querySelector(PANEL)?.textContent ===
+              getString("mindmap-deleted-state") || null,
+          "the deleted panel",
+        );
+        seen.push((teardown as any).view());
+      };
+
+      // The rendered box in attachLiveRefresh is empty, so any stored change
+      // counts as news and kicks off the rebuild the hook interrupts.
+      await updateMindmapDocument((d) => ({ ...d, title: "Rebuild me" }));
+      await waitFor(() => seen.length === 2 || null, "the hook to finish");
+      await Zotero.Promise.delay(500);
+
+      assert.deepEqual(seen, ["note-trashed", "deleted"]);
+      assert.equal((teardown as any).view(), "deleted");
+      assert.isNotNull(container.querySelector(PANEL));
+      assert.isNull(container.querySelector("canvas"));
+      assert.isNull(container.querySelector(`.${MOUNT_CLASS}`));
+    });
+  });
+
   describe("renderMindmap layout", function () {
     let container: HTMLDivElement;
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     function twoUnplacedNodes(): MindmapDocument {
       return {
@@ -2424,7 +2561,8 @@ describe("mindmap/graphRenderer", function () {
     });
 
     afterEach(async function () {
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       container.remove();
       const note = await findMindmapNote();
@@ -2434,7 +2572,8 @@ describe("mindmap/graphRenderer", function () {
     it("places nodes apart even when the container has no measured size", async function () {
       const doc = twoUnplacedNodes();
 
-      cy = await renderMindmap(container, doc, []);
+      handle = await renderMindmap(container, doc, []);
+      cy = handle.cy;
       const laidOut = await layoutUnplacedNodes(cy, doc);
 
       assert.isNotNull(laidOut);
@@ -2446,6 +2585,7 @@ describe("mindmap/graphRenderer", function () {
   describe("view controls", function () {
     let container: HTMLDivElement;
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     function twoFarNodes(): MindmapDocument {
       return {
@@ -2477,14 +2617,16 @@ describe("mindmap/graphRenderer", function () {
     });
 
     afterEach(function () {
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       container.remove();
       Zotero.Prefs.clear(LEGEND_COLLAPSED_PREF_KEY, true);
     });
 
     it("draws a legend covering every line and node style the renderer draws (AC #1)", async function () {
-      cy = await renderMindmap(container, twoFarNodes(), []);
+      handle = await renderMindmap(container, twoFarNodes(), []);
+      cy = handle.cy;
 
       const rows = container.querySelectorAll(`.${LEGEND_CLASS} li`);
       assert.equal(rows.length, 7, "the legend does not cover every style");
@@ -2492,7 +2634,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("can be dismissed and reopened, writing nothing to the mindmap document (AC #2)", async function () {
       const doc = twoFarNodes();
-      cy = await renderMindmap(container, doc, []);
+      handle = await renderMindmap(container, doc, []);
+      cy = handle.cy;
       const toggle = container.querySelector(
         `.${LEGEND_TOGGLE_BUTTON_CLASS}`,
       ) as HTMLButtonElement;
@@ -2509,7 +2652,8 @@ describe("mindmap/graphRenderer", function () {
     });
 
     it("offers zoom out, zoom in and fit-to-window in a view toolbar (AC #3)", async function () {
-      cy = await renderMindmap(container, twoFarNodes(), []);
+      handle = await renderMindmap(container, twoFarNodes(), []);
+      cy = handle.cy;
 
       assert.isNotNull(container.querySelector(`.${TOOLBAR_CLASS}`));
       assert.isNotNull(container.querySelector(`.${ZOOM_OUT_BUTTON_CLASS}`));
@@ -2518,7 +2662,8 @@ describe("mindmap/graphRenderer", function () {
     });
 
     it("fit-to-window changes the viewport without moving any stored node position (AC #4)", async function () {
-      cy = await renderMindmap(container, twoFarNodes(), []);
+      handle = await renderMindmap(container, twoFarNodes(), []);
+      cy = handle.cy;
       const before = cy
         .nodes()
         .map((n) => ({ id: n.id(), position: { ...n.position() } }));
@@ -2555,6 +2700,7 @@ describe("mindmap/graphRenderer", function () {
     let dock: HTMLDivElement;
     let container: HTMLDivElement;
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     function docWithNodeAt(x: number, y: number): MindmapDocument {
       return {
@@ -2600,7 +2746,8 @@ describe("mindmap/graphRenderer", function () {
 
     afterEach(async function () {
       this.timeout(30000);
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       container?.remove();
       dock.remove();
@@ -2610,7 +2757,13 @@ describe("mindmap/graphRenderer", function () {
 
     it("gives the menu a menu background, border and a per-row hover class, with a 16px icon on the action (AC #5)", async function () {
       container = openContainer(400, 300);
-      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      handle = await renderMindmap(
+        container,
+        docWithNodeAt(100, 100),
+        [],
+        dock,
+      );
+      cy = handle.cy;
       cy.getElementById("n1").emit("cxttap");
 
       const menu = container.querySelector(`.${GROUP_MENU_CLASS}`);
@@ -2625,7 +2778,13 @@ describe("mindmap/graphRenderer", function () {
 
     it("opens beside the clicked node rather than over it (AC #6)", async function () {
       container = openContainer(400, 300);
-      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      handle = await renderMindmap(
+        container,
+        docWithNodeAt(100, 100),
+        [],
+        dock,
+      );
+      cy = handle.cy;
       cy.zoom(1);
       cy.pan({ x: 0, y: 0 });
       const node = cy.getElementById("n1");
@@ -2648,7 +2807,8 @@ describe("mindmap/graphRenderer", function () {
 
     it("stays inside the graph viewport when the node sits near an edge (AC #6)", async function () {
       container = openContainer(220, 160);
-      cy = await renderMindmap(container, docWithNodeAt(190, 10), [], dock);
+      handle = await renderMindmap(container, docWithNodeAt(190, 10), [], dock);
+      cy = handle.cy;
       cy.zoom(1);
       cy.pan({ x: 0, y: 0 });
 
@@ -2672,7 +2832,13 @@ describe("mindmap/graphRenderer", function () {
 
     it("dismisses on Escape (AC #7)", async function () {
       container = openContainer(400, 300);
-      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      handle = await renderMindmap(
+        container,
+        docWithNodeAt(100, 100),
+        [],
+        dock,
+      );
+      cy = handle.cy;
       cy.getElementById("n1").emit("cxttap");
       assert.isNotNull(container.querySelector(`.${GROUP_MENU_CLASS}`));
 
@@ -2686,7 +2852,13 @@ describe("mindmap/graphRenderer", function () {
 
     it("dismisses on an outside click (AC #7)", async function () {
       container = openContainer(400, 300);
-      cy = await renderMindmap(container, docWithNodeAt(100, 100), [], dock);
+      handle = await renderMindmap(
+        container,
+        docWithNodeAt(100, 100),
+        [],
+        dock,
+      );
+      cy = handle.cy;
       cy.getElementById("n1").emit("cxttap");
       assert.isNotNull(container.querySelector(`.${GROUP_MENU_CLASS}`));
 
@@ -2713,6 +2885,7 @@ describe("mindmap/graphRenderer", function () {
     let dock: HTMLDivElement;
     let container: HTMLDivElement;
     let cy: cytoscape.Core | undefined;
+    let handle: MindmapHandle | undefined;
 
     function twoNodeDoc(): MindmapDocument {
       return {
@@ -2771,7 +2944,8 @@ describe("mindmap/graphRenderer", function () {
 
     afterEach(async function () {
       this.timeout(30000);
-      cy?.destroy();
+      handle?.dispose();
+      handle = undefined;
       cy = undefined;
       container.remove();
       dock.remove();
@@ -2846,7 +3020,8 @@ describe("mindmap/graphRenderer", function () {
     async function runGroupFromNodeMenuGesture(): Promise<void> {
       const doc = twoNodeDoc();
       await writeMindmapDocument(doc);
-      cy = await renderMindmap(container, doc, [], dock);
+      handle = await renderMindmap(container, doc, [], dock);
+      cy = handle.cy;
       cy.zoom(1);
       cy.pan({ x: 0, y: 0 });
       cy.resize();

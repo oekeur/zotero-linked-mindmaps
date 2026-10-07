@@ -444,7 +444,7 @@ describe("mindmap/mindmapTab empty registry", function () {
       const made = await createMindmap("Alpha");
       const note = await noteOf(made.id);
       const graph = surfaces.graph;
-      const cy = await renderMindmap(
+      const handle = await renderMindmap(
         graph,
         readDocumentFromNote(note),
         getLinkTypes(),
@@ -452,7 +452,7 @@ describe("mindmap/mindmapTab empty registry", function () {
       );
       await Zotero.Items.trashTx([note.id]);
       const teardown = attachLiveRefresh(
-        cy,
+        handle,
         graph,
         note.id,
         getLinkTypes(),

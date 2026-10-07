@@ -9,7 +9,10 @@ import {
   createMindmap,
   updateMindmapMetadata,
   whenStorageIdle,
+  writeMindmapDocument,
 } from "../../src/modules/mindmap/storage";
+import { MOUNT_CLASS } from "../../src/modules/mindmap/graphRenderer";
+import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
 
@@ -248,6 +251,100 @@ describe("mindmap/mindmapTab live tab", function () {
     assert.isFalse(
       await repaintsAfterEdit(graph!, mindmap.id),
       "a tab closed mid-load repainted its graph area after an edit",
+    );
+  });
+
+  /**
+   * The graph is mounted in a div of its own inside the graph area. If the
+   * mount did not fill the area, or the sidebar toggle left Cytoscape's
+   * cached size or container offset stale, the canvas would stop matching
+   * the area and a click would land beside the node it is aimed at.
+   */
+  it("keeps the mount and canvas the size of the graph area, and clicks still pick a node, across a sidebar collapse", async function () {
+    this.timeout(60000);
+    await writeMindmapDocument({
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      id: "doc-mount-geometry-test",
+      title: "Mount geometry",
+      nodes: ["node-a", "node-b"].map((id, i) => ({
+        membership: "member" as const,
+        id,
+        position: { x: 80 + i * 160, y: 80 },
+        ref: {
+          kind: "item" as const,
+          libraryID: Zotero.Libraries.userLibraryID,
+          key: "NOSUCHKEY",
+        },
+      })),
+      links: [],
+    });
+    await openTab();
+    const doc = mainDocument();
+    const graph = doc.querySelector(GRAPH) as HTMLElement;
+    const mount = (await waitFor(
+      () => graph.querySelector(`.${MOUNT_CLASS}`),
+      "the graph's mount",
+    )) as HTMLElement;
+    const canvas = (await waitFor(
+      () => mount.querySelector("canvas"),
+      "the graph's canvas",
+    )) as HTMLElement;
+
+    const size = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
+    };
+    const settled = (what: string) =>
+      waitFor(() => {
+        const area = size(graph);
+        return graph.getBoundingClientRect().width > 0 &&
+          size(mount) === area &&
+          size(canvas) === area
+          ? area
+          : null;
+      }, what);
+
+    const first = await settled("mount and canvas to fill the graph area");
+
+    const toggle = doc.querySelector(
+      "#zoterolinkedmindmaps-mindmap-sidebar-toggle",
+    ) as HTMLButtonElement;
+    toggle.click();
+    await waitFor(
+      () => size(graph) !== first || null,
+      "the graph area to change size",
+    );
+    const collapsed = await settled("mount and canvas to follow the collapse");
+    assert.notEqual(collapsed, first);
+
+    toggle.click();
+    await waitFor(
+      () => size(graph) !== collapsed || null,
+      "the graph area to change size again",
+    );
+    await settled("mount and canvas to follow the expand");
+
+    // Cytoscape hangs its instance on its container, which is the mount.
+    const cy = (mount as any)._cyreg?.cy;
+    assert.isOk(cy, "no Cytoscape instance on the mount");
+    const at = cy.getElementById("node-b").renderedPosition();
+    const rect = canvas.getBoundingClientRect();
+    const win = doc.defaultView as any;
+    for (const type of ["mousedown", "mouseup"]) {
+      canvas.dispatchEvent(
+        new win.MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          which: 1,
+          clientX: rect.left + at.x,
+          clientY: rect.top + at.y,
+        }),
+      );
+    }
+    assert.deepEqual(
+      cy.$("node:selected").map((n: any) => n.id()),
+      ["node-b"],
     );
   });
 });

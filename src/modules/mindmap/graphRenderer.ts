@@ -16,7 +16,6 @@ import { config } from "../../../package.json";
 import { ensureCytoscapeWindowGlobals } from "../../utils/cytoscapeGlobalsPolyfill";
 import {
   attachGroupOverlay,
-  GROUP_OVERLAY_CLASS,
   GROUP_PIP_CLASS,
   type GroupOverlay,
 } from "./groupOverlay";
@@ -615,6 +614,8 @@ function buildLegend(doc: Document): HTMLElement {
   return legend;
 }
 
+/** Class of the div each render mounts its Cytoscape instance in. */
+export const MOUNT_CLASS = "mindmap-graph-mount";
 export const TOOLBAR_CLASS = "mindmap-graph-toolbar";
 export const ZOOM_OUT_BUTTON_CLASS = "mindmap-zoom-out-button";
 export const ZOOM_IN_BUTTON_CLASS = "mindmap-zoom-in-button";
@@ -995,9 +996,8 @@ export const NODE_MENU_ADD_LINK_CLASS = "mindmap-node-menu-add-link";
  *
  * The native context menu needs no suppressing here: Cytoscape registers its
  * own preventDefault on the container's contextmenu event, and unregisters it
- * on destroy. A second listener added per render would outlive every rebuild,
- * since the container is reused and cy.destroy() only removes bindings
- * Cytoscape made itself.
+ * on destroy. A second listener added per render would pile up on the one
+ * element, since cy.destroy() only removes bindings Cytoscape made itself.
  */
 export function attachNodeContextMenuHandler(
   cy: cytoscape.Core,
@@ -1317,24 +1317,52 @@ function observeContainerSize(
   cy.on("destroy", () => observer.disconnect());
 }
 
+/**
+ * One rendered graph: the Cytoscape instance and the mount div it owns.
+ * Everything the render adds (toolbar, legend, menus, group overlay) lives
+ * inside the mount, so disposing the handle removes exactly that and nothing
+ * a neighbour painted into the same container.
+ */
+export interface MindmapHandle {
+  readonly cy: cytoscape.Core;
+  readonly mount: HTMLElement;
+  /** Destroys the instance and removes the mount. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
+ * Test-only seam. `beforeGraphRender` (awaited when set) runs inside a live-refresh rebuild
+ * after its last await and just before the new graph is rendered, which is
+ * the point a concurrent panel paint cannot otherwise be placed at. Unset in
+ * production.
+ */
+export const liveRefreshTestHooks: {
+  beforeGraphRender?: () => void | Promise<void>;
+} = {};
+
 export async function renderMindmap(
   container: HTMLElement,
   doc: MindmapDocument,
   linkTypes: LinkType[],
   dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
-): Promise<cytoscape.Core> {
+): Promise<MindmapHandle> {
   const win = container.ownerDocument!.defaultView!;
   ensureDocumentHead(container.ownerDocument!);
   ensureCytoscapeWindowGlobals(win);
-  // A live-refresh rebuild destroys the old Cytoscape instance but leaves any
-  // DOM this module added beside it untouched, since cy.destroy() only
-  // unbinds what Cytoscape itself created.
-  container
-    .querySelectorAll(
-      `.${TOOLBAR_CLASS}, .${LEGEND_CLASS}, .${GROUP_MENU_CLASS}, .${GROUP_OVERLAY_CLASS}`,
-    )
-    .forEach((el: Element) => el.remove());
+  // Cytoscape's destroy() empties whatever container it was given, so each
+  // render gets a mount of its own: disposing one instance can then never
+  // erase what another writer painted into the shared container. The mount
+  // takes the container's sizing and is attached before construction, since
+  // Cytoscape measures its container when it is built.
+  const mount = container.ownerDocument!.createElementNS(
+    "http://www.w3.org/1999/xhtml",
+    "div",
+  ) as unknown as HTMLElement;
+  mount.className = MOUNT_CLASS;
+  mount.style.cssText =
+    "width: 100%; height: 100%; min-width: 0; position: relative;";
+  container.appendChild(mount);
 
   const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
   const parallelOffsets = computeParallelOffsets(doc.links);
@@ -1343,7 +1371,7 @@ export async function renderMindmap(
 
   rendered.document = serializeDocument(doc);
   const cy = cytoscape({
-    container,
+    container: mount,
     elements: {
       nodes: doc.nodes.map((node) => buildNodeElement(node, piled)),
       // Ties come after the real links, so an authored link between the same
@@ -1358,11 +1386,11 @@ export async function renderMindmap(
     style: buildStylesheet(win),
     layout: { name: "preset" },
   });
-  observeContainerSize(cy, container, win);
-  attachViewControls(cy, container, doc.id, rendered);
+  observeContainerSize(cy, mount, win);
+  attachViewControls(cy, mount, doc.id, rendered);
   attachNodeClickHandler(cy, nodeRefsById, dockContainer, doc.id);
   attachNodeDragHandler(cy, doc.id, rendered);
-  const overlay = attachGroupOverlay(cy, doc, container);
+  const overlay = attachGroupOverlay(cy, doc, mount);
   attachGroupingHandlers(
     cy,
     doc.id,
@@ -1373,7 +1401,16 @@ export async function renderMindmap(
   if (dockContainer) {
     attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer, doc.id);
   }
-  return cy;
+  return {
+    cy,
+    mount,
+    dispose() {
+      if (!cy.destroyed()) {
+        cy.destroy();
+      }
+      mount.remove();
+    },
+  };
 }
 
 /** What a live-refresh observer currently has on screen. */
@@ -1425,7 +1462,7 @@ export type LiveRefreshHandle = (() => void) & { view(): LiveRefreshView };
  * the currently rendered graph.
  */
 export function attachLiveRefresh(
-  cy: cytoscape.Core,
+  handle: MindmapHandle,
   container: HTMLElement,
   storageNoteItemID: number,
   linkTypes: LinkType[],
@@ -1433,7 +1470,7 @@ export function attachLiveRefresh(
   rendered: RenderedState = { document: null },
 ): LiveRefreshHandle {
   type ViewKind = LiveRefreshView;
-  let current = cy;
+  let current = handle;
   // Set by the returned teardown. A rebuild already in flight when it runs
   // has awaited past the last chance to notice, so every write to the
   // container checks this first: whoever tore this down owns the container.
@@ -1466,7 +1503,7 @@ export function attachLiveRefresh(
 
   function teardownCurrentView(): void {
     if (currentView === "graph") {
-      current.destroy();
+      current.dispose();
     }
   }
 
@@ -1639,24 +1676,31 @@ export function attachLiveRefresh(
       ) {
         return;
       }
+      const viewAtRebuild = currentView;
       teardownCurrentView();
-      // Cytoscape's own destroy() only cleans up the DOM it created itself,
-      // so it never removes a state panel - that one is plain markup this
-      // module put there directly.
+      // Disposing the old graph removes its mount only; a state panel is
+      // plain markup this module put in the container directly, so it is
+      // cleared here.
       container.textContent = "";
-      current = await renderMindmap(
+      if (liveRefreshTestHooks.beforeGraphRender) {
+        await liveRefreshTestHooks.beforeGraphRender();
+      }
+      const next = await renderMindmap(
         container,
         doc,
         linkTypes,
         dockContainer,
         rendered,
       );
-      if (disposed) {
-        current.destroy();
+      // A panel can be painted while the render is pending. That panel is
+      // newer than this graph, so the graph is the one to go.
+      if (disposed || currentView !== viewAtRebuild) {
+        next.dispose();
         return;
       }
+      current = next;
       currentView = "graph";
-      await layoutUnplacedNodes(current, doc);
+      await layoutUnplacedNodes(current.cy, doc);
     } catch (err) {
       logFailure(
         `[zoteroLinkedMindmaps] mindmap live refresh failed: ${(err as Error).message}`,

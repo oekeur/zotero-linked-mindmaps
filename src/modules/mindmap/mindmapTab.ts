@@ -195,7 +195,7 @@ export function createMindmapTabController(
       // what the graph already shows. Two boxes would mean it never
       // recognises the graph's own writes.
       const rendered: RenderedState = { document: null };
-      const cy = await renderMindmap(
+      const graph = await renderMindmap(
         surfaces.graph,
         doc,
         linkTypes,
@@ -206,12 +206,12 @@ export function createMindmapTabController(
       // here goes the way detachGraph() would have sent it. Checked before
       // the layout too, since the layout saves positions to the note.
       if (overtaken()) {
-        cy.destroy();
+        graph.dispose();
         return false;
       }
-      const laidOut = await layoutUnplacedNodes(cy, doc);
+      const laidOut = await layoutUnplacedNodes(graph.cy, doc);
       if (overtaken()) {
-        cy.destroy();
+        graph.dispose();
         return false;
       }
       if (laidOut) {
@@ -222,7 +222,7 @@ export function createMindmapTabController(
         rendered.document = serializeDocument(laidOut);
       }
       liveRefresh = attachLiveRefresh(
-        cy,
+        graph,
         surfaces.graph,
         note.id,
         linkTypes,
