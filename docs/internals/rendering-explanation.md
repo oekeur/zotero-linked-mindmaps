@@ -56,6 +56,22 @@ Comparing content instead of setting a "currently writing" flag is what makes th
 
 Two smaller decisions round it out. The rebuild reads the note by the item id it was opened with instead of looking a mindmap up again, because an id-less lookup in a library with several mindmaps resolves to whichever sorts first. And it calls `refreshNote` before reading, because this runs on a notification about a write that landed a moment ago, which is exactly when Zotero's item cache lags.
 
+## One painter for the graph container
+
+Several writers reach the tab's graph container and dock across awaits: the tab's load, its failed and empty states, and the live observer's graph rebuilds and state panels. A rebuild awaits the note read, the render and the layout, and a panel decision (note trashed, note deleted) can land in any of those gaps. Each writer used to guard itself with its own belief about who else had written since, and each belief is only as good as the writer's knowledge of the others.
+
+`GraphArea` (`graphArea.ts`) replaces the beliefs with an ownership rule. A writer takes a claim at the moment it decides to write, and a later claim supersedes every earlier one. A paint with a superseded claim is refused without touching the DOM. The newest decision wins whatever order the awaits resume in, and no writer needs to know which others exist. The tab claims before it detaches the live observer, which is what keeps the observer's teardown from clearing what the tab paints next.
+
+A claim is not the whole story for the one state that must never be undone. `deleted` is terminal because the note is gone for good, which is a rule rather than a race, so the live observer reads it from the area before it claims.
+
+Each graph gets a mount of its own for a reason in Cytoscape rather than in this plugin. `destroy()` ends in the renderer's `destroyRenderer`, which empties the element the instance was built in (`node_modules/cytoscape/dist/cytoscape.cjs.js`). Built into the shared container, one instance's disposal erases whatever else was painted there, including a panel the next writer had just put up. Building into a throwaway child and removing it on dispose keeps the damage inside the child. The toolbar, legend and group overlay live in the mount for the same reason: they leave with it, and nothing accumulates per render. Panels and state messages get a plain wrapper instead, since nothing destroys them but the area.
+
+The dock is written through a port that refuses unless a graph is on screen. A node handler belongs to a Cytoscape instance, and an instance that has been replaced by a panel can still have a handler mid-flight. Refusing the write keeps that handler from filling the dock beside a panel that says the note is gone.
+
+A build that throws paints a fallback under the same claim and rethrows. The alternative is a blank area with the reason only in the log. The cost is that `paint` can both paint and throw, and the caller must still report the error.
+
+Tests install a mutation guard that fails any child mutation on the container or dock outside an area operation. It exists because the old failure mode was a writer that skipped the rule; the claim logic cannot catch a write that never calls it. See [rendering-reference.md](rendering-reference.md#test-guard).
+
 ## Grouping does not move anything
 
 A group is drawn, not laid out. `groupRegions.ts` computes the region from the members' current positions -- a halo per member, joined by bands along their minimum spanning tree -- and `groupOverlay.ts` paints it into an SVG beneath the graph. Nothing gets repositioned, which is what keeps grouping from fighting the persisted layout, and a group with no members is skipped instead of being drawn as an empty region.

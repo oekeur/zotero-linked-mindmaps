@@ -2,7 +2,7 @@
 
 `src/modules/mindmap/graphRenderer.ts` turns a `MindmapDocument` into a Cytoscape graph inside the mindmap tab, wires the pointer gestures the graph answers to, and keeps the drawn graph in step with the storage note.
 
-The layout is always Cytoscape's `preset`: positions come from the document and no force-directed pass runs at render time. Placing nodes that have no position yet is [`layoutUnplacedNodes`](layout-reference.md), called by the tab after `renderMindmap` returns.
+The layout is always Cytoscape's `preset`: positions come from the document and no force-directed pass runs at render time. Placing nodes that have no position yet is [`layoutUnplacedNodes`](layout-reference.md), called by the tab after the graph is painted.
 
 For the reasoning behind the visual encoding and the refresh mechanism, see [rendering-explanation.md](rendering-explanation.md). For the browser-global and container constraints Cytoscape imposes inside Zotero, see [cytoscape-explanation.md](cytoscape-explanation.md).
 
@@ -267,7 +267,91 @@ The toolbar sits top right and carries zoom out, zoom in, fit-to-window, and a l
 
 The legend sits bottom left and lists every style the renderer can produce, each drawn as a small inline SVG sample rather than described in words: a directional link, an undirected link, an unknown-type link, the parent-child tie, an external node, a group region, and the dots naming a node's groups. Seven rows, held in the module-level `LEGEND_ROWS` array beside the stylesheet they mirror, so a style added there is a visible gap here rather than a silent one. A test asserts the row count, which is what makes adding a style without its row fail rather than pass quietly. Its shown state persists in the `legendCollapsed` preference (see [prefs-reference.md](prefs-reference.md)) and is never written to the mindmap document.
 
+## The graph area
+
+`src/modules/mindmap/graphArea.ts` is the one painter for the mindmap tab's graph container and its node dock. `createGraphArea(container, dock)` returns a `GraphArea`; the tab creates one per tab and hands it to `attachLiveRefresh`. For why it exists, see [rendering-explanation.md](rendering-explanation.md).
+
+### Claim and paint
+
+| Member                          | Behaviour                                                                                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `claim(owner)`                  | Takes the area for `"tab"` or `"live"` and supersedes every earlier claim. Returns a `Claim` (`owner`, `id`).                                                                                             |
+| `isCurrent(claim)`              | True while no later claim exists.                                                                                                                                                                         |
+| `paint(claim, kind, build, o?)` | Refused (returns `undefined`, DOM untouched) when `claim` is superseded. Otherwise disposes the current content, empties the container, hides and empties the dock, then runs `build` on a fresh element. |
+| `clear(claim)`                  | Same refusal rule. Disposes the content and empties the container and the dock. Returns whether it ran.                                                                                                   |
+| `current()`                     | `{ owner, kind }` of the latest claim and of what is on screen.                                                                                                                                           |
+| `dockPort`                      | `write(fn)` runs `fn(dock)` only while `kind` is `"graph"`, and returns whether it ran.                                                                                                                   |
+
+A writer claims at the moment it decides to write and paints with that claim. A claim taken while an earlier writer is still awaiting makes that writer's later paint a no-op, so the newest decision wins whatever order the awaits resume in. A paint runs synchronously from dispose to build, so nothing interleaves between removing the old content and recording the new.
+
+`kind` is `"graph"`, `"failed"`, `"empty"`, `` `panel:${view}` `` (the live observer's panels), or `` `tab-state:${reason}` `` (the tab's empty-registry states). `build` may return an object with `dispose()`; the area calls it on the next paint or clear. `renderMindmapInto` returns such a handle.
+
+`PaintOptions`:
+
+- `keepDock` leaves the dock as it is. Only the live observer passes it, when it rebuilds a graph over a graph.
+- `onError` names a `kind` and a `build` that run under the same claim when the main `build` throws. The area empties what the failed build left (dock included, whatever `keepDock` said), paints the fallback, then rethrows the original error for the caller to report. A paint never ends on a blank.
+
+### Mounts
+
+Only `kind` `"graph"` gets a per-render mount: a `div.mindmap-graph-mount` (`MOUNT_CLASS`) with `width: 100%; height: 100%; min-width: 0; position: relative`, attached before `build` runs so Cytoscape measures a live element. Every other kind gets a plain `div.mindmap-graph-state` (`STATE_CLASS`).
+
+The mount exists because Cytoscape's `destroy()` calls the renderer's `destroyRenderer`, which empties the element the instance was built in (`node_modules/cytoscape/dist/cytoscape.cjs.js`, `destroyRenderer`, near line 15888). Built straight into the shared container, disposing one instance would erase whatever a neighbour had painted there. The toolbar, legend, context menu and group overlay are appended inside the mount, so `MindmapHandle.dispose()` (destroy the instance, then `mount.remove()`) takes them with it.
+
+### Writers
+
+Every write to the container or the dock goes through the area. Line numbers are in `src/modules/mindmap/`.
+
+| Writer                                      | Owner  | Where                                              | Claim and paint                                                                                                                                                      |
+| ------------------------------------------- | ------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab load, graph                             | `tab`  | `mindmapTab.ts:194`, paint at `:205`               | `takeArea()` after the mindmap resolved, then paints `"graph"` with an `onError` fallback of kind `"failed"`.                                                        |
+| Tab load, failed paragraph (resolve failed) | `tab`  | `mindmapTab.ts:186-190`                            | `takeArea()` then paints `"failed"` with `writeFailure`. Skipped when `graphOwnsArea()`, so a live graph survives a stale row.                                       |
+| Tab load, build-failure fallback            | `tab`  | `mindmapTab.ts:214-217`                            | `onError` of the graph paint: `"failed"` paragraph under the same claim. `load` logs the rethrown error and returns false.                                           |
+| `paintEmptyRegistry`                        | `tab`  | `mindmapTab.ts:267-277`                            | `takeArea()` then paints `"empty"` or `` `tab-state:${reason.kind}` ``. Not called while a live graph shows (`graphOwnsArea()`).                                     |
+| Tab teardown                                | `tab`  | `mindmapTab.ts:759`                                | `area.clear(takeArea())`.                                                                                                                                            |
+| Live observer, attach                       | `live` | `graphRenderer.ts:1530`                            | Takes the first claim when `attachLiveRefresh` runs. It paints nothing itself.                                                                                       |
+| Live graph rebuild                          | `live` | `graphRenderer.ts:1682` (claim), `:1737` (paint)   | `applyView("graph")` claims before its note read, paints `"graph"` with `keepDock` when a graph is already up. The old graph stays until the swap.                   |
+| Live panels                                 | `live` | `graphRenderer.ts:1682-1687`, `:1712`, `:1722`     | `applyView` for a panel claims and paints in one run. The same function paints a panel when the note went unparsable or trashed during a rebuild.                    |
+| Live trash check                            | `live` | `graphRenderer.ts:1832-1834`                       | `scheduleTrashCheck` claims even when the same panel is already showing (so an in-flight rebuild cannot paint a graph over it), and paints only if the kind differs. |
+| Live build-failure fallback                 | `live` | `graphRenderer.ts:1746-1749`                       | `onError` of the rebuild: the `unreadable` panel under the same claim (`kind` `"panel:unreadable"`).                                                                 |
+| Live teardown                               | `live` | `graphRenderer.ts:1905-1909`                       | Marks the observer disposed, unregisters it, then `area.clear(lastClaim)`. Refused when the tab has claimed since.                                                   |
+| Dock write, node click and context menu     | n/a    | `graphRenderer.ts:829` (`showNodeInDock`)          | `dockPort.write`. Refused unless `kind` is `"graph"`, so a handler of a replaced graph cannot paint over a panel.                                                    |
+| Dock write, close button                    | n/a    | `graphRenderer.ts:845` (`hideDock` via `dockPort`) | The overview's close handler writes through the same port.                                                                                                           |
+
+The live observer's `isDeleted()` check reads the area (`kind === "panel:deleted"`), not claim order: `deleted` is terminal, so every later request is refused before it claims.
+
+`renderMindmap` called directly (tests, headless use) paints into a mount of its own and sits outside the area. The tab and the live observer pass `area.dockPort` as the dock argument; a bare `HTMLElement` dock is wrapped by `toDockPort` into a port that always writes.
+
+### Test guard
+
+`test/areaGuard.ts` holds `AreaGuardImpl`, installed on the plugin instance (`Zotero[config.addonInstance].areaGuard`) by root hooks in `test/areaGuard.test.ts`, so it wraps every spec file. `createGraphArea` registers its container and dock with the installed guard, and every area operation (`paint`, `clear`, a dock write) runs between `enter()` and `exit()`.
+
+The guard observes both surfaces with a `MutationObserver` on direct children only (`subtree` off, so Cytoscape's own DOM inside the mount is not counted). A child mutation that is pending when an operation starts, or that appears with no operation running, is a violation: some writer painted without going through the area. An `afterEach` hook fails the test with the violation text. A test that mutates a guarded surface on purpose, to play a foreign writer, wraps the write in `withoutAreaGuard`. The guard is absent in production, where `installedGuard()` finds nothing and costs one property read at creation.
+
 ## Rendering and refresh
+
+### `renderMindmapInto`
+
+```ts
+export function renderMindmapInto(
+  mount: HTMLElement,
+  doc: MindmapDocument,
+  linkTypes: LinkType[],
+  dock?: HTMLElement | DockPort,
+  rendered: RenderedState = { document: null },
+): MindmapHandle;
+```
+
+Builds the Cytoscape instance for one document inside a `mount` the caller has attached, and wires every handler above. Synchronous: the graph area runs it inside a paint. Returns a `MindmapHandle`: `{ cy, mount, dispose() }`.
+
+Before constructing anything it shims a `<head>` onto the mount's document when there is none (Zotero's main chrome window is XUL, and Cytoscape's canvas renderer does `document.head.insertBefore(...)` on init), and calls [`ensureCytoscapeWindowGlobals`](polyfills-reference.md) with the mount's `defaultView`. If construction throws, it destroys any instance Cytoscape had already registered on the mount before rethrowing, because `cytoscape()` registers the instance before it validates the elements.
+
+One Cytoscape node per document node, each carrying `id`, `label` from [`resolveNodeLabel`](node-labels-reference.md), an `unplaced` flag (true when the stored position is unplaced, or when the node is in [`piledNodeIds`](schema-reference.md)), a copied position (`{x: 0, y: 0}` when unplaced), and `EXTERNAL_NODE_CLASS` for external nodes. Groups contribute no element of their own; they are drawn by the overlay, from the members' positions. Edges follow: real links first, then parent-child ties, so an authored link between the same parent and child paints above the plain tie and keeps its label.
+
+After construction it records `serializeDocument(doc)` into `rendered.document`, observes the mount with the host window's `ResizeObserver` (calling `cy.resize()` on every change, disconnecting on `cy`'s `destroy` event), and attaches the click, drag and grouping handlers. `attachGroupOverlay` (from `groupOverlay.ts`) runs between them, and the overlay it returns is handed to `attachGroupingHandlers` for hit-testing and torn down on `cy`'s `destroy` event. The context-menu handler is attached only when a dock was passed.
+
+`dispose()` destroys the instance and removes the mount. The toolbar, legend, menu and overlay live inside the mount, so they go with it and nothing accumulates per render.
+
+The caller is responsible for calling `layoutUnplacedNodes` afterwards; `renderMindmapInto` never lays out. The mount needs a positioning context (`position: relative`); the area sets it on every graph mount, and tests that render into their own element set it too. See [cytoscape-explanation.md](cytoscape-explanation.md).
 
 ### `renderMindmap`
 
@@ -278,22 +362,10 @@ export async function renderMindmap(
   linkTypes: LinkType[],
   dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
-): Promise<cytoscape.Core>;
+): Promise<MindmapHandle>;
 ```
 
-Builds the Cytoscape instance for one document and wires every handler above.
-
-Before constructing anything it shims a `<head>` onto the container's document when there is none (Zotero's main chrome window is XUL, and Cytoscape's canvas renderer does `document.head.insertBefore(...)` on init), and calls [`ensureCytoscapeWindowGlobals`](polyfills-reference.md) with the container's `defaultView`.
-
-One Cytoscape node per document node, each carrying `id`, `label` from [`resolveNodeLabel`](node-labels-reference.md), an `unplaced` flag (true when the stored position is unplaced, or when the node is in [`piledNodeIds`](schema-reference.md)), a copied position (`{x: 0, y: 0}` when unplaced), and `EXTERNAL_NODE_CLASS` for external nodes. Groups contribute no element of their own; they are drawn by the overlay, from the members' positions. Edges follow: real links first, then parent-child ties, so an authored link between the same parent and child paints above the plain tie and keeps its label.
-
-After construction it records `serializeDocument(doc)` into `rendered.document`, observes the container with the host window's `ResizeObserver` (calling `cy.resize()` on every change, disconnecting on `cy`'s `destroy` event), and attaches the click, drag and grouping handlers. `attachGroupOverlay` (from `groupOverlay.ts`) runs between them, and the overlay it returns is handed to `attachGroupingHandlers` for hit-testing and torn down on `cy`'s `destroy` event. The context-menu handler is attached only when a `dockContainer` was passed.
-
-Rendering into a container that already holds a graph removes the toolbar, legend, menu and overlay first. `cy.destroy()` only unbinds what Cytoscape itself created, so DOM this module added beside it would otherwise accumulate one copy per render.
-
-Returns the `cytoscape.Core`. The caller is responsible for calling `layoutUnplacedNodes` afterwards; `renderMindmap` never lays out.
-
-The container must establish a positioning context (`position: relative`); the tab sets it on `#zoterolinkedmindmaps-mindmap-container`, and every test that renders a real graph sets it too. See [cytoscape-explanation.md](cytoscape-explanation.md).
+Appends a `MOUNT_CLASS` mount of its own to `container`, outside any graph area, and calls `renderMindmapInto` on it. For callers that render without a tab. The mount keeps `dispose()` of one instance from erasing what a neighbour painted into the same container.
 
 ### `attachLiveRefresh`
 
@@ -310,7 +382,7 @@ Keeps the drawn graph in step with the storage note without a plugin reload.
 
 Registers a `Zotero.Notifier` observer over `["item"]` under the id `zoterolinkedmindmaps-mindmap-live-refresh`. The observer ignores everything but a `modify` on `item` whose id list contains `storageNoteItemID`, then schedules a rebuild.
 
-A rebuild reads the note by item id (never by an id-less mindmap lookup, which would resolve to whichever mindmap sorts first), calls `refreshNote` before reading because the notification arrives while Zotero's cache may still lag, and compares `serializeDocument(doc)` against `rendered.document`. Equal means the graph already shows this, and nothing redraws. Otherwise it paints a new graph through the graph area (which disposes the current instance and builds the new one in a single synchronous step, keeping the dock open), then calls `layoutUnplacedNodes`. Failures are caught and reported through `logFailure`.
+A rebuild reads the note by item id (never by an id-less mindmap lookup, which would resolve to whichever mindmap sorts first), calls `refreshNote` before reading because the notification arrives while Zotero's cache may still lag, and compares `serializeDocument(doc)` against `rendered.document`. Equal means the graph already shows this, and nothing redraws. Otherwise it paints a new graph through the [graph area](#the-graph-area) (which disposes the current instance and builds the new one in a single synchronous step, keeping the dock open when a graph was already up), then calls `layoutUnplacedNodes`. It takes its claim before the note read, so a panel decided meanwhile supersedes the rebuild. Failures are caught and reported through `logFailure`.
 
 Scheduling runs one rebuild at a time and runs another straight after when a notification arrived while the first was in flight, so a prune that lands mid-rebuild is not dropped.
 

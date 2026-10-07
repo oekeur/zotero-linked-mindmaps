@@ -4,7 +4,7 @@
 
 Two layouts live here and they differ in what they are allowed to disturb. `layoutUnplacedNodes` places only nodes that have no stored position, never moves one that does, and persists what it computed; it takes the `MindmapDocument` the core was built from for that reason. `relayoutPositions` deliberately replaces an existing arrangement, moves placed nodes, and persists nothing, leaving that to its caller.
 
-The mindmap tab calls `layoutUnplacedNodes` after [`renderMindmap`](rendering-reference.md) returns, and [`attachLiveRefresh`](rendering-reference.md) calls it again after each rebuild. `relayoutPositions` is called from the renderer instead, by the toolbar's re-layout handler, behind a `Services.prompt.confirm` that names how many nodes will move; the handler passes the returned map to `persistNodePositions`, which is where the write this function skips actually happens.
+The mindmap tab calls `layoutUnplacedNodes` after the [graph area](rendering-reference.md#the-graph-area) paints the graph, and [`attachLiveRefresh`](rendering-reference.md) calls it again after each rebuild. `relayoutPositions` is called from the renderer instead, by the toolbar's re-layout handler, behind a `Services.prompt.confirm` that names how many nodes will move; the handler passes the returned map to `persistNodePositions`, which is where the write this function skips actually happens.
 
 ## Module constants
 

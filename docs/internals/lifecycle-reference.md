@@ -130,6 +130,22 @@ Live-refresh observers registered by `attachLiveRefresh` in the graph renderer a
 
 The tab controller registers one observer of its own, `zoterolinkedmindmaps-mindmap-tab-refresh`, at its first `refresh()`. It redraws the states the tab paints itself (nothing, trashed, unreadable) when the data returns, and does nothing while a live-refresh observer is showing a graph. `teardown()` is its only unregister; a `refresh()` that arrives after teardown registers nothing.
 
+## The graph area across the tab's life
+
+Each mindmap tab creates one `GraphArea` (`graphArea.ts`) over its graph container and node dock, and every write to either goes through it. The claim and paint rule, the mounts and the dock port are in [rendering-reference.md](rendering-reference.md#the-graph-area). The order of events:
+
+| Moment                                | Owner  | What happens to the area                                                                                                                                                                |
+| ------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab controller created                | none   | `createGraphArea(surfaces.graph, surfaces.dock)`. It starts as `{ owner: "tab", kind: "empty" }`.                                                                                       |
+| `load(mindmapId)` resolves a mindmap  | `tab`  | `takeArea()` claims the area and calls the live teardown in one synchronous run, then paints `"graph"`. A resolve failure paints `"failed"` instead, unless a live graph owns the area. |
+| Load succeeds and layout finishes     | `live` | `attachLiveRefresh(area, ...)` takes its own claim. From here the observer paints graph rebuilds and panels; the tab defers while `graphOwnsArea()`.                                    |
+| Registry empty, trashed or unreadable | `tab`  | `paintEmptyRegistry` claims and paints `"empty"` or `tab-state:<reason>`, unless a live graph owns the area.                                                                            |
+| Another load starts                   | `tab`  | `takeArea()` supersedes the observer's claim before the observer's teardown runs, so the teardown and any rebuild it left in flight are refused.                                        |
+| Tab `teardown()` (close, shutdown)    | `tab`  | `area.clear(takeArea())` disposes the graph and empties the container and the dock. A paint still in flight finds its claim superseded and does nothing.                                |
+| Live observer teardown                | `live` | `area.clear(lastClaim)` clears only if the observer still holds the area.                                                                                                               |
+
+`closeMindmapTab()` in `onShutdown` reaches the tab's `teardown()`, which is the clear in the table above. See [lifecycle-explanation.md](lifecycle-explanation.md) for the ordering.
+
 ## `onPrefsEvent(type, data)`
 
 Async. Not called by Zotero: `addon/content/preferences.xhtml` calls it from its link-types groupbox's `onload` attribute, and `test/mindmap/preferencesPane.test.ts` calls it directly to re-render the pane without a fresh load.
