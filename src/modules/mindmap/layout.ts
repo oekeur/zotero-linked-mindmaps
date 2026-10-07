@@ -104,11 +104,12 @@ function anyNewCollision(updated: Position[], placed: Position[]): boolean {
  * Runs a layout scoped to only the unplaced nodes and persists the result.
  * Returns the updated document, or null if every node already had a stored
  * position (AC #2: reopening an already-laid-out mindmap triggers no
- * layout at all).
+ * layout at all), or if `shouldSave` says the graph is no longer wanted.
  */
 export async function layoutUnplacedNodes(
   cy: cytoscape.Core,
   doc: MindmapDocument,
+  shouldSave: () => boolean = () => true,
 ): Promise<MindmapDocument | null> {
   const unplaced = cy.nodes(UNPLACED_SELECTOR);
   if (unplaced.empty()) {
@@ -168,6 +169,11 @@ export async function layoutUnplacedNodes(
     }),
   };
 
+  // Asked once the layout has finished, right before the write: a graph that
+  // was replaced while cose ran must not save positions into the note.
+  if (!shouldSave()) {
+    return null;
+  }
   // Writes the caller's document rather than re-reading storage inside the
   // write: this function's contract is to lay out the document it was handed,
   // which is not necessarily the persisted one (tests hand it a bare doc, and

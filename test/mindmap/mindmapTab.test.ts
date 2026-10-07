@@ -21,10 +21,15 @@ import {
   updateMindmapMetadata,
   whenStorageIdle,
 } from "../../src/modules/mindmap/storage";
-import { TOOLBAR_CLASS } from "../../src/modules/mindmap/graphRenderer";
+import {
+  liveRefreshTestHooks,
+  MOUNT_CLASS,
+  TOOLBAR_CLASS,
+} from "../../src/modules/mindmap/graphRenderer";
 import { clearStorageNotes } from "./storageNotes";
 import { reportableError, waitFor } from "../waitFor";
 import { query } from "../dom";
+import { withoutAreaGuard } from "../areaGuard";
 
 const NEW = `#${SIDEBAR_NEW_BUTTON_ID}`;
 const SAVE = "#zoterolinkedmindmaps-mindmap-save";
@@ -349,7 +354,9 @@ describe("mindmap/mindmapTab", function () {
     controller.teardown();
     await inFlight;
 
-    surfaces.graph.textContent = "";
+    withoutAreaGuard(() => {
+      surfaces.graph.textContent = "";
+    });
     await updateMindmapMetadata(mindmap.id, { title: "Edited after teardown" });
     await whenStorageIdle();
     await Zotero.Promise.delay(1500);
@@ -389,7 +396,9 @@ describe("mindmap/mindmapTab", function () {
     await Zotero.Promise.delay(3000);
 
     controller.teardown();
-    surfaces.graph.textContent = "";
+    withoutAreaGuard(() => {
+      surfaces.graph.textContent = "";
+    });
     await updateMindmapMetadata(first.id, { title: "First edited" });
     await updateMindmapMetadata(second.id, { title: "Second edited" });
     await whenStorageIdle();
@@ -434,5 +443,79 @@ describe("mindmap/mindmapTab", function () {
     } finally {
       reopened.teardown();
     }
+  });
+
+  it("shows only the loaded mindmap when a load lands while a live rebuild is at its seam", async function () {
+    this.timeout(60000);
+    const a = await createMindmap("Rebuilt");
+    const b = await createMindmap("Loaded");
+    await controller.refresh();
+    const mounts = () =>
+      [...surfaces.graph.querySelectorAll(`.${MOUNT_CLASS}`)] as HTMLElement[];
+    const cyOf = (mount: HTMLElement) => (mount as any)._cyreg?.cy;
+    await waitFor(() => mounts()[0] && cyOf(mounts()[0]), "the first graph");
+    const cyA = cyOf(mounts()[0]);
+
+    // Replays every mount the container ever held, because the final state
+    // alone cannot show a second graph that was built and torn down in a tick.
+    let present = mounts().length;
+    let mostAtOnce = present;
+    const isMount = (node: Node | null) =>
+      (node as Element | null)?.classList?.contains(MOUNT_CLASS) === true;
+    const tally = (records: MutationRecord[]) => {
+      for (const record of records) {
+        present += [...record.addedNodes].filter(isMount).length;
+        mostAtOnce = Math.max(mostAtOnce, present);
+        present -= [...record.removedNodes].filter(isMount).length;
+      }
+    };
+    const watcher = new (
+      surfaces.graph.ownerDocument!.defaultView as any
+    ).MutationObserver(tally);
+    watcher.observe(surfaces.graph, { childList: true });
+
+    let release!: () => void;
+    let atSeam = false;
+    liveRefreshTestHooks.beforeGraphRender = () => {
+      delete liveRefreshTestHooks.beforeGraphRender;
+      atSeam = true;
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    };
+    try {
+      await updateMindmapMetadata(a.id, { title: "Rebuilt (edited)" });
+      await waitFor(() => atSeam || null, "the live rebuild to reach its seam");
+
+      rowFor(b.id).click();
+      await waitFor(
+        () =>
+          (mounts().length === 1 &&
+            cyOf(mounts()[0]) &&
+            cyOf(mounts()[0]) !== cyA) ||
+          null,
+        "the loaded mindmap's graph",
+      );
+      release();
+      await whenStorageIdle();
+      await Zotero.Promise.delay(500);
+    } finally {
+      delete liveRefreshTestHooks.beforeGraphRender;
+      release?.();
+      tally(watcher.takeRecords());
+      watcher.disconnect();
+    }
+
+    assert.equal(selectedRowId(), b.id);
+    assert.equal(mounts().length, 1, "one mount in the graph area");
+    assert.equal(
+      surfaces.graph.querySelectorAll(`.${TOOLBAR_CLASS}`).length,
+      1,
+      "one toolbar",
+    );
+    assert.notStrictEqual(cyOf(mounts()[0]), cyA);
+    assert.isTrue(cyA.destroyed(), "the overtaken instance is destroyed");
+    assert.isFalse(cyOf(mounts()[0]).destroyed());
+    assert.equal(mostAtOnce, 1, "a second graph was built beside the first");
   });
 });

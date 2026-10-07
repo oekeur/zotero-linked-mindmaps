@@ -299,11 +299,9 @@ The container must establish a positioning context (`position: relative`); the t
 
 ```ts
 export function attachLiveRefresh(
-  cy: cytoscape.Core,
-  container: HTMLElement,
+  area: GraphArea,
   storageNoteItemID: number,
   linkTypes: LinkType[],
-  dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
 ): LiveRefreshHandle;
 ```
@@ -312,13 +310,13 @@ Keeps the drawn graph in step with the storage note without a plugin reload.
 
 Registers a `Zotero.Notifier` observer over `["item"]` under the id `zoterolinkedmindmaps-mindmap-live-refresh`. The observer ignores everything but a `modify` on `item` whose id list contains `storageNoteItemID`, then schedules a rebuild.
 
-A rebuild reads the note by item id (never by an id-less mindmap lookup, which would resolve to whichever mindmap sorts first), calls `refreshNote` before reading because the notification arrives while Zotero's cache may still lag, and compares `serializeDocument(doc)` against `rendered.document`. Equal means the graph already shows this, and nothing redraws. Otherwise it destroys the current instance, calls `renderMindmap` with the same container, link types, dock and state box, and then `layoutUnplacedNodes`. Failures are caught and reported through `logFailure`.
+A rebuild reads the note by item id (never by an id-less mindmap lookup, which would resolve to whichever mindmap sorts first), calls `refreshNote` before reading because the notification arrives while Zotero's cache may still lag, and compares `serializeDocument(doc)` against `rendered.document`. Equal means the graph already shows this, and nothing redraws. Otherwise it paints a new graph through the graph area (which disposes the current instance and builds the new one in a single synchronous step, keeping the dock open), then calls `layoutUnplacedNodes`. Failures are caught and reported through `logFailure`.
 
 Scheduling runs one rebuild at a time and runs another straight after when a notification arrived while the first was in flight, so a prune that lands mid-rebuild is not dropped.
 
 The observer's `notify` returns `void` and must keep doing so. Zotero awaits each observer's return value inside the DB transaction commit that fired the notification, and the storage write runs inside a queued task; awaiting a rebuild there wedges the storage queue for the rest of the session. See [notifier-queue-explanation.md](notifier-queue-explanation.md).
 
-Returns a teardown function that unregisters the observer and destroys the currently rendered instance. The tab calls it before it replaces the graph area. The function also carries `view()`, which reports what the observer has on screen: `"graph"`, `"note-trashed"`, `"container-trashed"`, `"unreadable"` or `"deleted"`. The tab defers to the observer only while `view()` is `"graph"`, because the observer sees one note: `deleted` is terminal, and a restored note that no longer parses repaints the panel as `unreadable` rather than leaving it saying the note is trashed.
+Returns a teardown function that unregisters the observer and releases the area if it still holds it. The tab claims the area before it calls the teardown. The function also carries `view()`, which reads the area: `"graph"`, `"note-trashed"`, `"container-trashed"`, `"unreadable"` or `"deleted"`, plus `"superseded"` once another owner holds the area. A graph build that threw reads as `"unreadable"`. The tab defers to the observer only while `view()` is `"graph"`, because the observer sees one note: `deleted` is terminal, and a restored note that no longer parses repaints the panel as `unreadable` rather than leaving it saying the note is trashed.
 
 After teardown, an observer that was mid-rebuild paints nothing (`disposed`), so whoever tore it down owns the container. On attach the observer asks once whether its note or container is already trashed, since a trash that landed before it registered fires no later notification.
 

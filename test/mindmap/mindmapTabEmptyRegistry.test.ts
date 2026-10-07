@@ -20,13 +20,15 @@ import {
 } from "../../src/modules/mindmap/storage";
 import {
   attachLiveRefresh,
-  renderMindmap,
+  renderMindmapInto,
   TOOLBAR_CLASS,
 } from "../../src/modules/mindmap/graphRenderer";
+import { createGraphArea } from "../../src/modules/mindmap/graphArea";
 import { getLinkTypes } from "../../src/modules/mindmap/linkTypes";
 import { clearStorageNotes } from "./storageNotes";
 import { query } from "../dom";
 import { waitFor } from "../waitFor";
+import { withoutAreaGuard } from "../areaGuard";
 
 const STATE = "[data-state]";
 const LIVE_STATE = "#zoterolinkedmindmaps-mindmap-live-state";
@@ -444,20 +446,19 @@ describe("mindmap/mindmapTab empty registry", function () {
       const made = await createMindmap("Alpha");
       const note = await noteOf(made.id);
       const graph = surfaces.graph;
-      const handle = await renderMindmap(
-        graph,
-        readDocumentFromNote(note),
-        getLinkTypes(),
-        surfaces.dock,
+      // The controller's own area is idle here; a second one over the same
+      // surfaces stands in for the tab's load having painted a graph.
+      const area = createGraphArea(graph, surfaces.dock);
+      area.paint(area.claim("tab"), "graph", (mount) =>
+        renderMindmapInto(
+          mount,
+          readDocumentFromNote(note),
+          getLinkTypes(),
+          area.dockPort,
+        ),
       );
       await Zotero.Items.trashTx([note.id]);
-      const teardown = attachLiveRefresh(
-        handle,
-        graph,
-        note.id,
-        getLinkTypes(),
-        surfaces.dock,
-      );
+      const teardown = attachLiveRefresh(area, note.id, getLinkTypes());
       try {
         await waitFor(
           () => graph.querySelector(LIVE_STATE),
@@ -692,7 +693,9 @@ describe("mindmap/mindmapTab empty registry", function () {
       await controller.refresh();
       assert.equal(stateKind(), "note-trashed");
       controller.teardown();
-      surfaces.graph.textContent = "";
+      withoutAreaGuard(() => {
+        surfaces.graph.textContent = "";
+      });
       await restore(note);
       await Zotero.Promise.delay(1500);
       assert.equal(surfaces.graph.childElementCount, 0);

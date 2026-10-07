@@ -39,6 +39,7 @@ import {
   regionContains,
   regionShapes,
 } from "../../src/modules/mindmap/groupRegions";
+import { createGraphArea } from "../../src/modules/mindmap/graphArea";
 import { UNKNOWN_TYPE_LABEL } from "../../src/modules/mindmap/linkTypes";
 import {
   EMPTY_NOTE_LABEL,
@@ -81,6 +82,26 @@ import { waitFor } from "../waitFor";
 import { query, queryAll } from "../dom";
 
 const LEGEND_COLLAPSED_PREF_KEY = `${config.prefsPrefix}.legendCollapsed`;
+
+/**
+ * Puts `handle` on a fresh graph area over `container` the way the tab does
+ * after a load, then attaches the observer to that area.
+ */
+function attachLive(
+  handle: MindmapHandle,
+  container: HTMLElement,
+  storageNoteItemID: number,
+  linkTypes: LinkType[],
+  dock?: HTMLElement,
+  rendered?: RenderedState,
+) {
+  const area = createGraphArea(
+    container,
+    dock ?? container.ownerDocument!.createElement("div"),
+  );
+  area.paint(area.claim("tab"), "graph", () => handle);
+  return attachLiveRefresh(area, storageNoteItemID, linkTypes, rendered);
+}
 
 describe("mindmap/graphRenderer", function () {
   // Which tab Zotero is showing. The test bundle has no `ztoolkit` of its
@@ -839,7 +860,7 @@ describe("mindmap/graphRenderer", function () {
       const note = await findMindmapNote();
       assert.isNotNull(note);
 
-      teardown = attachLiveRefresh(fakeHandle(), container, note!.id, []);
+      teardown = attachLive(fakeHandle(), container, note!.id, []);
 
       const first = await updateMindmapDocument((doc) => ({
         ...doc,
@@ -861,7 +882,7 @@ describe("mindmap/graphRenderer", function () {
       assert.isNotNull(note);
 
       const rendered = destroyCountingCy();
-      teardown = attachLiveRefresh(rendered.handle, container, note!.id, []);
+      teardown = attachLive(rendered.handle, container, note!.id, []);
 
       await note!.eraseTx();
 
@@ -882,7 +903,7 @@ describe("mindmap/graphRenderer", function () {
       await writeMindmapDocument(docWithUnplacedNode());
       const note = await findMindmapNote();
 
-      teardown = attachLiveRefresh(fakeHandle(), container, note!.id, []);
+      teardown = attachLive(fakeHandle(), container, note!.id, []);
       await note!.eraseTx();
 
       // A write unrelated to the erased note, through the same module-level
@@ -912,7 +933,7 @@ describe("mindmap/graphRenderer", function () {
       it("shows a trashed state and stops presenting the mindmap as live, without a reopen (AC #1)", async function () {
         this.timeout(30000);
         const counting = destroyCountingCy();
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           counting.handle,
           container,
           note.id,
@@ -937,7 +958,7 @@ describe("mindmap/graphRenderer", function () {
 
       it("returns to the live mindmap once the container is restored, without a reopen (AC #2)", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           fakeHandle(),
           container,
           note.id,
@@ -978,7 +999,7 @@ describe("mindmap/graphRenderer", function () {
         await other.saveTx();
 
         const counting = destroyCountingCy();
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           counting.handle,
           container,
           note.id,
@@ -1017,7 +1038,7 @@ describe("mindmap/graphRenderer", function () {
       it("shows a note-trashed state (not the library-wide message) and stops presenting the mindmap as live, without a reopen (AC #4, #5)", async function () {
         this.timeout(30000);
         const counting = destroyCountingCy();
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           counting.handle,
           container,
           note.id,
@@ -1043,7 +1064,7 @@ describe("mindmap/graphRenderer", function () {
 
       it("returns to the live mindmap once the note is restored, without a reopen", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           fakeHandle(),
           container,
           note.id,
@@ -1108,7 +1129,7 @@ describe("mindmap/graphRenderer", function () {
 
       it("tracks the note's current parent instead of the one resolved at attach: trashing the old container does nothing, trashing the new parent shows the trashed state", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           fakeHandle(),
           container,
           note.id,
@@ -1168,7 +1189,7 @@ describe("mindmap/graphRenderer", function () {
 
       it("stops naming the note once it's restored while the container is still trashed", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           fakeHandle(),
           container,
           note.id,
@@ -1203,7 +1224,7 @@ describe("mindmap/graphRenderer", function () {
 
       it("stops naming the library once the container is restored while the note is still trashed", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           fakeHandle(),
           container,
           note.id,
@@ -1238,7 +1259,7 @@ describe("mindmap/graphRenderer", function () {
 
       it("does not blank a still-readable mindmap when a note reparented to top level leaves its old container trashed", async function () {
         this.timeout(30000);
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           fakeHandle(),
           container,
           note.id,
@@ -1315,7 +1336,7 @@ describe("mindmap/graphRenderer", function () {
             nodes: [unplacedNode("node-a")],
             links: [],
           }));
-          teardown = attachLiveRefresh(
+          teardown = attachLive(
             fakeHandle(),
             container,
             note.id,
@@ -2329,7 +2350,7 @@ describe("mindmap/graphRenderer", function () {
         attachNodeDragHandler(cy, "doc-drag-test", state);
 
         const rendered = destroyCountingCy();
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           rendered.handle,
           container,
           note!.id,
@@ -2364,7 +2385,7 @@ describe("mindmap/graphRenderer", function () {
         attachNodeDragHandler(cy, "doc-drag-test", dragging);
 
         const other = destroyCountingCy();
-        teardown = attachLiveRefresh(
+        teardown = attachLive(
           other.handle,
           container,
           note!.id,
@@ -2394,7 +2415,7 @@ describe("mindmap/graphRenderer", function () {
         await settleSetup();
 
         const rendered = destroyCountingCy();
-        teardown = attachLiveRefresh(rendered.handle, container, note!.id, []);
+        teardown = attachLive(rendered.handle, container, note!.id, []);
         await Zotero.Promise.delay(200);
         const before = rendered.destroyed;
 
@@ -2483,7 +2504,7 @@ describe("mindmap/graphRenderer", function () {
       await writeMindmapDocument(doc);
       const note = (await findMindmapNote())!;
       handle = await renderMindmap(container, doc, []);
-      teardown = attachLiveRefresh(handle, container, note.id, []);
+      teardown = attachLive(handle, container, note.id, []);
       await Zotero.Promise.delay(100);
 
       const PANEL = "#zoterolinkedmindmaps-mindmap-live-state";
@@ -2517,6 +2538,44 @@ describe("mindmap/graphRenderer", function () {
       assert.deepEqual(seen, ["note-trashed", "deleted"]);
       assert.equal((teardown as any).view(), "deleted");
       assert.isNotNull(container.querySelector(PANEL));
+      assert.isNull(container.querySelector("canvas"));
+      assert.isNull(container.querySelector(`.${MOUNT_CLASS}`));
+    });
+
+    it("ends on the trashed panel when the note is trashed again while the restore's rebuild is at its seam", async function () {
+      this.timeout(60000);
+      const doc = oneNodeDoc();
+      await writeMindmapDocument(doc);
+      const note = (await findMindmapNote())!;
+      handle = await renderMindmap(container, doc, []);
+      teardown = attachLive(handle, container, note.id, []);
+      await Zotero.Promise.delay(100);
+
+      const PANEL = "#zoterolinkedmindmaps-mindmap-live-state";
+      const TRASHED = getString("mindmap-note-trashed-state");
+      await Zotero.Items.trashTx([note.id]);
+      await waitFor(
+        () => container.querySelector(PANEL)?.textContent === TRASHED || null,
+        "the trashed panel",
+      );
+
+      let atSeam = false;
+      liveRefreshTestHooks.beforeGraphRender = async () => {
+        delete liveRefreshTestHooks.beforeGraphRender;
+        atSeam = true;
+        await Zotero.Items.trashTx([note.id]);
+      };
+      note.deleted = false;
+      await note.saveTx();
+      await waitFor(
+        () => atSeam || null,
+        "the restore's rebuild to reach its seam",
+      );
+      await whenStorageIdle();
+      await Zotero.Promise.delay(500);
+
+      assert.equal((teardown as any).view(), "note-trashed");
+      assert.equal(container.querySelector(PANEL)?.textContent, TRASHED);
       assert.isNull(container.querySelector("canvas"));
       assert.isNull(container.querySelector(`.${MOUNT_CLASS}`));
     });

@@ -34,6 +34,12 @@ import { piledNodeIds, isUnplaced } from "./schema";
 import { resolveNodeLabel, resolveZoteroItem } from "./nodeLabels";
 import { renderMissingItem, renderNodeOverview } from "./nodeOverview";
 import { renderConnectionsContent } from "./connectionsPanel";
+import {
+  MOUNT_CLASS,
+  type Claim,
+  type DockPort,
+  type GraphArea,
+} from "./graphArea";
 import { createGroup, deleteGroup, renameGroup } from "./mutations";
 import { appendL10nButton } from "./uiElements";
 import { UNKNOWN_TYPE_LABEL, type LinkType } from "./linkTypes";
@@ -615,7 +621,7 @@ function buildLegend(doc: Document): HTMLElement {
 }
 
 /** Class of the div each render mounts its Cytoscape instance in. */
-export const MOUNT_CLASS = "mindmap-graph-mount";
+export { MOUNT_CLASS };
 export const TOOLBAR_CLASS = "mindmap-graph-toolbar";
 export const ZOOM_OUT_BUTTON_CLASS = "mindmap-zoom-out-button";
 export const ZOOM_IN_BUTTON_CLASS = "mindmap-zoom-in-button";
@@ -815,31 +821,48 @@ async function showItemInLibrary(item: Zotero.Item): Promise<void> {
  * click had simply not registered.
  */
 export function showNodeInDock(
-  dockContainer: HTMLElement,
+  dockPort: DockPort,
   ref: ZoteroObjectRef,
   mindmapId?: string,
   openAddLink = false,
 ): void {
-  dockContainer.style.display = "";
-  const item = resolveZoteroItem(ref);
-  if (!item) {
-    dockContainer.textContent = "";
-    renderMissingItem(dockContainer);
-    return;
-  }
+  dockPort.write((dockContainer) => {
+    dockContainer.style.display = "";
+    const item = resolveZoteroItem(ref);
+    if (!item) {
+      dockContainer.textContent = "";
+      renderMissingItem(dockContainer);
+      return;
+    }
 
-  dockContainer.textContent = "";
-  renderNodeOverview(
-    dockContainer,
-    item,
-    () => {
-      void showItemInLibrary(item);
-    },
-    () => hideDock(dockContainer),
-  );
-  const connections = dockContainer.ownerDocument!.createElement("div");
-  dockContainer.appendChild(connections);
-  void renderConnectionsContent(connections, item, mindmapId, openAddLink);
+    dockContainer.textContent = "";
+    renderNodeOverview(
+      dockContainer,
+      item,
+      () => {
+        void showItemInLibrary(item);
+      },
+      () => void dockPort.write(hideDock),
+    );
+    const connections = dockContainer.ownerDocument!.createElement("div");
+    dockContainer.appendChild(connections);
+    void renderConnectionsContent(connections, item, mindmapId, openAddLink);
+  });
+}
+
+/**
+ * A bare dock element (a test, or a render without an area) has no area to
+ * ask, so every write goes straight through.
+ */
+function toDockPort(dock: HTMLElement | DockPort): DockPort {
+  return "write" in dock
+    ? dock
+    : {
+        write(fn) {
+          fn(dock);
+          return true;
+        },
+      };
 }
 
 function hideDock(dockContainer: HTMLElement): void {
@@ -859,9 +882,10 @@ function hideDock(dockContainer: HTMLElement): void {
 export function attachNodeClickHandler(
   cy: cytoscape.Core,
   nodeRefsById: Map<string, ZoteroObjectRef>,
-  dockContainer?: HTMLElement,
+  dock?: HTMLElement | DockPort,
   mindmapId?: string,
 ): void {
+  const dockPort = dock && toDockPort(dock);
   cy.on("tap", "node", (evt) => {
     // A modifier held on the tap means the user is building a multi-select,
     // not asking to see a node's detail - docking here would change the
@@ -871,10 +895,10 @@ export function attachNodeClickHandler(
       return;
     }
     const ref = nodeRefsById.get(evt.target.id());
-    if (!ref || !dockContainer) {
+    if (!ref || !dockPort) {
       return;
     }
-    showNodeInDock(dockContainer, ref, mindmapId);
+    showNodeInDock(dockPort, ref, mindmapId);
   });
 }
 
@@ -1002,9 +1026,10 @@ export const NODE_MENU_ADD_LINK_CLASS = "mindmap-node-menu-add-link";
 export function attachNodeContextMenuHandler(
   cy: cytoscape.Core,
   nodeRefsById: Map<string, ZoteroObjectRef>,
-  dockContainer: HTMLElement,
+  dock: HTMLElement | DockPort,
   mindmapId?: string,
 ): void {
+  const dockPort = toDockPort(dock);
   cy.on("cxttap", "node", (evt) => {
     const ref = nodeRefsById.get(evt.target.id());
     if (!ref) {
@@ -1020,7 +1045,7 @@ export function attachNodeContextMenuHandler(
       appendAddLinkIcon,
       () => {
         closeMenu(cy);
-        showNodeInDock(dockContainer, ref, mindmapId, true);
+        showNodeInDock(dockPort, ref, mindmapId, true);
       },
     );
     addLink.classList.add(NODE_MENU_ADD_LINK_CLASS);
@@ -1340,6 +1365,93 @@ export const liveRefreshTestHooks: {
   beforeGraphRender?: () => void | Promise<void>;
 } = {};
 
+/**
+ * Renders into a `mount` the caller has already attached, so Cytoscape
+ * measures a live element. Synchronous: the graph area runs it inside a paint
+ * so nothing can interleave between disposing the old content and recording
+ * this one.
+ */
+export function renderMindmapInto(
+  mount: HTMLElement,
+  doc: MindmapDocument,
+  linkTypes: LinkType[],
+  dock?: HTMLElement | DockPort,
+  rendered: RenderedState = { document: null },
+): MindmapHandle {
+  const win = mount.ownerDocument!.defaultView!;
+  ensureDocumentHead(mount.ownerDocument!);
+  ensureCytoscapeWindowGlobals(win);
+  const dockPort = dock && toDockPort(dock);
+
+  const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
+  const parallelOffsets = computeParallelOffsets(doc.links);
+  const nodeRefsById = new Map(doc.nodes.map((node) => [node.id, node.ref]));
+  const piled = piledNodeIds(doc.nodes);
+
+  rendered.document = serializeDocument(doc);
+  try {
+    return buildGraph();
+  } catch (err) {
+    // cytoscape() registers the instance on the mount before it validates the
+    // elements, so a throw would otherwise strand a live instance.
+    (
+      mount as unknown as { _cyreg?: { cy?: cytoscape.Core } }
+    )._cyreg?.cy?.destroy();
+    throw err;
+  }
+
+  function buildGraph(): MindmapHandle {
+    const cy = cytoscape({
+      container: mount,
+      elements: {
+        nodes: doc.nodes.map((node) => buildNodeElement(node, piled)),
+        // Ties come after the real links, so an authored link between the same
+        // parent and child paints (and keeps its label) above the plain tie.
+        edges: [
+          ...doc.links.map((link) =>
+            buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
+          ),
+          ...buildParentChildTies(doc.nodes),
+        ],
+      },
+      style: buildStylesheet(win),
+      layout: { name: "preset" },
+    });
+    observeContainerSize(cy, mount, win);
+    attachViewControls(cy, mount, doc.id, rendered);
+    attachNodeClickHandler(cy, nodeRefsById, dockPort, doc.id);
+    attachNodeDragHandler(cy, doc.id, rendered);
+    const overlay = attachGroupOverlay(cy, doc, mount);
+    attachGroupingHandlers(
+      cy,
+      doc.id,
+      overlay,
+      new Map((doc.groups ?? []).map((group) => [group.id, group.name ?? ""])),
+    );
+    cy.on("destroy", () => overlay.destroy());
+    if (dockPort) {
+      attachNodeContextMenuHandler(cy, nodeRefsById, dockPort, doc.id);
+    }
+    return {
+      cy,
+      mount,
+      dispose() {
+        if (!cy.destroyed()) {
+          cy.destroy();
+        }
+        mount.remove();
+      },
+    };
+  }
+}
+
+/**
+ * Renders into a mount of its own inside `container`, outside any graph
+ * area. Cytoscape's destroy() empties whatever container it was given, so a
+ * mount of its own keeps disposing one instance from erasing what a
+ * neighbour painted into the same container. The mount takes the container's
+ * sizing and is attached before construction.
+ */
 export async function renderMindmap(
   container: HTMLElement,
   doc: MindmapDocument,
@@ -1347,14 +1459,6 @@ export async function renderMindmap(
   dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
 ): Promise<MindmapHandle> {
-  const win = container.ownerDocument!.defaultView!;
-  ensureDocumentHead(container.ownerDocument!);
-  ensureCytoscapeWindowGlobals(win);
-  // Cytoscape's destroy() empties whatever container it was given, so each
-  // render gets a mount of its own: disposing one instance can then never
-  // erase what another writer painted into the shared container. The mount
-  // takes the container's sizing and is attached before construction, since
-  // Cytoscape measures its container when it is built.
   const mount = container.ownerDocument!.createElementNS(
     "http://www.w3.org/1999/xhtml",
     "div",
@@ -1363,64 +1467,24 @@ export async function renderMindmap(
   mount.style.cssText =
     "width: 100%; height: 100%; min-width: 0; position: relative;";
   container.appendChild(mount);
-
-  const typeMap = new Map(linkTypes.map((type) => [type.id, type]));
-  const parallelOffsets = computeParallelOffsets(doc.links);
-  const nodeRefsById = new Map(doc.nodes.map((node) => [node.id, node.ref]));
-  const piled = piledNodeIds(doc.nodes);
-
-  rendered.document = serializeDocument(doc);
-  const cy = cytoscape({
-    container: mount,
-    elements: {
-      nodes: doc.nodes.map((node) => buildNodeElement(node, piled)),
-      // Ties come after the real links, so an authored link between the same
-      // parent and child paints (and keeps its label) above the plain tie.
-      edges: [
-        ...doc.links.map((link) =>
-          buildEdgeElement(link, typeMap, parallelOffsets.get(link.id) ?? 0),
-        ),
-        ...buildParentChildTies(doc.nodes),
-      ],
-    },
-    style: buildStylesheet(win),
-    layout: { name: "preset" },
-  });
-  observeContainerSize(cy, mount, win);
-  attachViewControls(cy, mount, doc.id, rendered);
-  attachNodeClickHandler(cy, nodeRefsById, dockContainer, doc.id);
-  attachNodeDragHandler(cy, doc.id, rendered);
-  const overlay = attachGroupOverlay(cy, doc, mount);
-  attachGroupingHandlers(
-    cy,
-    doc.id,
-    overlay,
-    new Map((doc.groups ?? []).map((group) => [group.id, group.name ?? ""])),
-  );
-  cy.on("destroy", () => overlay.destroy());
-  if (dockContainer) {
-    attachNodeContextMenuHandler(cy, nodeRefsById, dockContainer, doc.id);
-  }
-  return {
-    cy,
-    mount,
-    dispose() {
-      if (!cy.destroyed()) {
-        cy.destroy();
-      }
-      mount.remove();
-    },
-  };
+  return renderMindmapInto(mount, doc, linkTypes, dockContainer, rendered);
 }
 
 /** What a live-refresh observer currently has on screen. */
 export type LiveRefreshView =
-  "graph" | "note-trashed" | "container-trashed" | "unreadable" | "deleted";
+  | "graph"
+  | "note-trashed"
+  | "container-trashed"
+  | "unreadable"
+  | "deleted"
+  | "superseded";
 
 /**
  * The teardown function, carrying `view()` so the caller can tell a live
  * graph from one of the observer's own state panels without keeping a second
- * belief about it.
+ * belief about it. `view()` reads the graph area: "superseded" once another
+ * owner holds it (or after teardown), and "unreadable" when a graph build
+ * threw and left nothing on screen, which a later notification retries.
  */
 export type LiveRefreshHandle = (() => void) & { view(): LiveRefreshView };
 
@@ -1438,49 +1502,66 @@ export type LiveRefreshHandle = (() => void) & { view(): LiveRefreshView };
  * redrawing stale content - deleted is terminal (the note is gone for
  * good), trashed clears itself once the note or its container is restored.
  *
- * `applyView` is the only thing in this closure that writes to `container`,
- * `current` or `currentView` - a graph paint and a panel paint are two
- * branches of the same function rather than two separate ones, so there is
- * nowhere left for the DOM and the state variable to disagree about what is
- * on screen. Every other function here only ever *asks* applyView for a
- * view; none of them touch the container directly.
- *
- * A graph paint is the one branch with a real await gap before it touches
- * anything (the note has to be re-read from storage first), which is what
- * makes it interruptible: a trashed/deleted view decided while that read is
- * in flight must win, since it reflects a fact discovered after the graph
- * request was issued. applyView arbitrates this with a generation counter
- * bumped on every request - a graph paint whose generation is no longer
- * current when its read resolves discards without touching the container,
- * rather than painting a live graph back over a panel that is already
- * correct. It does not retry itself; whatever superseded it already owns
- * the screen, and a later notification is what will ask for a graph again
- * if the mindmap actually is live.
+ * Every write goes through the graph area with a claim taken when the
+ * observer decides to write (see graphArea.ts). A graph rebuild claims before
+ * its note read, so a panel decided from any fact discovered meanwhile
+ * supersedes it and its paint is refused; the old graph stays on screen until
+ * the swap. A superseded rebuild does not retry itself: whatever superseded it
+ * owns the screen, and a later notification is what asks for a graph again.
  *
  * Returns a teardown function (with `view()`, see LiveRefreshHandle) that
- * unregisters the observer and destroys
- * the currently rendered graph.
+ * unregisters the observer and releases the area it still holds.
  */
 export function attachLiveRefresh(
-  handle: MindmapHandle,
-  container: HTMLElement,
+  area: GraphArea,
   storageNoteItemID: number,
   linkTypes: LinkType[],
-  dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
 ): LiveRefreshHandle {
-  type ViewKind = LiveRefreshView;
-  let current = handle;
-  // Set by the returned teardown. A rebuild already in flight when it runs
-  // has awaited past the last chance to notice, so every write to the
-  // container checks this first: whoever tore this down owns the container.
+  type ViewKind = Exclude<LiveRefreshView, "superseded">;
+  type PanelKind = Exclude<ViewKind, "graph">;
+  // Set by the returned teardown. A disposed observer must never claim the
+  // area again: whoever tore this down owns it, and a claim here would
+  // supersede theirs. Painting needs no such check, since a superseded claim
+  // is refused by the area itself.
   let disposed = false;
-  // What is actually on screen right now, updated by applyView alone and by
-  // nothing else - the single fact every other function here reads instead
-  // of keeping its own idea of "are we live" or "which panel is showing".
-  let currentView: ViewKind = "graph";
+  // The latest claim this observer took, so teardown can release exactly what
+  // it still holds. Every decision to write takes a fresh one.
+  let lastClaim = area.claim("live");
   let refreshing = false;
   let dirty = false;
+
+  function claimLive(): Claim | undefined {
+    if (disposed) {
+      return undefined;
+    }
+    lastClaim = area.claim("live");
+    return lastClaim;
+  }
+
+  function currentView(): LiveRefreshView {
+    const { owner, kind } = area.current();
+    if (owner !== "live") {
+      return "superseded";
+    }
+    if (kind === "graph") {
+      return "graph";
+    }
+    if (kind === "failed") {
+      return "unreadable";
+    }
+    return kind.startsWith("panel:")
+      ? (kind.slice("panel:".length) as PanelKind)
+      : "superseded";
+  }
+
+  // Deleted is terminal: the note is gone for good, so no later request may
+  // paint over it. This is a rule, not a race, so it is read from the area
+  // before every claim rather than inferred from claim order.
+  function isDeleted(): boolean {
+    return area.current().kind === "panel:deleted";
+  }
+
   // The id of the container this note hangs off, read once up front so
   // notify() can recognise a notification about it with nothing more than an
   // id comparison. Left undefined if the read loses a race with the note
@@ -1501,13 +1582,7 @@ export function attachLiveRefresh(
     }
   })();
 
-  function teardownCurrentView(): void {
-    if (currentView === "graph") {
-      current.dispose();
-    }
-  }
-
-  const PANEL_MESSAGE: Record<Exclude<ViewKind, "graph">, FluentMessageId> = {
+  const PANEL_MESSAGE: Record<PanelKind, FluentMessageId> = {
     "note-trashed": "mindmap-note-trashed-state",
     "container-trashed": "mindmap-trashed-state",
     unreadable: "mindmap-unreadable-state",
@@ -1553,20 +1628,18 @@ export function attachLiveRefresh(
 
   /**
    * Swaps whatever is on screen for a one-line explanation of why the graph
-   * isn't showing. Destroys the graph rather than leaving it underneath: a
-   * destroyed Cytoscape instance has no live event handlers, which is what
-   * stops a drag or edit from landing on a note that's gone or unreachable.
-   * Only ever called from applyView, once a view has already been decided.
+   * isn't showing. The area destroys the graph rather than leaving it
+   * underneath: a destroyed Cytoscape instance has no live event handlers,
+   * which is what stops a drag or edit from landing on a note that's gone or
+   * unreachable. Refused when `claim` has been superseded.
    */
-  function paintPanel(view: Exclude<ViewKind, "graph">): void {
-    if (disposed) {
-      return;
-    }
-    teardownCurrentView();
-    container.textContent = "";
-    const doc = container.ownerDocument;
-    if (doc) {
-      const message = doc.createElementNS(
+  function paintPanel(claim: Claim, view: PanelKind): void {
+    area.paint(claim, `panel:${view}`, panelBuilder(view));
+  }
+
+  function panelBuilder(view: PanelKind): (mount: HTMLElement) => void {
+    return (mount) => {
+      const message = mount.ownerDocument!.createElementNS(
         "http://www.w3.org/1999/xhtml",
         "p",
       ) as unknown as HTMLParagraphElement;
@@ -1578,52 +1651,40 @@ export function attachLiveRefresh(
       } else {
         message.textContent = getString(PANEL_MESSAGE[view]);
       }
-      container.appendChild(message as unknown as Node);
-    }
-    if (dockContainer) {
-      dockContainer.style.display = "none";
-      dockContainer.textContent = "";
-    }
-    currentView = view;
+      mount.appendChild(message as unknown as Node);
+    };
   }
 
   /**
-   * The one function that ever writes to `container`, `current` or
-   * `currentView`. Deleted is terminal and absorbing: once shown, every
-   * later request (including a second "deleted") is refused outright.
+   * Every write here goes through the area with a claim taken at the moment
+   * of the decision, so a later decision always wins: whatever claimed after
+   * this one started makes its paint a no-op. Deleted is terminal and
+   * absorbing: once shown, every later request (including a second
+   * "deleted") is refused outright.
    *
-   * A panel or deleted request never awaits anything before it paints, so
-   * nothing can ever land in the gap between deciding on one and showing it -
-   * whichever such request runs last always wins.
-   *
-   * A graph request is the one case with a real gap: it has to re-read the
-   * note (it may be answering a notification about a write that landed a
-   * moment ago, exactly when the cache lags), then re-checks trashed state
-   * itself via readTrashState rather than trusting that whoever queued this
-   * request was right that the mindmap was live - that request can be a
-   * plain retry with no notification of its own behind it (schedule()'s
-   * dirty flag, set by an earlier write while this graph paint's note read
-   * was already in flight), so by the time it is ready to paint, a trash
-   * that landed and was already handled in the meantime would otherwise be
-   * invisible to it. readTrashState only speaks to trashed, not erased - an
-   * outright delete during that same gap needs its own recheck against
-   * `currentView`, taken as late as possible, right before the destructive
-   * part of a repaint. A graph paint's own read-then-paint is never itself
-   * interrupted by another graph paint: schedule() below only ever runs one
-   * at a time.
+   * A panel request claims and paints in one synchronous run. A graph
+   * request claims first, before its note read: a panel decided from any
+   * fact discovered while that read is in flight then supersedes it. It
+   * re-checks trashed state itself rather than trusting whoever queued it,
+   * since the request can be a plain retry with no notification behind it.
+   * readTrashState only speaks to trashed, not erased; deleted is read from
+   * the area right before the paint.
    *
    * It also skips the redraw entirely when the stored document already
    * matches what a live graph is showing (the common case for a drag's own
    * write notification), but only while a graph is actually on screen:
-   * coming back from a panel always redraws, since the last thing rendered
-   * was not a graph at all.
+   * coming back from a panel always redraws.
    */
   async function applyView(kind: ViewKind): Promise<void> {
-    if (disposed || currentView === "deleted") {
+    if (disposed || isDeleted()) {
+      return;
+    }
+    const claim = claimLive();
+    if (!claim) {
       return;
     }
     if (kind !== "graph") {
-      paintPanel(kind);
+      paintPanel(claim, kind);
       return;
     }
     try {
@@ -1643,64 +1704,55 @@ export function attachLiveRefresh(
         if (
           err instanceof StorageError &&
           !disposed &&
-          currentView !== "graph" &&
-          (currentView as ViewKind) !== "deleted"
+          area.current().kind !== "graph" &&
+          !isDeleted()
         ) {
           const trashed = await readTrashState();
-          // The re-read is an await: an erase or a teardown can land in it,
-          // and deleted is terminal.
-          if (!disposed && (currentView as ViewKind) !== "deleted") {
-            paintPanel(trashed ?? "unreadable");
+          if (!isDeleted()) {
+            paintPanel(claim, trashed ?? "unreadable");
           }
         }
         throw err;
       }
       const trashState = await readTrashState();
-      // The note can have been erased outright while the two reads above
-      // were in flight - readTrashState reports that as "not trashed" (there
-      // is nothing left to be trashed), so deleted is checked again here
-      // explicitly. TypeScript narrowed currentView to exclude "deleted" from
-      // the check at the top of this function and doesn't know the awaits
-      // above can let a concurrent applyView("deleted") call change it - it
-      // genuinely can, which is the entire point of this check.
-      if ((currentView as ViewKind) === "deleted" || disposed) {
+      if (disposed || isDeleted()) {
         return;
       }
       if (trashState) {
-        paintPanel(trashState);
+        paintPanel(claim, trashState);
         return;
       }
       if (
-        currentView === "graph" &&
+        area.current().kind === "graph" &&
         serializeDocument(doc) === rendered.document
       ) {
         return;
       }
-      const viewAtRebuild = currentView;
-      teardownCurrentView();
-      // Disposing the old graph removes its mount only; a state panel is
-      // plain markup this module put in the container directly, so it is
-      // cleared here.
-      container.textContent = "";
       if (liveRefreshTestHooks.beforeGraphRender) {
         await liveRefreshTestHooks.beforeGraphRender();
       }
-      const next = await renderMindmap(
-        container,
-        doc,
-        linkTypes,
-        dockContainer,
-        rendered,
+      // The old graph stays on screen until this swap: the area disposes it
+      // and builds the new one in one synchronous run, and refuses both when
+      // another writer claimed in the meantime.
+      const next = area.paint(
+        claim,
+        "graph",
+        (mount) =>
+          renderMindmapInto(mount, doc, linkTypes, area.dockPort, rendered),
+        {
+          keepDock: area.current().kind === "graph",
+          // A stored document the renderer cannot draw (a link to a node that
+          // is not there) must leave the reason on screen, not a blank area.
+          onError: {
+            kind: "panel:unreadable",
+            build: panelBuilder("unreadable"),
+          },
+        },
       );
-      // A panel can be painted while the render is pending. That panel is
-      // newer than this graph, so the graph is the one to go.
-      if (disposed || currentView !== viewAtRebuild) {
-        next.dispose();
+      if (!next) {
         return;
       }
-      current = next;
-      currentView = "graph";
-      await layoutUnplacedNodes(current.cy, doc);
+      await layoutUnplacedNodes(next.cy, doc, () => area.isCurrent(claim));
     } catch (err) {
       logFailure(
         `[zoteroLinkedMindmaps] mindmap live refresh failed: ${(err as Error).message}`,
@@ -1770,17 +1822,20 @@ export function attachLiveRefresh(
         const trashState = await readTrashState();
         // A delete landing while this was already in flight is terminal; a
         // check that started before it must not undo that.
-        if (disposed || currentView === "deleted") {
+        if (disposed || isDeleted()) {
           return;
         }
-        const desiredView: ViewKind = trashState ?? "graph";
-        const wasShowingPanel = currentView !== "graph";
-        if (desiredView !== "graph" && desiredView !== currentView) {
-          void applyView(desiredView);
-        }
-        if (desiredView !== "graph") {
+        if (trashState) {
+          // Claims even when this very panel is already up: a rebuild in
+          // flight was decided before this fact and must not paint a graph
+          // over it.
+          const claim = claimLive();
+          if (claim && area.current().kind !== `panel:${trashState}`) {
+            paintPanel(claim, trashState);
+          }
           return;
         }
+        const wasShowingPanel = area.current().kind !== "graph";
         if (contentMayHaveChanged || wasShowingPanel) {
           schedule();
         }
@@ -1812,7 +1867,7 @@ export function attachLiveRefresh(
   ): void {
     // Deleted is terminal: the note is gone for good, so nothing past this
     // point is worth reacting to.
-    if (type !== "item" || currentView === "deleted") {
+    if (type !== "item" || isDeleted()) {
       return;
     }
     const idNums = ids.map(Number);
@@ -1850,7 +1905,7 @@ export function attachLiveRefresh(
   const teardown = () => {
     disposed = true;
     Zotero.Notifier.unregisterObserver(observerID);
-    teardownCurrentView();
+    area.clear(lastClaim);
   };
-  return Object.assign(teardown, { view: () => currentView });
+  return Object.assign(teardown, { view: currentView });
 }

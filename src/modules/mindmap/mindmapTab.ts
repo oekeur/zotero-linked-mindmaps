@@ -34,10 +34,11 @@ import { warn } from "./containerGuard";
 import { getLinkTypes } from "./linkTypes";
 import {
   attachLiveRefresh,
-  renderMindmap,
+  renderMindmapInto,
   type LiveRefreshHandle,
   type RenderedState,
 } from "./graphRenderer";
+import { createGraphArea, type Claim } from "./graphArea";
 import { layoutUnplacedNodes } from "./layout";
 import { appendGlyph } from "./uiElements";
 import type { MindmapDocument } from "./schema";
@@ -121,14 +122,19 @@ export function createMindmapTabController(
   let formTarget: MindmapSummary | undefined;
   let sidebarCollapsed = readSidebarCollapsed();
 
-  // Exactly one writer owns the graph area at a time: a live-refresh observer
-  // while it is showing a graph, the tab otherwise. The observer's own state
-  // panels (trashed, deleted) do not count as owning it, because it can only
-  // see its own note: a deleted panel is terminal and a trashed one cannot
-  // tell that the note came back unreadable. Whenever the tab takes the area
-  // over it detaches the observer first.
+  // Every write to the graph container and the dock goes through this area.
+  // A writer claims it at the moment it decides to write and paints in the
+  // same synchronous run; a later claim, from the live observer or from
+  // another tab writer, makes every earlier one's paint a no-op.
+  const area = createGraphArea(surfaces.graph, surfaces.dock);
+
+  // True while a live-refresh observer is showing a graph. Its own state
+  // panels (trashed, deleted) do not count, because it can only see its own
+  // note: a deleted panel is terminal and a trashed one cannot tell that the
+  // note came back unreadable.
   function graphOwnsArea(): boolean {
-    return liveRefresh?.view() === "graph";
+    const { owner, kind } = area.current();
+    return owner === "live" && kind === "graph";
   }
 
   function detachGraph(): void {
@@ -136,10 +142,13 @@ export function createMindmapTabController(
     liveRefresh = undefined;
   }
 
-  function clearGraphArea(): void {
-    surfaces.graph.textContent = "";
-    surfaces.dock.style.display = "none";
-    surfaces.dock.textContent = "";
+  // Takes the area for the tab and unhooks the observer in one synchronous
+  // run. Claiming first is what makes the observer's teardown (and anything
+  // it still has in flight) unable to touch what the tab paints next.
+  function takeArea(): Claim {
+    const claim = area.claim("tab");
+    detachGraph();
+    return claim;
   }
 
   /**
@@ -175,18 +184,14 @@ export function createMindmapTabController(
         // the registry now says. With nothing live there is no one else to
         // tell the user.
         if (!graphOwnsArea()) {
-          detachGraph();
+          const claim = takeArea();
           currentDocument = undefined;
           currentMindmapId = undefined;
-          clearGraphArea();
-          const message = el(surfaces.graph.ownerDocument!, "p");
-          message.textContent = `Failed to load mindmap: ${err.message}`;
-          surfaces.graph.appendChild(message as unknown as Node);
+          area.paint(claim, "failed", (mount) => writeFailure(mount, err));
         }
         return false;
       }
-      detachGraph();
-      clearGraphArea();
+      const claim = takeArea();
       currentDocument = doc;
       currentMindmapId = doc.id;
 
@@ -195,23 +200,43 @@ export function createMindmapTabController(
       // what the graph already shows. Two boxes would mean it never
       // recognises the graph's own writes.
       const rendered: RenderedState = { document: null };
-      const graph = await renderMindmap(
-        surfaces.graph,
-        doc,
-        linkTypes,
-        surfaces.dock,
-        rendered,
-      );
-      // Whatever overtook this load owns the graph area now; the graph built
-      // here goes the way detachGraph() would have sent it. Checked before
-      // the layout too, since the layout saves positions to the note.
-      if (overtaken()) {
-        graph.dispose();
+      let graph;
+      try {
+        graph = area.paint(
+          claim,
+          "graph",
+          (mount) =>
+            renderMindmapInto(mount, doc, linkTypes, area.dockPort, rendered),
+          {
+            // The renderer can reject a document the schema accepted (a link
+            // to a node that is not there). Say so rather than leave the area
+            // blank, and let the next load try again.
+            onError: {
+              kind: "failed",
+              build: (mount, err) => writeFailure(mount, err),
+            },
+          },
+        );
+      } catch (err) {
+        logFailure(
+          `[zoteroLinkedMindmaps] mindmap render failed: ${(err as Error).message}`,
+          err,
+        );
+        // The selection stays on this mindmap, so the failure stays on screen
+        // and a later pass retries it instead of loading its neighbour.
+        currentDocument = undefined;
         return false;
       }
-      const laidOut = await layoutUnplacedNodes(graph.cy, doc);
-      if (overtaken()) {
-        graph.dispose();
+      if (!graph) {
+        return false;
+      }
+      // The layout saves positions to the note, so it is told to skip the
+      // save when whatever overtook this load owns the area by then; that
+      // writer's paint has already disposed this graph.
+      const laidOut = await layoutUnplacedNodes(graph.cy, doc, () =>
+        area.isCurrent(claim),
+      );
+      if (overtaken() || !area.isCurrent(claim)) {
         return false;
       }
       if (laidOut) {
@@ -221,14 +246,7 @@ export function createMindmapTabController(
         // flashing.
         rendered.document = serializeDocument(laidOut);
       }
-      liveRefresh = attachLiveRefresh(
-        graph,
-        surfaces.graph,
-        note.id,
-        linkTypes,
-        surfaces.dock,
-        rendered,
-      );
+      liveRefresh = attachLiveRefresh(area, note.id, linkTypes, rendered);
       return true;
     } finally {
       loadsInFlight--;
@@ -249,11 +267,27 @@ export function createMindmapTabController(
   function paintEmptyRegistry(
     reason: Exclude<EmptyRegistryReason, { kind: "readable" }>,
   ): void {
-    detachGraph();
+    const claim = takeArea();
     currentDocument = undefined;
     currentMindmapId = undefined;
-    clearGraphArea();
-    const message = el(surfaces.graph.ownerDocument!, "p");
+    area.paint(
+      claim,
+      reason.kind === "nothing" ? "empty" : `tab-state:${reason.kind}`,
+      (mount) => writeEmptyRegistryMessage(mount, reason),
+    );
+  }
+
+  function writeFailure(mount: HTMLElement, err: unknown): void {
+    const message = el(mount.ownerDocument!, "p");
+    message.textContent = `Failed to load mindmap: ${(err as Error).message}`;
+    mount.appendChild(message as unknown as Node);
+  }
+
+  function writeEmptyRegistryMessage(
+    mount: HTMLElement,
+    reason: Exclude<EmptyRegistryReason, { kind: "readable" }>,
+  ): void {
+    const message = el(mount.ownerDocument!, "p");
     message.setAttribute("data-state", reason.kind);
     message.id =
       reason.kind === "nothing"
@@ -284,7 +318,7 @@ export function createMindmapTabController(
         JSON.stringify({ count: reason.count }),
       );
     }
-    surfaces.graph.appendChild(message as unknown as Node);
+    mount.appendChild(message as unknown as Node);
   }
 
   /**
@@ -348,7 +382,7 @@ export function createMindmapTabController(
     if (
       selected.id !== currentMindmapId ||
       !currentDocument ||
-      liveRefresh?.view() !== "graph"
+      !graphOwnsArea()
     ) {
       await load(selected.id);
     }
@@ -722,7 +756,7 @@ export function createMindmapTabController(
         Zotero.Notifier.unregisterObserver(tabObserverID);
         tabObserverID = undefined;
       }
-      detachGraph();
+      area.clear(takeArea());
       currentDocument = undefined;
       currentMindmapId = undefined;
       formMode = "none";

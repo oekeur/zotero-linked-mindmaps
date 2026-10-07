@@ -15,6 +15,7 @@ import { MOUNT_CLASS } from "../../src/modules/mindmap/graphRenderer";
 import { CURRENT_SCHEMA_VERSION } from "../../src/modules/mindmap/schema";
 import { clearStorageNotes } from "./storageNotes";
 import { waitFor } from "../waitFor";
+import { withoutAreaGuard } from "../areaGuard";
 
 /**
  * The real tab, opened the way the menu item and the shortcut open it, rather
@@ -198,7 +199,9 @@ describe("mindmap/mindmapTab live tab", function () {
     graph: Element,
     mindmapId: string,
   ): Promise<boolean> {
-    graph.textContent = "";
+    withoutAreaGuard(() => {
+      graph.textContent = "";
+    });
     await updateMindmapMetadata(mindmapId, { title: "Edited after close" });
     await whenStorageIdle();
     await Zotero.Promise.delay(1500);
