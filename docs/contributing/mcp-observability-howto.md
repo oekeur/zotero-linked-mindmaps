@@ -117,9 +117,11 @@ The plugin exposes no opener or graph handle on `Zotero.ZoteroLinkedMindmaps`
 // Open the tab
 doc.getElementById("zotero-linked-mindmaps-menuitem-open-mindmap").doCommand();
 
-// The live Cytoscape instance, registered by Cytoscape on its container
-const cy = doc.getElementById("zoterolinkedmindmaps-mindmap-container")._cyreg
-  .cy;
+// The live Cytoscape instance, registered by Cytoscape on the render's own
+// mount (a child of the container with class "mindmap-graph-mount")
+const cy = doc
+  .getElementById("zoterolinkedmindmaps-mindmap-container")
+  .querySelector(".mindmap-graph-mount")._cyreg.cy;
 cy.nodes().map((n) => ({
   id: n.id(),
   label: n.data("label"),
@@ -127,7 +129,7 @@ cy.nodes().map((n) => ({
 }));
 ```
 
-`_cyreg.cy` is what makes layout assertions possible: it returns each node's
+`_cyreg.cy` on the mount is what makes layout assertions possible: it returns each node's
 id, label, `isGroup` flag, model position and rendered width and height, so a
 regression can be checked numerically instead of by eye.
 

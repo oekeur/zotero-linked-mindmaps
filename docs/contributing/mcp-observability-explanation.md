@@ -47,8 +47,10 @@ This was the open question, since the tab is Cytoscape drawing into a canvas and
 a canvas is opaque to a DOM tree.
 
 It is worth more than expected, for a reason that has nothing to do with the
-canvas. Cytoscape registers its instance on the container element as `_cyreg`,
-so `zotero_execute_js` can read every node's id, label, group flag, model
+canvas. Cytoscape registers its instance on the element it is built in as `_cyreg`.
+That element is the `.mindmap-graph-mount` child of the container: each render
+gets its own mount because Cytoscape's destroy empties the element it was built
+in. So `zotero_execute_js` can read every node's id, label, group flag, model
 position and rendered size. A layout regression can therefore be asserted
 numerically rather than judged by eye, which is the failure mode that made
 layout untestable here in the first place.

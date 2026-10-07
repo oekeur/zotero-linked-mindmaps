@@ -135,7 +135,7 @@ preferences document, not iframed, so once shown it is queryable directly.
 every storage notification by destroying the Cytoscape instance and rendering a
 new one. A handle taken before an add, a link save or a group change keeps
 answering afterwards, with the old node count, and never throws. Read
-`document.getElementById("zoterolinkedmindmaps-mindmap-container")._cyreg.cy`
+`document.getElementById("zoterolinkedmindmaps-mindmap-container").querySelector(".mindmap-graph-mount")._cyreg.cy`
 again after each step that writes; J3 step 3 looked like a live-refresh failure
 until the handle was re-read.
 
@@ -218,7 +218,7 @@ question in `docs/internals/container-guard-explanation.md`.
    with the description as its tooltip; the flat `…-add-to-mindmap` menuitem is
    hidden and the `…-add-to-mindmap-submenu` shown.
    **Probe** node count and positions through Cytoscape:
-   `document.getElementById("zoterolinkedmindmaps-mindmap-container")._cyreg.cy.nodes().map(n => [n.id(), n.position()])`
+   `document.getElementById("zoterolinkedmindmaps-mindmap-container").querySelector(".mindmap-graph-mount")._cyreg.cy.nodes().map(n => [n.id(), n.position()])`
    via `zotero_execute_js`. Three distinct positions, none of them `{x:0,y:0}`.
 
 4. **Do** Select _Attention_ in the library and **scroll the Mindmaps section
@@ -281,7 +281,7 @@ where `ztoolkit.Dialog`'s traps live.
    **Expect** the window closes. The item pane grows a `.mindmap-link-row`
    showing the type, the name, an arrow reflecting the direction, and the target
    title. The graph draws an edge between the two nodes.
-   **Probe** `...._cyreg.cy.edges().map(e => [e.data("id"), e.source().id(), e.target().id()])`.
+   **Probe** `<the mount's _cyreg.cy, as in J1>.edges().map(e => [e.data("id"), e.source().id(), e.target().id()])`.
 
 5. **Do** Try to link _Attention_ to itself.
    **Expect** the refusal "An item can't be linked to itself." Nothing is saved.
