@@ -14,7 +14,7 @@ An existing plugin, samreading/zotero-mindmap, covers basic note-linking, but ha
 
 Researchers holding a corpus where the connections matter as much as the sources: a literature review where one paper answers another, a thesis chapter with its own primary sources, a citation network you want to see rather than reconstruct each time.
 
-If you want a concept map of one PDF's argument, samreading/zotero-mindmap fits better.
+If you want a concept map of one PDF's argument, samreading/zotero-mindmap fits better. If you want a dated chronology of events that cite your sources, [Zotero Timeline](https://github.com/oekeur/zotero-timeline) fits better.
 
 ## What it does
 
