@@ -88,6 +88,22 @@ Trashed notes do not match: the search sets no `includeDeleted` condition, so a 
 
 Does not read note content, so a corrupt note is still returned. No side effects.
 
+### `classifyEmptyRegistry`
+
+```ts
+type EmptyRegistryReason =
+  | { kind: "readable" }
+  | { kind: "nothing" }
+  | { kind: "container-trashed"; hasNotes: boolean }
+  | { kind: "note-trashed"; count: number }
+  | { kind: "unreadable"; count: number };
+function classifyEmptyRegistry(
+  libraryID?: number,
+): Promise<EmptyRegistryReason>;
+```
+
+Names why `listMindmaps` came back empty. It asks `hasHiddenMindmapData` whether data is hidden, then decides container versus note from the container counts: a trashed container outranks trashed notes because it hides every mindmap, and the library-wide read has no subject note to prefer. A note hidden by a trashed parent that is not the container counts as a trashed note. Hidden data outranks unreadable data. `readable` means a mindmap parses after all and the caller should read again. `hasHiddenMindmapData` itself is unchanged: its count technique sees a note hidden by any trashed ancestor, which a flag read would not, and `createDefaultMindmapIfNeeded` relies on that to refuse a second mindmap.
+
 ### `hasHiddenMindmapData`
 
 ```ts

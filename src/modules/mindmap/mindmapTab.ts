@@ -18,6 +18,7 @@ import type { FluentMessageId } from "../../../typings/i10n";
 import {
   createMindmap,
   deleteMindmap,
+  classifyEmptyRegistry,
   findAllMindmapNotes,
   hasHiddenMindmapData,
   listMindmaps,
@@ -26,6 +27,7 @@ import {
   serializeDocument,
   StorageError,
   updateMindmapMetadata,
+  type EmptyRegistryReason,
   type MindmapSummary,
 } from "./storage";
 import { warn } from "./containerGuard";
@@ -33,6 +35,7 @@ import { getLinkTypes } from "./linkTypes";
 import {
   attachLiveRefresh,
   renderMindmap,
+  type LiveRefreshHandle,
   type RenderedState,
 } from "./graphRenderer";
 import { layoutUnplacedNodes } from "./layout";
@@ -86,7 +89,7 @@ function writeSidebarCollapsed(collapsed: boolean): void {
 export interface MindmapTabController {
   /** Rebuilds the sidebar from the registry and loads the picked mindmap. */
   refresh(): Promise<void>;
-  /** Unhooks the live-refresh observer and forgets the loaded mindmap. */
+  /** Unhooks both observers and forgets the loaded mindmap. */
   teardown(): void;
 }
 
@@ -97,7 +100,7 @@ export function createMindmapTabController(
 ): MindmapTabController {
   let currentDocument: MindmapDocument | undefined;
   let currentMindmapId: string | undefined;
-  let teardownLiveRefresh: (() => void) | undefined;
+  let liveRefresh: LiveRefreshHandle | undefined;
   // load() attaches its observer only after several awaits, and the slot it
   // writes holds the one unregister that will ever exist for it. A load that
   // a newer load or a teardown overtook would overwrite that slot after
@@ -105,6 +108,12 @@ export function createMindmapTabController(
   // reach for the rest of the session. Each load takes a token and, once the
   // token is no longer current, gives up without attaching anything.
   let latestLoad = 0;
+  let loadsInFlight = 0;
+  // A notification that arrives while a load is running cannot start a pass
+  // (the load owns the area), but dropping it would lose a repair or restore
+  // that landed after the load read its note. It is replayed once the last
+  // load settles.
+  let eventDuringLoad = false;
   let tornDown = false;
   let formMode: FormMode = "none";
   // Which row's Edit was clicked, rather than whatever is loaded: the two
@@ -112,108 +121,198 @@ export function createMindmapTabController(
   let formTarget: MindmapSummary | undefined;
   let sidebarCollapsed = readSidebarCollapsed();
 
+  // Exactly one writer owns the graph area at a time: a live-refresh observer
+  // while it is showing a graph, the tab otherwise. The observer's own state
+  // panels (trashed, deleted) do not count as owning it, because it can only
+  // see its own note: a deleted panel is terminal and a trashed one cannot
+  // tell that the note came back unreadable. Whenever the tab takes the area
+  // over it detaches the observer first.
+  function graphOwnsArea(): boolean {
+    return liveRefresh?.view() === "graph";
+  }
+
   function detachGraph(): void {
-    teardownLiveRefresh?.();
-    teardownLiveRefresh = undefined;
+    liveRefresh?.();
+    liveRefresh = undefined;
+  }
+
+  function clearGraphArea(): void {
+    surfaces.graph.textContent = "";
+    surfaces.dock.style.display = "none";
+    surfaces.dock.textContent = "";
   }
 
   /**
    * Loads `mindmapId` (or the library's default mindmap) into the graph area.
-   * Tears the previous graph down first, so switching mindmaps doesn't leave a
-   * live-refresh observer pointing at a note that is no longer on screen.
+   * The mindmap is resolved before anything on screen is touched: a row can be
+   * stale, and a failed resolve must leave a live graph and its observer
+   * alone. Returns whether a graph was loaded.
    */
-  async function load(mindmapId?: string): Promise<void> {
+  async function load(mindmapId?: string): Promise<boolean> {
     const token = ++latestLoad;
     const overtaken = () => tornDown || token !== latestLoad;
-    detachGraph();
-    surfaces.graph.textContent = "";
-    surfaces.dock.style.display = "none";
-    surfaces.dock.textContent = "";
-
-    let note: Zotero.Item;
-    // Read from here on rather than currentDocument, which a newer load can
-    // replace while this one is waiting on render or layout.
-    let doc: MindmapDocument;
+    loadsInFlight++;
     try {
-      const resolved = await resolveMindmap(mindmapId);
-      if (overtaken()) {
-        return;
+      let note: Zotero.Item;
+      // Read from here on rather than currentDocument, which a newer load can
+      // replace while this one is waiting on render or layout.
+      let doc: MindmapDocument;
+      try {
+        const resolved = await resolveMindmap(mindmapId);
+        if (overtaken()) {
+          return false;
+        }
+        note = resolved.item;
+        doc = resolved.doc;
+      } catch (err) {
+        if (!(err instanceof StorageError)) {
+          throw err;
+        }
+        if (overtaken()) {
+          return false;
+        }
+        // A graph that is still live stays; the caller's refresh decides what
+        // the registry now says. With nothing live there is no one else to
+        // tell the user.
+        if (!graphOwnsArea()) {
+          detachGraph();
+          currentDocument = undefined;
+          currentMindmapId = undefined;
+          clearGraphArea();
+          const message = el(surfaces.graph.ownerDocument!, "p");
+          message.textContent = `Failed to load mindmap: ${err.message}`;
+          surfaces.graph.appendChild(message as unknown as Node);
+        }
+        return false;
       }
-      note = resolved.item;
-      doc = resolved.doc;
+      detachGraph();
+      clearGraphArea();
       currentDocument = doc;
-    } catch (err) {
-      if (!(err instanceof StorageError)) {
-        throw err;
-      }
-      if (overtaken()) {
-        return;
-      }
-      currentDocument = undefined;
-      const message = el(surfaces.graph.ownerDocument!, "p");
-      message.textContent = `Failed to load mindmap: ${err.message}`;
-      surfaces.graph.appendChild(message as unknown as Node);
-      return;
-    }
-    currentMindmapId = doc.id;
+      currentMindmapId = doc.id;
 
-    const linkTypes = getLinkTypes();
-    // One box shared by the graph and its observer, so the observer knows what
-    // the graph already shows. Two boxes would mean it never recognises the
-    // graph's own writes.
-    const rendered: RenderedState = { document: null };
-    const cy = await renderMindmap(
-      surfaces.graph,
-      doc,
-      linkTypes,
-      surfaces.dock,
-      rendered,
-    );
-    // Whatever overtook this load owns the graph area now; the graph built
-    // here goes the way detachGraph() would have sent it. Checked before the
-    // layout too, since the layout saves positions to the note.
-    if (overtaken()) {
-      cy.destroy();
-      return;
+      const linkTypes = getLinkTypes();
+      // One box shared by the graph and its observer, so the observer knows
+      // what the graph already shows. Two boxes would mean it never
+      // recognises the graph's own writes.
+      const rendered: RenderedState = { document: null };
+      const cy = await renderMindmap(
+        surfaces.graph,
+        doc,
+        linkTypes,
+        surfaces.dock,
+        rendered,
+      );
+      // Whatever overtook this load owns the graph area now; the graph built
+      // here goes the way detachGraph() would have sent it. Checked before
+      // the layout too, since the layout saves positions to the note.
+      if (overtaken()) {
+        cy.destroy();
+        return false;
+      }
+      const laidOut = await layoutUnplacedNodes(cy, doc);
+      if (overtaken()) {
+        cy.destroy();
+        return false;
+      }
+      if (laidOut) {
+        currentDocument = laidOut;
+        // The layout moved the nodes on screen before saving them, so the
+        // graph already shows this - recording it keeps the save from
+        // flashing.
+        rendered.document = serializeDocument(laidOut);
+      }
+      liveRefresh = attachLiveRefresh(
+        cy,
+        surfaces.graph,
+        note.id,
+        linkTypes,
+        surfaces.dock,
+        rendered,
+      );
+      return true;
+    } finally {
+      loadsInFlight--;
+      if (loadsInFlight === 0 && eventDuringLoad) {
+        eventDuringLoad = false;
+        if (!tornDown) {
+          void requestRefresh(true);
+        }
+      }
     }
-    const laidOut = await layoutUnplacedNodes(cy, doc);
-    if (overtaken()) {
-      cy.destroy();
-      return;
-    }
-    if (laidOut) {
-      currentDocument = laidOut;
-      // The layout moved the nodes on screen before saving them, so the graph
-      // already shows this - recording it keeps the save from flashing.
-      rendered.document = serializeDocument(laidOut);
-    }
-    teardownLiveRefresh = attachLiveRefresh(
-      cy,
-      surfaces.graph,
-      note.id,
-      linkTypes,
-      surfaces.dock,
-      rendered,
-    );
   }
 
-  function renderEmptyState(): void {
+  /**
+   * Paints the reason the registry is empty into the graph area, which the
+   * tab owns from here until a load replaces it. Only called with nothing
+   * live on screen, or after detaching what was.
+   */
+  function paintEmptyRegistry(
+    reason: Exclude<EmptyRegistryReason, { kind: "readable" }>,
+  ): void {
     detachGraph();
     currentDocument = undefined;
     currentMindmapId = undefined;
-    surfaces.graph.textContent = "";
+    clearGraphArea();
     const message = el(surfaces.graph.ownerDocument!, "p");
-    message.id = "zoterolinkedmindmaps-mindmap-empty-state";
-    message.textContent = getString("mindmap-empty-state");
+    message.setAttribute("data-state", reason.kind);
+    message.id =
+      reason.kind === "nothing"
+        ? "zoterolinkedmindmaps-mindmap-empty-state"
+        : "zoterolinkedmindmaps-mindmap-hidden-state";
+    // Plain strings are formatted here; the two that take a count go through
+    // data-l10n-id and data-l10n-args so the window's own l10n context formats
+    // the plural.
+    if (reason.kind === "nothing") {
+      message.textContent = getString("mindmap-empty-state");
+    } else if (reason.kind === "container-trashed") {
+      message.textContent = getString(
+        reason.hasNotes
+          ? "mindmap-hidden-container-state"
+          : "mindmap-hidden-container-empty-state",
+      );
+    } else {
+      message.setAttribute(
+        "data-l10n-id",
+        getLocaleID(
+          reason.kind === "note-trashed"
+            ? "mindmap-hidden-note-state"
+            : "mindmap-unreadable-state",
+        ),
+      );
+      message.setAttribute(
+        "data-l10n-args",
+        JSON.stringify({ count: reason.count }),
+      );
+    }
     surfaces.graph.appendChild(message as unknown as Node);
   }
 
   /**
-   * Every create, rename and delete comes back through here, so the list is
-   * always a fresh read of the registry rather than one patched in place.
+   * One pass of refresh. Returns true when the registry changed under it and
+   * another pass is needed. `fromObserver` marks a pass started by a
+   * notification rather than by the user: it must not rebuild the sidebar
+   * under a live graph or an open form, and must not replace the observer's
+   * panel for a mindmap the registry still lists.
    */
-  async function refresh(): Promise<void> {
+  async function refreshOnce(fromObserver: boolean): Promise<boolean> {
+    // Only an early exit, to skip the registry read for the common case of a
+    // healthy graph. The decision that matters is the late check below.
+    if (fromObserver && graphOwnsArea()) {
+      return false;
+    }
+    const startedAt = latestLoad;
     const mindmaps = await listMindmaps();
+    if (tornDown) {
+      return false;
+    }
+    if (
+      fromObserver &&
+      (formMode !== "none" ||
+        graphOwnsArea() ||
+        (liveRefresh && mindmaps.length > 0))
+    ) {
+      return false;
+    }
     const selected =
       mindmaps.find((entry) => entry.id === currentMindmapId) ?? mindmaps[0];
 
@@ -223,17 +322,127 @@ export function createMindmapTabController(
       : SIDEBAR_WIDTH;
     if (formMode !== "none") {
       renderForm(formMode === "edit" ? formTarget : undefined);
-      return;
+      return false;
     }
     renderSidebar(mindmaps, selected);
 
     if (!selected) {
-      renderEmptyState();
-      return;
+      // Decided as late as possible: the cause is read now, after the sidebar
+      // is drawn, and a load or teardown that landed meanwhile wins.
+      const reason = await classifyEmptyRegistry();
+      if (tornDown || latestLoad !== startedAt) {
+        return false;
+      }
+      if (reason.kind === "readable") {
+        return true;
+      }
+      // A live graph the registry cannot see (its note went unreadable, or
+      // is hidden) still knows how to redraw itself; only a registry that
+      // holds nothing at all means the graph's note is gone.
+      if (reason.kind !== "nothing" && graphOwnsArea()) {
+        return false;
+      }
+      paintEmptyRegistry(reason);
+      return false;
     }
-    if (selected.id !== currentMindmapId || !currentDocument) {
+    if (
+      selected.id !== currentMindmapId ||
+      !currentDocument ||
+      liveRefresh?.view() !== "graph"
+    ) {
       await load(selected.id);
     }
+    return false;
+  }
+
+  // One pass at a time. A notification and a click can ask together, and two
+  // passes interleaving would each act on a read the other has overtaken.
+  // Callers that await refresh() get a promise for a pass that started after
+  // their request.
+  let running: Promise<void> | undefined;
+  let rerun = false;
+  let rerunForUser = false;
+  // Consecutive passes that found the registry changing under them. Bounded
+  // so a registry that never settles cannot spin; a pending request (rerun)
+  // is never bounded, since dropping it loses the notification that would
+  // have redrawn.
+  const MAX_UNSETTLED_PASSES = 3;
+
+  function requestRefresh(fromObserver: boolean): Promise<void> {
+    if (tornDown) {
+      return Promise.resolve();
+    }
+    ensureObserver();
+    if (running) {
+      rerun = true;
+      rerunForUser ||= !fromObserver;
+      return running;
+    }
+    running = (async () => {
+      try {
+        let observerPass = fromObserver;
+        let unsettled = 0;
+        for (;;) {
+          rerun = false;
+          rerunForUser = false;
+          const changed = await refreshOnce(observerPass);
+          unsettled = changed ? unsettled + 1 : 0;
+          const again = changed && unsettled <= MAX_UNSETTLED_PASSES;
+          if (tornDown || !(again || rerun)) {
+            break;
+          }
+          if (rerun) {
+            observerPass = !rerunForUser;
+          }
+        }
+      } finally {
+        running = undefined;
+      }
+    })();
+    return running;
+  }
+
+  /**
+   * Every create, rename and delete comes back through here, so the list is
+   * always a fresh read of the registry rather than one patched in place.
+   */
+  function refresh(): Promise<void> {
+    return requestRefresh(false);
+  }
+
+  // The tab's own observer, so a state it painted (trashed, unreadable, empty)
+  // redraws when the data comes back without the user touching anything. It
+  // registers directly with Zotero.Notifier, as attachLiveRefresh does, so
+  // ztoolkit.unregisterAll() never reaches it; teardown() is its only exit,
+  // and requestRefresh() will not register one after that.
+  //
+  // Returns nothing and awaits nothing: Zotero awaits an observer's return
+  // inside the transaction commit, and refresh() reads storage.
+  let tabObserverID: string | undefined;
+  function ensureObserver(): void {
+    if (tabObserverID !== undefined || tornDown) {
+      return;
+    }
+    tabObserverID = Zotero.Notifier.registerObserver(
+      {
+        notify: (event: _ZoteroTypes.Notifier.Event) => {
+          if (
+            tornDown ||
+            formMode !== "none" ||
+            !["add", "modify", "trash", "delete"].includes(event)
+          ) {
+            return;
+          }
+          if (loadsInFlight > 0) {
+            eventDuringLoad = true;
+            return;
+          }
+          void requestRefresh(true);
+        },
+      },
+      ["item"],
+      "zoterolinkedmindmaps-mindmap-tab-refresh",
+    );
   }
 
   /**
@@ -487,14 +696,15 @@ export function createMindmapTabController(
     }
 
     try {
+      // Deleted before anything on screen is touched: a row can be stale, and
+      // a delete that fails must leave a live graph alone. The graph's own
+      // observer answers the erase with its deleted panel, and the refresh
+      // below replaces that.
+      await deleteMindmap(target.id);
       if (target.id === currentMindmapId) {
-        // The graph is rendered from the note about to be erased, and its
-        // live-refresh observer would fire on the delete.
-        detachGraph();
         currentDocument = undefined;
         currentMindmapId = undefined;
       }
-      await deleteMindmap(target.id);
     } catch (err) {
       logFailure(
         `[zoteroLinkedMindmaps] mindmap delete failed: ${(err as Error).message}`,
@@ -508,6 +718,10 @@ export function createMindmapTabController(
     refresh,
     teardown() {
       tornDown = true;
+      if (tabObserverID !== undefined) {
+        Zotero.Notifier.unregisterObserver(tabObserverID);
+        tabObserverID = undefined;
+      }
       detachGraph();
       currentDocument = undefined;
       currentMindmapId = undefined;

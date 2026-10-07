@@ -73,6 +73,18 @@ mindmap-empty-state = No mindmaps yet. Create one to start linking items.
 mindmap-deleted-state = This mindmap was deleted. Choose another mindmap, or create a new one.
 mindmap-trashed-state = Mindmap data for this library is in the trash. Restore it to see this mindmap again.
 mindmap-note-trashed-state = This mindmap's data note is in the trash. Restore it to see this mindmap again.
+mindmap-hidden-container-state = Mindmap data for this library is in the trash. Restore it to see your mindmaps again.
+mindmap-hidden-container-empty-state = Mindmap data for this library is in the trash and holds no mindmaps. Restore it, then create a mindmap to start linking items.
+mindmap-hidden-note-state =
+    { $count ->
+        [one] The data note of your mindmap is in the trash. Restore it to see your mindmap again.
+       *[other] The data notes of your mindmaps are in the trash. Restore them to see your mindmaps again.
+    }
+mindmap-unreadable-state =
+    { $count ->
+        [one] The data of your mindmap can't be read. Repair its data note to see it again.
+       *[other] The data of your mindmaps can't be read. Repair their data notes to see them again.
+    }
 mindmap-delete-confirm-title = Delete mindmap
 mindmap-delete-confirm-message = Delete "{ $title }"? Its links and layout go with it. The items and notes it points at stay in your library.
 mindmap-show-in-library = Show in library

@@ -305,7 +305,7 @@ export function attachLiveRefresh(
   linkTypes: LinkType[],
   dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
-): () => void;
+): LiveRefreshHandle;
 ```
 
 Keeps the drawn graph in step with the storage note without a plugin reload.
@@ -318,7 +318,9 @@ Scheduling runs one rebuild at a time and runs another straight after when a not
 
 The observer's `notify` returns `void` and must keep doing so. Zotero awaits each observer's return value inside the DB transaction commit that fired the notification, and the storage write runs inside a queued task; awaiting a rebuild there wedges the storage queue for the rest of the session. See [notifier-queue-explanation.md](notifier-queue-explanation.md).
 
-Returns a teardown function that unregisters the observer and destroys the currently rendered instance. The tab calls it before loading a different mindmap.
+Returns a teardown function that unregisters the observer and destroys the currently rendered instance. The tab calls it before it replaces the graph area. The function also carries `view()`, which reports what the observer has on screen: `"graph"`, `"note-trashed"`, `"container-trashed"`, `"unreadable"` or `"deleted"`. The tab defers to the observer only while `view()` is `"graph"`, because the observer sees one note: `deleted` is terminal, and a restored note that no longer parses repaints the panel as `unreadable` rather than leaving it saying the note is trashed.
+
+After teardown, an observer that was mid-rebuild paints nothing (`disposed`), so whoever tore it down owns the container. On attach the observer asks once whether its note or container is already trashed, since a trash that landed before it registered fires no later notification.
 
 ## Related
 

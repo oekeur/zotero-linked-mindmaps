@@ -198,6 +198,62 @@ export async function hasHiddenMindmapData(
   return allContainers.length > liveContainers.length;
 }
 
+/** Why `listMindmaps` came back empty, as far as the library itself can tell. */
+export type EmptyRegistryReason =
+  | { kind: "readable" }
+  | { kind: "nothing" }
+  | { kind: "container-trashed"; hasNotes: boolean }
+  | { kind: "note-trashed"; count: number }
+  | { kind: "unreadable"; count: number };
+
+/**
+ * Names the cause of an empty registry, for a caller that has just seen
+ * `listMindmaps` return nothing. Hidden data is detected by
+ * `hasHiddenMindmapData` itself rather than a second implementation of it, so
+ * the two cannot disagree about what counts as hidden.
+ *
+ * Library-wide, so it has no subject note to give priority to: a trashed
+ * container hides every mindmap and therefore outranks trashed notes, and
+ * hidden data outranks unreadable data because restoring it is the only way
+ * either becomes visible. A note hidden only by a trashed parent that is not
+ * the container counts as a trashed note.
+ *
+ * `readable` means a mindmap parses after all (the registry changed since the
+ * caller's read) and the caller should read again.
+ */
+export async function classifyEmptyRegistry(
+  libraryID = defaultLibraryID(),
+): Promise<EmptyRegistryReason> {
+  // Hidden is asked first and the note searches run after it. The other way
+  // round, a restore landing between the two reads gives "not hidden" and "no
+  // visible notes", which reads as a library that holds nothing.
+  const hidden = await hasHiddenMindmapData(libraryID);
+  const [visibleNotes, allNotes] = await Promise.all([
+    searchStorageNotes(libraryID),
+    searchStorageNotes(libraryID, { includeTrashed: true }),
+  ]);
+  if (hidden) {
+    const [liveContainers, allContainers] = await Promise.all([
+      findContainers(libraryID),
+      findContainers(libraryID, { includeTrashed: true }),
+    ]);
+    if (allContainers.length > liveContainers.length) {
+      return { kind: "container-trashed", hasNotes: allNotes.length > 0 };
+    }
+    return {
+      kind: "note-trashed",
+      count: Math.max(1, allNotes.length - visibleNotes.length),
+    };
+  }
+  if (visibleNotes.length === 0) {
+    return { kind: "nothing" };
+  }
+  if ((await readAllMindmaps(libraryID)).length > 0) {
+    return { kind: "readable" };
+  }
+  return { kind: "unreadable", count: visibleNotes.length };
+}
+
 /**
  * The storage note to use when no mindmap was named. Lowest item id wins, so
  * the choice is stable across calls.

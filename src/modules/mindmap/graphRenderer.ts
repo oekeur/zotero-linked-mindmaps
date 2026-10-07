@@ -26,6 +26,7 @@ import type { FluentMessageId } from "../../../typings/i10n";
 import {
   readDocumentFromNote,
   refreshNote,
+  StorageError,
   serializeDocument,
   updateMindmapDocument,
 } from "./storage";
@@ -1375,6 +1376,17 @@ export async function renderMindmap(
   return cy;
 }
 
+/** What a live-refresh observer currently has on screen. */
+export type LiveRefreshView =
+  "graph" | "note-trashed" | "container-trashed" | "unreadable" | "deleted";
+
+/**
+ * The teardown function, carrying `view()` so the caller can tell a live
+ * graph from one of the observer's own state panels without keeping a second
+ * belief about it.
+ */
+export type LiveRefreshHandle = (() => void) & { view(): LiveRefreshView };
+
 /**
  * Keeps the rendered graph in sync with the storage note without a full
  * plugin reload (AC #3). Rebuilds via a full destroy-and-rebuild rather
@@ -1408,7 +1420,8 @@ export async function renderMindmap(
  * the screen, and a later notification is what will ask for a graph again
  * if the mindmap actually is live.
  *
- * Returns a teardown function that unregisters the observer and destroys
+ * Returns a teardown function (with `view()`, see LiveRefreshHandle) that
+ * unregisters the observer and destroys
  * the currently rendered graph.
  */
 export function attachLiveRefresh(
@@ -1418,9 +1431,13 @@ export function attachLiveRefresh(
   linkTypes: LinkType[],
   dockContainer?: HTMLElement,
   rendered: RenderedState = { document: null },
-): () => void {
-  type ViewKind = "graph" | "note-trashed" | "container-trashed" | "deleted";
+): LiveRefreshHandle {
+  type ViewKind = LiveRefreshView;
   let current = cy;
+  // Set by the returned teardown. A rebuild already in flight when it runs
+  // has awaited past the last chance to notice, so every write to the
+  // container checks this first: whoever tore this down owns the container.
+  let disposed = false;
   // What is actually on screen right now, updated by applyView alone and by
   // nothing else - the single fact every other function here reads instead
   // of keeping its own idea of "are we live" or "which panel is showing".
@@ -1456,6 +1473,7 @@ export function attachLiveRefresh(
   const PANEL_MESSAGE: Record<Exclude<ViewKind, "graph">, FluentMessageId> = {
     "note-trashed": "mindmap-note-trashed-state",
     "container-trashed": "mindmap-trashed-state",
+    unreadable: "mindmap-unreadable-state",
     deleted: "mindmap-deleted-state",
   };
 
@@ -1504,6 +1522,9 @@ export function attachLiveRefresh(
    * Only ever called from applyView, once a view has already been decided.
    */
   function paintPanel(view: Exclude<ViewKind, "graph">): void {
+    if (disposed) {
+      return;
+    }
     teardownCurrentView();
     container.textContent = "";
     const doc = container.ownerDocument;
@@ -1513,7 +1534,13 @@ export function attachLiveRefresh(
         "p",
       ) as unknown as HTMLParagraphElement;
       message.id = "zoterolinkedmindmaps-mindmap-live-state";
-      message.textContent = getString(PANEL_MESSAGE[view]);
+      if (view === "unreadable") {
+        // Plural message, so Fluent formats it from the window's own context.
+        message.setAttribute("data-l10n-id", getLocaleID(PANEL_MESSAGE[view]));
+        message.setAttribute("data-l10n-args", JSON.stringify({ count: 1 }));
+      } else {
+        message.textContent = getString(PANEL_MESSAGE[view]);
+      }
       container.appendChild(message as unknown as Node);
     }
     if (dockContainer) {
@@ -1555,7 +1582,7 @@ export function attachLiveRefresh(
    * was not a graph at all.
    */
   async function applyView(kind: ViewKind): Promise<void> {
-    if (currentView === "deleted") {
+    if (disposed || currentView === "deleted") {
       return;
     }
     if (kind !== "graph") {
@@ -1569,7 +1596,28 @@ export function attachLiveRefresh(
       const item = (await Zotero.Items.getAsync(
         storageNoteItemID,
       )) as Zotero.Item;
-      const doc = readDocumentFromNote(await refreshNote(item));
+      let doc: MindmapDocument;
+      try {
+        doc = readDocumentFromNote(await refreshNote(item));
+      } catch (err) {
+        // A graph already on screen is still correct and stays. A panel that
+        // is up must not keep claiming the note is trashed once the note is
+        // back but no longer parses.
+        if (
+          err instanceof StorageError &&
+          !disposed &&
+          currentView !== "graph" &&
+          (currentView as ViewKind) !== "deleted"
+        ) {
+          const trashed = await readTrashState();
+          // The re-read is an await: an erase or a teardown can land in it,
+          // and deleted is terminal.
+          if (!disposed && (currentView as ViewKind) !== "deleted") {
+            paintPanel(trashed ?? "unreadable");
+          }
+        }
+        throw err;
+      }
       const trashState = await readTrashState();
       // The note can have been erased outright while the two reads above
       // were in flight - readTrashState reports that as "not trashed" (there
@@ -1578,7 +1626,7 @@ export function attachLiveRefresh(
       // the check at the top of this function and doesn't know the awaits
       // above can let a concurrent applyView("deleted") call change it - it
       // genuinely can, which is the entire point of this check.
-      if ((currentView as ViewKind) === "deleted") {
+      if ((currentView as ViewKind) === "deleted" || disposed) {
         return;
       }
       if (trashState) {
@@ -1603,6 +1651,10 @@ export function attachLiveRefresh(
         dockContainer,
         rendered,
       );
+      if (disposed) {
+        current.destroy();
+        return;
+      }
       currentView = "graph";
       await layoutUnplacedNodes(current, doc);
     } catch (err) {
@@ -1674,7 +1726,7 @@ export function attachLiveRefresh(
         const trashState = await readTrashState();
         // A delete landing while this was already in flight is terminal; a
         // check that started before it must not undo that.
-        if (currentView === "deleted") {
+        if (disposed || currentView === "deleted") {
           return;
         }
         const desiredView: ViewKind = trashState ?? "graph";
@@ -1746,8 +1798,15 @@ export function attachLiveRefresh(
     "zoterolinkedmindmaps-mindmap-live-refresh",
   );
 
-  return () => {
+  // The note or its container can have been trashed between the caller
+  // reading the note and this observer registering; no notification will
+  // arrive for that, so ask once.
+  scheduleTrashCheck(false);
+
+  const teardown = () => {
+    disposed = true;
     Zotero.Notifier.unregisterObserver(observerID);
     teardownCurrentView();
   };
+  return Object.assign(teardown, { view: () => currentView });
 }

@@ -128,6 +128,8 @@ The preference pane registered in step 7 of startup has no explicit unregister. 
 
 Live-refresh observers registered by `attachLiveRefresh` in the graph renderer are not on this list. Each one is unregistered by the teardown function that `attachLiveRefresh` returns, which the mindmap tab controller calls from its own `teardown()`, reached through `closeMindmapTab()` and through the tab's `onClose` callback. See [rendering-reference.md](rendering-reference.md).
 
+The tab controller registers one observer of its own, `zoterolinkedmindmaps-mindmap-tab-refresh`, at its first `refresh()`. It redraws the states the tab paints itself (nothing, trashed, unreadable) when the data returns, and does nothing while a live-refresh observer is showing a graph. `teardown()` is its only unregister; a `refresh()` that arrives after teardown registers nothing.
+
 ## `onPrefsEvent(type, data)`
 
 Async. Not called by Zotero: `addon/content/preferences.xhtml` calls it from its link-types groupbox's `onload` attribute, and `test/mindmap/preferencesPane.test.ts` calls it directly to re-render the pane without a fresh load.

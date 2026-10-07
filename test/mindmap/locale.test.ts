@@ -162,6 +162,10 @@ describe("locales", function () {
       "mindmap-sidebar-heading",
       "mindmap-new-button",
       "mindmap-empty-state",
+      "mindmap-hidden-container-state",
+      "mindmap-hidden-container-empty-state",
+      "mindmap-hidden-note-state",
+      "mindmap-unreadable-state",
       "mindmap-show-in-library",
       "mindmap-delete-confirm-title",
     ].map((id) => `${config.addonRef}-${id}`);

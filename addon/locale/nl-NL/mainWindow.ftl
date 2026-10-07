@@ -73,6 +73,18 @@ mindmap-empty-state = Nog geen mindmaps. Maak er een om items te gaan koppelen.
 mindmap-deleted-state = Deze mindmap is verwijderd. Kies een andere mindmap, of maak een nieuwe aan.
 mindmap-trashed-state = De mindmapgegevens van deze bibliotheek staan in de prullenbak. Zet ze terug om deze mindmap weer te zien.
 mindmap-note-trashed-state = De datanotitie van deze mindmap staat in de prullenbak. Zet ze terug om deze mindmap weer te zien.
+mindmap-hidden-container-state = De mindmapgegevens van deze bibliotheek staan in de prullenbak. Zet ze terug om je mindmaps weer te zien.
+mindmap-hidden-container-empty-state = De mindmapgegevens van deze bibliotheek staan in de prullenbak en bevatten geen mindmaps. Zet ze terug en maak daarna een mindmap om items te gaan koppelen.
+mindmap-hidden-note-state =
+    { $count ->
+        [one] De datanotitie van je mindmap staat in de prullenbak. Zet ze terug om je mindmap weer te zien.
+       *[other] De datanotities van je mindmaps staan in de prullenbak. Zet ze terug om je mindmaps weer te zien.
+    }
+mindmap-unreadable-state =
+    { $count ->
+        [one] De gegevens van je mindmap zijn onleesbaar. Herstel de datanotitie om de mindmap weer te zien.
+       *[other] De gegevens van je mindmaps zijn onleesbaar. Herstel de datanotities om de mindmaps weer te zien.
+    }
 mindmap-delete-confirm-title = Mindmap verwijderen
 mindmap-delete-confirm-message = "{ $title }" verwijderen? De koppelingen en de indeling gaan mee. De items en notities waar de mindmap naar verwijst blijven in je bibliotheek staan.
 mindmap-show-in-library = Tonen in bibliotheek
