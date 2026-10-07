@@ -50,7 +50,7 @@ zotero-plugin serve
 
 Builds `src/` and `addon/` into `.scaffold/build/`, launches the Zotero binary at `ZOTERO_PLUGIN_ZOTERO_BIN_PATH` against the profile at `ZOTERO_PLUGIN_PROFILE_PATH` with `--purgecaches no-remote`, installs the build as a temporary plugin, and then watches the source directories. An edit under `src/` or `addon/` triggers a rebuild and reload without restarting Zotero.
 
-Devtools are on (`server.devtools` defaults to true) and the profile is created if it does not exist (`server.createProfileIfMissing` defaults to true). Requires `.env`; see [development-setup.md](./development-setup.md).
+Devtools are off unless `ZOTERO_PLUGIN_JSDEBUGGER` is set (`zotero-plugin.config.ts` overrides the scaffold's default of true), and the profile is created if it does not exist (`server.createProfileIfMissing` defaults to true). Requires `.env`; see [development-setup.md](./development-setup.md).
 
 Do not run two `npm start` instances against the same profile path.
 

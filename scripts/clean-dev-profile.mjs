@@ -47,7 +47,11 @@ function killDevZotero(profilePath) {
     // merely mentions zotero-bin or the profile path matches its own command
     // line, and killing one of those would be worse than missing a cleanup.
     if (!/\/zotero(-bin)?$/.test(binary)) continue;
-    if (!args.includes(`-profile ${profilePath}`)) continue;
+    // Whole-argument match: `-profile <base>` is a prefix of
+    // `-profile <base>-zotero9`, which is another dev instance (scripts/serve.sh).
+    // Known limit: a path containing spaces can still collide with a longer
+    // path that continues after a space; serve.sh never creates such a pair.
+    if (!` ${args} `.includes(` -profile ${profilePath} `)) continue;
 
     try {
       process.kill(Number(pid), "SIGKILL");

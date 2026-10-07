@@ -46,6 +46,34 @@ Install Node. Everything else (`zotero-plugin-scaffold` 0.8.x, esbuild, TypeScri
 
 5. Confirm the plugin actually loaded. Open Tools, then Plugins, and look for "Zotero Linked Mindmaps". A silent absence here usually means a `strict_max_version` mismatch in `addon/manifest.json`. Zotero refuses to load the plugin, prints nothing to the console, and reports no install failure, so this check is worth the ten seconds. See [configuration-reference.md](./configuration-reference.md#addonmanifestjson).
 
+## Running against Zotero 9 or 10
+
+CI tests Zotero 8, 9 and 10, but `npm start` runs whichever binary `ZOTERO_PLUGIN_ZOTERO_BIN_PATH` names. To reproduce a failure on another major version, use `scripts/serve.sh`:
+
+1. Add the launchers to `.env`. Point each at the `zotero` script in the install directory, not `zotero-bin`:
+
+   ```sh
+   ZOTERO9_BIN = /path/to/zotero9/zotero
+   ZOTERO10_BIN = /path/to/zotero10/zotero
+   ```
+
+2. Start the server:
+
+   ```sh
+   scripts/serve.sh 9
+   scripts/serve.sh 10
+   ```
+
+   Add `--headless` to run through `npm run start:headless`, so Zotero opens on a virtual display. Arguments after `--` go to `npm start`.
+
+The script exports the binary, profile and data directory for that run and ends in `npm start`, so `prestart` and the rest of the flow are unchanged. Target 10 uses the profile and data directory from `.env` as they are. Target 9 uses the same paths with `-zotero9` appended, and the scaffold creates them on first launch. Target 9 refuses to start when `ZOTERO_PLUGIN_DATA_DIR` is empty: Zotero 9 would then use the default data directory, shared with Zotero 10 or your real library, so set it first. `serve.sh` reads `.env` with dotenv's parser, so inline `# comments` and quoted values resolve the same way as for the scaffold. Values containing `$` differ: the scaffold expands `$VAR` references and `serve.sh` does not. It also rejects a `ZOTERO9_BIN` or `ZOTERO10_BIN` whose file name is `zotero-bin`. Zotero 10 upgrades the library to userdata schema 129 and stamps its compatibility as 9; Zotero 9 caps at 7 and refuses to open it with "Database is incompatible with this Zotero version". The suffix keeps the two libraries apart. Because the paths derive from `.env`, the per-worktree isolation described below carries over.
+
+The `-zotero9` profile does not get the MCP observability bridge; the worktree hook installs it only into the profile named in `.env`.
+
+### The Browser Toolbox
+
+Plain `npm start` passes no `--jsdebugger`. Set `ZOTERO_PLUGIN_JSDEBUGGER = 1` in `.env` to open the Browser Toolbox. `zotero-plugin.config.ts` then passes the launcher path as the flag's parameter, which is required on Zotero 9: with a bare `--jsdebugger`, its launcher starts `zotero-bin` without `-app`, the toolbox child boots as generic Firefox and exits, and the parent's DevTools server goes down with it. This needs `ZOTERO_PLUGIN_ZOTERO_BIN_PATH` to name the `zotero` launcher, `scripts/serve.sh` rejects a `ZOTERO9_BIN` or `ZOTERO10_BIN` named `zotero-bin`, but a plain `npm start` does not check `ZOTERO_PLUGIN_ZOTERO_BIN_PATH`, so with the variable set it is on you to point that at the launcher.
+
 ## Gotchas that actually bite
 
 ### A stale zotero-bin process gets reused silently

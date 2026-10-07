@@ -13,6 +13,20 @@ import pkg from "./package.json";
 const mcpRdpPort =
   Number.parseInt(process.env.ZOTERO_MCP_RDP_PORT ?? "", 10) || 6110;
 
+// Opens the Browser Toolbox when set (any non-empty value). Off by default: the
+// scaffold's own default passes a bare --jsdebugger on every launch.
+//
+// The bare flag is broken on Zotero 9: its launcher then spawns zotero-bin with
+// no -app argument, so the toolbox child boots as generic Firefox, fails on
+// resource:///modules/DevToolsStartup.sys.mjs and exits, taking the parent's
+// DevTools server with it. Giving the launcher script as the flag's parameter
+// sets MOZ_BROWSER_TOOLBOX_BINARY, which restores -app. The Zotero 10 beta
+// patches this in Launcher.sys.mjs; 9.0.6 does not. The path form works on both,
+// so it is not version-gated. ZOTERO_PLUGIN_ZOTERO_BIN_PATH must therefore name
+// the `zotero` launcher, not `zotero-bin`.
+const jsDebugger = Boolean(process.env.ZOTERO_PLUGIN_JSDEBUGGER);
+const zoteroBinPath = process.env.ZOTERO_PLUGIN_ZOTERO_BIN_PATH;
+
 export default defineConfig({
   source: ["src", "addon"],
   dist: ".scaffold/build",
@@ -52,6 +66,9 @@ export default defineConfig({
   },
 
   server: {
+    devtools: false,
+    startArgs:
+      jsDebugger && zoteroBinPath ? ["--jsdebugger", zoteroBinPath] : [],
     // Written into the dev profile's prefs.js before every launch, which is
     // what makes debug.store work at all: Zotero's Debug.init reads it once and
     // immediately clears it, so it has to be re-armed per launch, and turning
